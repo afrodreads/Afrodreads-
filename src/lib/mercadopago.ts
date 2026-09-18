@@ -1,15 +1,28 @@
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
-const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+// Instanciado sob demanda (não no carregamento do módulo) para que a
+// ausência da variável de ambiente não quebre o build — que executa as
+// rotas de API para coletar metadados mesmo sem as env vars de produção.
+let mpClient: MercadoPagoConfig | undefined;
 
-if (!accessToken) {
-  throw new Error("MERCADOPAGO_ACCESS_TOKEN não configurado");
+function getMpClient(): MercadoPagoConfig {
+  if (!mpClient) {
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (!accessToken) {
+      throw new Error("MERCADOPAGO_ACCESS_TOKEN não configurado");
+    }
+    mpClient = new MercadoPagoConfig({ accessToken });
+  }
+  return mpClient;
 }
 
-export const mpClient = new MercadoPagoConfig({ accessToken });
+export function getMpPreference(): Preference {
+  return new Preference(getMpClient());
+}
 
-export const mpPreference = new Preference(mpClient);
-export const mpPayment = new Payment(mpClient);
+export function getMpPayment(): Payment {
+  return new Payment(getMpClient());
+}
 
 export type CreateDepositPreferenceInput = {
   bookingId: string;
@@ -34,7 +47,7 @@ export async function createDepositPreference({
 }: CreateDepositPreferenceInput) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-  const result = await mpPreference.create({
+  const result = await getMpPreference().create({
     body: {
       items: [
         {

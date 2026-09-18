@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { mpPayment } from "@/lib/mercadopago";
+import { getMpPayment } from "@/lib/mercadopago";
 
 // Documentação da validação de assinatura:
 // https://www.mercadopago.com.br/developers/pt/docs/checkout-api/webhooks
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "assinatura inválida" }, { status: 401 });
   }
 
-  const payment = await mpPayment.get({ id: dataId });
+  const payment = await getMpPayment().get({ id: dataId });
   const bookingId = payment.external_reference;
   if (!bookingId) {
     return NextResponse.json({ received: true });
