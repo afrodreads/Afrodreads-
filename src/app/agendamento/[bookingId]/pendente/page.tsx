@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function BookingPendingPage() {
   return (
     <div className="mx-auto max-w-xl px-6 pb-24 pt-40 text-center">
-      <h1 className="font-display text-3xl font-bold text-brand-white">
+      <h1 className="font-display text-3xl uppercase text-brand-white sm:text-4xl">
         Pagamento em análise
       </h1>
       <p className="mt-4 text-brand-white/70">

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Poppins, Inter } from "next/font/google";
+import { Anton, Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 
-const display = Poppins({
+const display = Anton({
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: ["400"],
   variable: "--font-display",
 });
 

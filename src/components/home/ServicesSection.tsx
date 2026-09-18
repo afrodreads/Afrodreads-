@@ -7,12 +7,21 @@ export function ServicesSection() {
   return (
     <section id="servicos" className="bg-brand-black px-6 py-24">
       <div className="mx-auto max-w-6xl">
-        <motion.h2
+        <motion.p
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
-          className="font-display text-3xl font-bold text-brand-white sm:text-4xl"
+          className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-brand-yellow"
+        >
+          O que fazemos
+        </motion.p>
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.6, delay: 0.05 }}
+          className="font-display text-3xl uppercase text-brand-white sm:text-5xl"
         >
           Nossos <span className="text-brand-yellow">serviços</span>
         </motion.h2>

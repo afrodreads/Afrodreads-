@@ -18,7 +18,9 @@ export default async function CheckoutPage({
 
   return (
     <div className="mx-auto max-w-xl px-6 pb-24 pt-32">
-      <h1 className="font-display text-3xl font-bold text-brand-white">Confirme e pague o sinal</h1>
+      <h1 className="font-display text-3xl uppercase text-brand-white sm:text-4xl">
+        Confirme e pague o sinal
+      </h1>
 
       <div className="mt-8 space-y-4 rounded-2xl border border-white/10 bg-brand-gray p-6">
         <Row label="Serviço" value={booking.service.name} />

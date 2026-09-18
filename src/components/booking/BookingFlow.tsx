@@ -80,7 +80,7 @@ export function BookingFlow() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 pb-24 pt-32">
-      <h1 className="font-display text-3xl font-bold text-brand-white sm:text-4xl">
+      <h1 className="font-display text-3xl uppercase text-brand-white sm:text-5xl">
         Agende seu horário
       </h1>
 

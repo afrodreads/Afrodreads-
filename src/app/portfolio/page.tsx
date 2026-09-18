@@ -10,7 +10,7 @@ const CASES = [
 export default function PortfolioPage() {
   return (
     <div className="mx-auto max-w-6xl px-6 pb-24 pt-32">
-      <h1 className="font-display text-4xl font-bold text-brand-white">
+      <h1 className="font-display text-4xl uppercase text-brand-white sm:text-6xl">
         Portfólio <span className="text-brand-yellow">Afro Dreads</span>
       </h1>
       <p className="mt-3 max-w-2xl text-brand-white/60">

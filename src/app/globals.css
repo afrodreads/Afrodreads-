@@ -11,6 +11,16 @@ body {
 }
 
 ::selection {
-  background-color: #ffc700;
-  color: #0a0a0a;
+  background-color: #f4c60a;
+  color: #0b0b0c;
+}
+
+.stripe-band {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #f4c60a 0,
+    #f4c60a 22px,
+    #0b0b0c 22px,
+    #0b0b0c 44px
+  );
 }

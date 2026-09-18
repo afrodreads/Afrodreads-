@@ -6,11 +6,11 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          yellow: "#FFC700",
-          "yellow-dark": "#E0AC00",
-          black: "#0A0A0A",
+          yellow: "#F4C60A",
+          "yellow-dark": "#C99F06",
+          black: "#0B0B0C",
           white: "#FFFFFF",
-          gray: "#1A1A1A",
+          gray: "#18181A",
         },
       },
       fontFamily: {
@@ -19,7 +19,8 @@ const config: Config = {
       },
       animation: {
         "fade-up": "fade-up 0.8s ease-out forwards",
-        marquee: "marquee 30s linear infinite",
+        marquee: "marquee 22s linear infinite",
+        "stripe-scroll": "stripe-scroll 20s linear infinite",
       },
       keyframes: {
         "fade-up": {
@@ -29,6 +30,10 @@ const config: Config = {
         marquee: {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-50%)" },
+        },
+        "stripe-scroll": {
+          "0%": { backgroundPosition: "0 0" },
+          "100%": { backgroundPosition: "200px 0" },
         },
       },
     },
