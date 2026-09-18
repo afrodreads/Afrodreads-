@@ -15,12 +15,14 @@ export function PayDepositButton({ bookingId }: { bookingId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bookingId }),
       });
-      const data = await response.json();
-      if (!response.ok || !data.checkoutUrl) {
-        setError(data.error ?? "Não foi possível iniciar o pagamento.");
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.checkoutUrl) {
+        setError(data?.error ?? "Não foi possível iniciar o pagamento.");
         return;
       }
       window.location.href = data.checkoutUrl;
+    } catch {
+      setError("Não foi possível iniciar o pagamento. Verifique sua conexão e tente novamente.");
     } finally {
       setLoading(false);
     }

@@ -26,13 +26,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const preference = await createDepositPreference({
-    bookingId: booking.id,
-    serviceName: booking.service.name,
-    depositAmount: Number(booking.depositAmount),
-    clientName: booking.clientName,
-    clientEmail: booking.clientEmail,
-  });
+  let preference;
+  try {
+    preference = await createDepositPreference({
+      bookingId: booking.id,
+      serviceName: booking.service.name,
+      depositAmount: Number(booking.depositAmount),
+      clientName: booking.clientName,
+      clientEmail: booking.clientEmail,
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Não foi possível iniciar o pagamento no Mercado Pago. Tente novamente em instantes." },
+      { status: 502 },
+    );
+  }
 
   await prisma.payment.create({
     data: {
