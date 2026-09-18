@@ -12,6 +12,12 @@ export const BUSINESS_HOURS: Record<number, { start: string; end: string } | nul
 
 export const SLOT_STEP_MINUTES = 60;
 
+// America/Sao_Paulo está em UTC-3 o ano todo desde a extincao do horario de
+// verao no Brasil em 2019. `date` chega como meia-noite UTC do dia
+// solicitado (ver api/availability), entao usamos os campos UTC para achar
+// o dia da semana e somamos o offset para gerar os instantes corretos.
+const SAO_PAULO_UTC_OFFSET_HOURS = 3;
+
 type ExistingBooking = { scheduledStart: Date; scheduledEnd: Date };
 
 export function getAvailableStartTimes(
@@ -19,7 +25,7 @@ export function getAvailableStartTimes(
   serviceDurationHours: number,
   existingBookings: ExistingBooking[],
 ): Date[] {
-  const hours = BUSINESS_HOURS[date.getDay()];
+  const hours = BUSINESS_HOURS[date.getUTCDay()];
   if (!hours) return [];
 
   const dayStart = combineDateAndTime(date, hours.start);
@@ -44,9 +50,15 @@ export function getAvailableStartTimes(
 
 function combineDateAndTime(date: Date, time: string): Date {
   const [hours, minutes] = time.split(":").map(Number);
-  const result = new Date(date);
-  result.setHours(hours, minutes, 0, 0);
-  return result;
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      hours + SAO_PAULO_UTC_OFFSET_HOURS,
+      minutes,
+    ),
+  );
 }
 
 function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {

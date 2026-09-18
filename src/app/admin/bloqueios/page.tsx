@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { formatDateBR } from "@/lib/format";
 
 type BlockedDate = {
   id: string;
@@ -104,7 +105,7 @@ export default function AdminBlockedDatesPage() {
           >
             <div>
               <p className="font-semibold text-brand-white">
-                {new Date(blocked.date).toLocaleDateString("pt-BR", { dateStyle: "long" })}
+                {formatDateBR(new Date(blocked.date))}
               </p>
               {blocked.reason && <p className="text-sm text-brand-white/60">{blocked.reason}</p>}
             </div>

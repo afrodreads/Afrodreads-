@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SERVICES } from "@/lib/services";
 import { calculateDeposit } from "@/lib/pricing";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatDateTimeBR, formatTimeBR } from "@/lib/format";
 
 const STEPS = ["Serviço", "Data e horário", "Seus dados", "Resumo"] as const;
 
@@ -199,7 +199,7 @@ export function BookingFlow() {
                           : "border-white/20 text-brand-white/80 hover:border-brand-yellow"
                       }`}
                     >
-                      {new Date(slot).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      {formatTimeBR(new Date(slot))}
                     </button>
                   ))}
                 </div>
@@ -242,13 +242,7 @@ export function BookingFlow() {
         {step === 3 && depositPreview && (
           <div className="space-y-6">
             <SummaryRow label="Serviço" value={selectedService.name} />
-            <SummaryRow
-              label="Data e horário"
-              value={new Date(selectedSlot!).toLocaleString("pt-BR", {
-                dateStyle: "long",
-                timeStyle: "short",
-              })}
-            />
+            <SummaryRow label="Data e horário" value={formatDateTimeBR(new Date(selectedSlot!))} />
             <SummaryRow label="Valor do serviço" value={formatBRL(servicePrice)} />
             <SummaryRow
               label="Sinal a pagar agora"

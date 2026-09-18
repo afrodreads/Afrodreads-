@@ -20,9 +20,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Serviço não encontrado" }, { status: 404 });
   }
 
-  const date = new Date(`${dateParam}T00:00:00`);
+  const date = new Date(`${dateParam}T00:00:00Z`);
   const nextDay = new Date(date);
-  nextDay.setDate(nextDay.getDate() + 1);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
   const [existingBookings, blockedDate] = await Promise.all([
     prisma.booking.findMany({

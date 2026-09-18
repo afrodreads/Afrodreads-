@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatDateTimeBR } from "@/lib/format";
 import { AdminShell } from "@/components/admin/AdminShell";
 
 export const dynamic = "force-dynamic";
@@ -39,11 +39,8 @@ export default async function AdminDashboardPage() {
                 {booking.service.name} — {booking.clientName}
               </p>
               <p className="text-sm text-brand-white/60">
-                {booking.scheduledStart.toLocaleString("pt-BR", {
-                  dateStyle: "long",
-                  timeStyle: "short",
-                })}{" "}
-                · {booking.clientPhone} · {booking.clientEmail}
+                {formatDateTimeBR(booking.scheduledStart)} · {booking.clientPhone} ·{" "}
+                {booking.clientEmail}
               </p>
             </div>
             <div className="mt-3 text-sm sm:mt-0 sm:text-right">

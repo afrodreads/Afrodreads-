@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatDateTimeBR } from "@/lib/format";
 import { PayDepositButton } from "@/components/checkout/PayDepositButton";
 
 export default async function CheckoutPage({
@@ -24,13 +24,7 @@ export default async function CheckoutPage({
 
       <div className="mt-8 space-y-4 rounded-2xl border border-white/10 bg-brand-gray p-6">
         <Row label="Serviço" value={booking.service.name} />
-        <Row
-          label="Data e horário"
-          value={booking.scheduledStart.toLocaleString("pt-BR", {
-            dateStyle: "long",
-            timeStyle: "short",
-          })}
-        />
+        <Row label="Data e horário" value={formatDateTimeBR(booking.scheduledStart)} />
         <Row label="Valor do serviço" value={formatBRL(Number(booking.servicePrice))} />
         <Row label="Sinal a pagar agora" value={formatBRL(Number(booking.depositAmount))} highlight />
         <Row label="Restante no dia" value={formatBRL(Number(booking.remainingAmount))} />
