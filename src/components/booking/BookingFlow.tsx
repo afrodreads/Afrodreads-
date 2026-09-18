@@ -17,6 +17,7 @@ export function BookingFlow() {
   const [serviceSlug, setServiceSlug] = useState(SERVICES[0].slug);
   const [isOutOfTownSeason, setIsOutOfTownSeason] = useState(false);
   const [servicePrice, setServicePrice] = useState<number>(0);
+  const [basePrices, setBasePrices] = useState<Record<string, number | null>>({});
 
   const [date, setDate] = useState("");
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -38,6 +39,24 @@ export function BookingFlow() {
       isOutOfTownSeason,
     });
   }, [servicePrice, selectedSlot, isOutOfTownSeason]);
+
+  useEffect(() => {
+    fetch("/api/services")
+      .then((res) => res.json())
+      .then((data) => {
+        const map: Record<string, number | null> = {};
+        for (const service of data.services ?? []) {
+          map[service.slug] = service.basePrice;
+        }
+        setBasePrices(map);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const base = basePrices[serviceSlug];
+    setServicePrice(base ?? 0);
+  }, [serviceSlug, basePrices]);
 
   useEffect(() => {
     if (!date) return;
@@ -114,7 +133,7 @@ export function BookingFlow() {
 
             <div>
               <label className="mb-2 block text-sm font-medium text-brand-white/80">
-                Valor combinado do serviço (R$)
+                Valor do serviço (R$)
               </label>
               <input
                 type="number"
@@ -125,6 +144,9 @@ export function BookingFlow() {
                 placeholder="Valor combinado previamente com a Afro Dreads"
                 className="w-full rounded-lg border border-white/20 bg-brand-black px-4 py-3 text-brand-white placeholder:text-brand-white/30"
               />
+              <p className="mt-1 text-xs text-brand-white/40">
+                Valor de referência do estúdio — ajuste se combinou um valor diferente.
+              </p>
             </div>
 
             <label className="flex items-center gap-3 text-sm text-brand-white/80">

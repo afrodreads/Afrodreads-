@@ -6,12 +6,16 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
 
 - `src/app` — páginas: home (`/`), portfólio (`/portfolio`), agendamento (`/agendamento`),
   checkout (`/checkout/[bookingId]`), retorno do pagamento (`/agendamento/[bookingId]/sucesso|pendente|erro`).
-- `src/app/api` — `bookings`, `bookings/[id]/cancel`, `availability`, `mercadopago/create-preference`, `mercadopago/webhook`.
+- `src/app/api` — `bookings`, `bookings/[id]/cancel`, `availability`, `services`,
+  `mercadopago/create-preference`, `mercadopago/webhook`, `admin/*`.
 - `src/lib` — `services.ts` (catálogo e durações), `pricing.ts` (regra do sinal e cancelamento),
-  `schedule.ts` (geração de horários disponíveis), `mercadopago.ts`, `prisma.ts`.
+  `schedule.ts` (geração de horários disponíveis), `mercadopago.ts`, `prisma.ts`, `adminAuth.ts`.
 - `prisma/schema.prisma` — modelos `Service`, `Booking`, `Payment`, `BlockedDate`.
 - `src/components` — layout, home (hero com vídeo, serviços), portfólio (slider antes/depois,
-  simulador de cor) e o fluxo de agendamento em etapas.
+  simulador de cor), o fluxo de agendamento em etapas e o painel administrativo.
+- `src/app/admin` — painel protegido por senha: `/admin` (agenda), `/admin/servicos`
+  (preço por serviço) e `/admin/bloqueios` (bloqueio de datas). Autenticação simples via
+  cookie assinado (`src/middleware.ts` + `src/lib/adminAuth.ts`), sem depender de conta de usuário.
 
 ## Regras de negócio já implementadas
 
@@ -38,6 +42,8 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
    - `MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_PUBLIC_KEY`: da Conta Negócio (use as credenciais
      de teste primeiro, em Suas integrações > Credenciais no painel do Mercado Pago)
    - `MERCADOPAGO_WEBHOOK_SECRET`: chave secreta da assinatura do webhook (mesma tela de credenciais)
+   - `ADMIN_PASSWORD`: senha de acesso ao painel `/admin`
+   - `ADMIN_SESSION_SECRET`: string aleatória longa usada para assinar o cookie de sessão do admin
 4. Crie as tabelas e popule os serviços:
    ```bash
    npx prisma migrate dev --name init
@@ -67,8 +73,6 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
 
 ## Próximos passos sugeridos
 
-- Painel administrativo (login) para gerenciar preços por serviço, bloquear datas e ver a agenda.
-- Definir preços por serviço (hoje o valor é combinado manualmente e informado no agendamento).
 - Envio de e-mail/WhatsApp de confirmação após o pagamento do sinal.
 - Endpoint de estorno automático (Refunds API do Mercado Pago) quando o cancelamento é elegível.
 - Testes automatizados para `calculateDeposit` e `isDepositRefundable`.
