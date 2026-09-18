@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentType {
+  DEPOSIT
+  REMAINING
+  FULL
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  BOLETO
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  CANCELLED
+}
+
+model Service {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  minHours    Float
+  maxHours    Float
+  basePrice   Decimal?  @db.Decimal(10, 2)
+  imageUrl    String?
+  order       Int       @default(0)
+  active      Boolean   @default(true)
+  bookings    Booking[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  clientName  String
+  clientEmail String
+  clientPhone String
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+
+  // true quando é atendimento por temporada fora de SP (afeta o cálculo do sinal)
+  isOutOfTownSeason Boolean @default(false)
+
+  servicePrice   Decimal @db.Decimal(10, 2)
+  depositAmount  Decimal @db.Decimal(10, 2)
+  depositIsPercentage Boolean @default(false)
+  remainingAmount Decimal @db.Decimal(10, 2)
+
+  status BookingStatus @default(PENDING_PAYMENT)
+  notes  String?
+
+  cancelledAt      DateTime?
+  cancellationRefundedDeposit Boolean?
+
+  payments  Payment[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([scheduledStart, scheduledEnd])
+  @@index([status])
+}
+
+model Payment {
+  id     String      @id @default(cuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  type   PaymentType
+  method PaymentMethod?
+  status PaymentStatus @default(PENDING)
+
+  amount       Decimal @db.Decimal(10, 2)
+  installments Int?
+
+  mpPreferenceId String?
+  mpPaymentId    String? @unique
+
+  rawWebhookPayload Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+}
+
+model BlockedDate {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  reason    String?
+  fullDay   Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
