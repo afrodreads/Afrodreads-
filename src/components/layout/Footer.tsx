@@ -14,11 +14,37 @@ export function Footer() {
         <div className="flex flex-col gap-2 text-sm text-brand-white/70">
           <Link href="/agendamento" className="hover:text-brand-yellow">Agendar horário</Link>
           <Link href="/portfolio" className="hover:text-brand-yellow">Portfólio</Link>
-          <a href="https://wa.me/55" target="_blank" rel="noreferrer" className="hover:text-brand-yellow">
+          <a
+            href="https://wa.me/message/WFY4THHQSOITF1"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-brand-yellow"
+          >
             WhatsApp
           </a>
-          <a href="https://instagram.com" target="_blank" rel="noreferrer" className="hover:text-brand-yellow">
+          <a
+            href="https://instagram.com/afrodreads_"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-brand-yellow"
+          >
             Instagram
+          </a>
+          <a
+            href="https://tiktok.com/@afrodreads_"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-brand-yellow"
+          >
+            TikTok
+          </a>
+          <a
+            href="https://youtube.com/@afrodreadsofc"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-brand-yellow"
+          >
+            YouTube
           </a>
         </div>
       </div>
