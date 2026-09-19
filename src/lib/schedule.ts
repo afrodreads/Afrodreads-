@@ -1,18 +1,12 @@
-// Configuração provisória de horário de funcionamento — ajuste conforme a
-// rotina real do estúdio. 0 = domingo ... 6 = sábado.
-export const BUSINESS_HOURS: Record<number, { start: string; end: string } | null> = {
-  0: null,
-  1: null,
-  2: { start: "09:00", end: "18:00" },
-  3: { start: "09:00", end: "18:00" },
-  4: { start: "09:00", end: "18:00" },
-  5: { start: "09:00", end: "18:00" },
-  6: { start: "09:00", end: "16:00" },
-};
+// Dias em que o estúdio atende. 0 = domingo ... 6 = sábado.
+const OPEN_WEEKDAYS = new Set([2, 3, 4, 5, 6]);
 
-// Horários de início permitidos para agendamento — o estúdio só recebe
-// clientes nesses horários, mesmo com o expediente indo até mais tarde.
-export const ALLOWED_START_TIMES = ["10:00", "11:00", "13:00", "14:00"];
+// A agenda tem só dois horários fixos por dia: 10h e 15h. O segundo horário
+// só é oferecido quando o procedimento dura menos de 8h — serviços de 8h ou
+// mais tomam o dia inteiro, então só cabe um atendimento.
+export const FIRST_SLOT_TIME = "10:00";
+export const SECOND_SLOT_TIME = "15:00";
+export const LONG_SERVICE_THRESHOLD_HOURS = 8;
 
 // America/Sao_Paulo está em UTC-3 o ano todo desde a extincao do horario de
 // verao no Brasil em 2019. `date` chega como meia-noite UTC do dia
@@ -27,18 +21,19 @@ export function getAvailableStartTimes(
   serviceDurationHours: number,
   existingBookings: ExistingBooking[],
 ): Date[] {
-  const hours = BUSINESS_HOURS[date.getUTCDay()];
-  if (!hours) return [];
+  if (!OPEN_WEEKDAYS.has(date.getUTCDay())) return [];
 
-  const dayEnd = combineDateAndTime(date, hours.end);
+  const candidateTimes = [FIRST_SLOT_TIME];
+  if (serviceDurationHours < LONG_SERVICE_THRESHOLD_HOURS) {
+    candidateTimes.push(SECOND_SLOT_TIME);
+  }
+
   const durationMs = serviceDurationHours * 60 * 60 * 1000;
-
   const slots: Date[] = [];
 
-  for (const time of ALLOWED_START_TIMES) {
+  for (const time of candidateTimes) {
     const start = combineDateAndTime(date, time);
     const candidateEnd = new Date(start.getTime() + durationMs);
-    if (candidateEnd.getTime() > dayEnd.getTime()) continue;
 
     const overlaps = existingBookings.some((booking) =>
       rangesOverlap(start, candidateEnd, booking.scheduledStart, booking.scheduledEnd),
