@@ -30,7 +30,7 @@ export const SERVICES: ServiceDefinition[] = [
     slug: "microlocs",
     name: "Microlocs",
     minHours: 8,
-    maxHours: 8,
+    maxHours: 12,
     description: "Dreadlocks finos, formados fio a fio para um acabamento delicado.",
     order: 3,
   },

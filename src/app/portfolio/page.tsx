@@ -1,5 +1,4 @@
 import { BeforeAfterSlider } from "@/components/portfolio/BeforeAfterSlider";
-import { StyleSimulator } from "@/components/portfolio/StyleSimulator";
 
 const CASES = [
   { before: "/images/portfolio/caso-1-antes.jpg", after: "/images/portfolio/caso-1-depois.jpg", alt: "Formação de dreadlocks" },
@@ -21,10 +20,6 @@ export default function PortfolioPage() {
         {CASES.map((item) => (
           <BeforeAfterSlider key={item.alt} beforeSrc={item.before} afterSrc={item.after} alt={item.alt} />
         ))}
-      </div>
-
-      <div className="mt-24">
-        <StyleSimulator referenceImageSrc="/images/portfolio/caso-1-depois.jpg" />
       </div>
     </div>
   );
