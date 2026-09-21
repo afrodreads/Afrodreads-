@@ -4,9 +4,7 @@ import { motion } from "framer-motion";
 
 const GOOGLE_MAPS_URL = "https://share.google/hdE6lHpW06wTsRZvc";
 
-// TODO: cole aqui a nota média e quantidade de avaliações reais do Google,
-// ex: "4.9 ⭐ · 32 avaliações". Enquanto for null, essa linha não aparece.
-const RATING_SUMMARY: string | null = null;
+const RATING_SUMMARY: string | null = "5,0 ⭐ · 56 avaliações";
 
 export function LocationSection() {
   return (
