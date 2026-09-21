@@ -1,4 +1,12 @@
 import Link from "next/link";
+import { WhatsAppIcon, InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/icons/SocialIcons";
+
+const SOCIAL_LINKS = [
+  { name: "WhatsApp", href: "https://wa.me/message/WFY4THHQSOITF1", Icon: WhatsAppIcon },
+  { name: "Instagram", href: "https://instagram.com/afrodreads_", Icon: InstagramIcon },
+  { name: "TikTok", href: "https://tiktok.com/@afrodreads_", Icon: TikTokIcon },
+  { name: "YouTube", href: "https://youtube.com/@afrodreadsofc", Icon: YouTubeIcon },
+];
 
 export function Footer() {
   return (
@@ -11,41 +19,27 @@ export function Footer() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 text-sm text-brand-white/70">
-          <Link href="/agendamento" className="hover:text-brand-yellow">Agendar horário</Link>
-          <Link href="/portfolio" className="hover:text-brand-yellow">Portfólio</Link>
-          <a
-            href="https://wa.me/message/WFY4THHQSOITF1"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-brand-yellow"
-          >
-            WhatsApp
-          </a>
-          <a
-            href="https://instagram.com/afrodreads_"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-brand-yellow"
-          >
-            Instagram
-          </a>
-          <a
-            href="https://tiktok.com/@afrodreads_"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-brand-yellow"
-          >
-            TikTok
-          </a>
-          <a
-            href="https://youtube.com/@afrodreadsofc"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-brand-yellow"
-          >
-            YouTube
-          </a>
+        <div className="flex flex-col gap-4 text-sm text-brand-white/70">
+          <div className="flex flex-col gap-2">
+            <Link href="/agendamento" className="hover:text-brand-yellow">Agendar horário</Link>
+            <Link href="/portfolio" className="hover:text-brand-yellow">Portfólio</Link>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {SOCIAL_LINKS.map(({ name, href, Icon }) => (
+              <a
+                key={name}
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={name}
+                title={name}
+                className="text-brand-white/70 transition-colors hover:text-brand-yellow"
+              >
+                <Icon className="h-6 w-6" />
+              </a>
+            ))}
+          </div>
         </div>
       </div>
 

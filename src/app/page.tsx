@@ -3,7 +3,8 @@ import { MarqueeBanner } from "@/components/home/MarqueeBanner";
 import { Manifesto } from "@/components/home/Manifesto";
 import { ServicesSection } from "@/components/home/ServicesSection";
 import { PortfolioPreview } from "@/components/home/PortfolioPreview";
-import { StyleSimulatorSection } from "@/components/home/StyleSimulatorSection";
+import { LocationSection } from "@/components/home/LocationSection";
+import { ReviewsSection } from "@/components/home/ReviewsSection";
 
 export default function HomePage() {
   return (
@@ -13,7 +14,8 @@ export default function HomePage() {
       <Manifesto />
       <ServicesSection />
       <PortfolioPreview />
-      <StyleSimulatorSection />
+      <LocationSection />
+      <ReviewsSection />
     </>
   );
 }
