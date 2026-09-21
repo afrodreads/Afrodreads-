@@ -24,30 +24,3 @@ body {
     #0b0b0c 44px
   );
 }
-
-/* Balanço sutil e contínuo da mascote no Hero, como um aceno — só
-   transform, leve o suficiente para não pesar no desempenho. Começa depois
-   que a animação de entrada (correr do fundo) já terminou. */
-@keyframes hero-mascot-wave {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(3deg);
-  }
-  75% {
-    transform: rotate(-3deg);
-  }
-}
-
-.hero-mascot-wave {
-  transform-origin: bottom center;
-  animation: hero-mascot-wave 3.2s ease-in-out 1.6s infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-mascot-wave {
-    animation: none;
-  }
-}
