@@ -67,16 +67,32 @@ export async function POST(request: NextRequest) {
   };
   const mappedMethod = methodMap[payment.payment_type_id ?? ""];
 
-  await prisma.payment.updateMany({
-    where: { bookingId, type: "DEPOSIT" },
-    data: {
-      mpPaymentId: String(payment.id),
-      status: mappedStatus,
-      method: mappedMethod,
-      installments: payment.installments ?? undefined,
-      rawWebhookPayload: payment as unknown as object,
+  // Atualiza um único registro (nunca updateMany): mpPaymentId é único, então
+  // duas linhas DEPOSIT pendentes para o mesmo agendamento (ex: cliente clicou
+  // "pagar" mais de uma vez antes da limpeza em create-preference) fariam o
+  // updateMany quebrar com "Unique constraint failed" ao gravar o mesmo valor
+  // nas duas ao mesmo tempo.
+  const paymentRecord = await prisma.payment.findFirst({
+    where: {
+      bookingId,
+      type: "DEPOSIT",
+      OR: [{ mpPaymentId: null }, { mpPaymentId: String(payment.id) }],
     },
+    orderBy: { createdAt: "desc" },
   });
+
+  if (paymentRecord) {
+    await prisma.payment.update({
+      where: { id: paymentRecord.id },
+      data: {
+        mpPaymentId: String(payment.id),
+        status: mappedStatus,
+        method: mappedMethod,
+        installments: payment.installments ?? undefined,
+        rawWebhookPayload: payment as unknown as object,
+      },
+    });
+  }
 
   if (mappedStatus === "APPROVED") {
     const booking = await prisma.booking.update({

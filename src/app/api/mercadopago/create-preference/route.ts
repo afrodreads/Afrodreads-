@@ -42,14 +42,30 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await prisma.payment.create({
-    data: {
-      bookingId: booking.id,
-      type: "DEPOSIT",
-      amount: booking.depositAmount,
-      mpPreferenceId: preference.id,
-    },
+  // Reaproveita o registro de pagamento pendente existente (ex: cliente clicou
+  // "pagar" mais de uma vez) em vez de criar outra linha — evita duas linhas
+  // DEPOSIT em aberto para o mesmo agendamento, que quebrariam o webhook ao
+  // tentar gravar o mesmo mpPaymentId em ambas.
+  const existingPendingPayment = await prisma.payment.findFirst({
+    where: { bookingId: booking.id, type: "DEPOSIT", mpPaymentId: null },
+    orderBy: { createdAt: "desc" },
   });
+
+  if (existingPendingPayment) {
+    await prisma.payment.update({
+      where: { id: existingPendingPayment.id },
+      data: { amount: booking.depositAmount, mpPreferenceId: preference.id },
+    });
+  } else {
+    await prisma.payment.create({
+      data: {
+        bookingId: booking.id,
+        type: "DEPOSIT",
+        amount: booking.depositAmount,
+        mpPreferenceId: preference.id,
+      },
+    });
+  }
 
   return NextResponse.json({
     preferenceId: preference.id,
