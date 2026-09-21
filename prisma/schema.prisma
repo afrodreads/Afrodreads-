@@ -36,6 +36,14 @@ enum PaymentStatus {
   CANCELLED
 }
 
+enum QuoteStatus {
+  SENT
+  OPENED
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
 model Service {
   id          String    @id @default(cuid())
   slug        String    @unique
@@ -48,6 +56,7 @@ model Service {
   order       Int       @default(0)
   active      Boolean   @default(true)
   bookings    Booking[]
+  quotes      Quote[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
@@ -79,6 +88,7 @@ model Booking {
   cancellationRefundedDeposit Boolean?
 
   payments  Payment[]
+  quote     Quote?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -115,4 +125,30 @@ model BlockedDate {
   reason    String?
   fullDay   Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+model Quote {
+  id     String @id @default(cuid())
+  token  String @unique
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  servicePrice      Decimal @db.Decimal(10, 2)
+  isOutOfTownSeason Boolean @default(false)
+
+  status    QuoteStatus @default(SENT)
+  expiresAt DateTime
+
+  openedAt    DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  bookingId String?  @unique
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }

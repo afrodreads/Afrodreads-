@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getMpPayment } from "@/lib/mercadopago";
+import { sendBookingConfirmationEmail } from "@/lib/email";
 
 // Documentação da validação de assinatura:
 // https://www.mercadopago.com.br/developers/pt/docs/checkout-api/webhooks
@@ -78,10 +79,20 @@ export async function POST(request: NextRequest) {
   });
 
   if (mappedStatus === "APPROVED") {
-    await prisma.booking.update({
+    const booking = await prisma.booking.update({
       where: { id: bookingId },
       data: { status: "CONFIRMED" },
+      include: { service: true },
     });
+
+    try {
+      await sendBookingConfirmationEmail(booking);
+    } catch (emailError) {
+      // Uma falha no envio do e-mail não pode derrubar o webhook — o
+      // Mercado Pago reenvia webhooks com erro, o que reprocessaria o
+      // pagamento à toa.
+      console.error("Falha ao enviar e-mail de confirmação:", emailError);
+    }
   }
 
   return NextResponse.json({ received: true });
