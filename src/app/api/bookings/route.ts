@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { getServiceBySlug } from "@/lib/services";
-import { calculateDeposit } from "@/lib/pricing";
+import { createBooking } from "@/lib/booking";
 
 const createBookingSchema = z.object({
   serviceSlug: z.string(),
@@ -22,60 +20,20 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data;
-  const serviceDefinition = getServiceBySlug(data.serviceSlug);
-  if (!serviceDefinition) {
-    return NextResponse.json({ error: "Serviço não encontrado" }, { status: 404 });
-  }
-
-  const service = await prisma.service.findUnique({ where: { slug: data.serviceSlug } });
-  if (!service) {
-    return NextResponse.json(
-      { error: "Serviço não sincronizado no banco. Rode o seed." },
-      { status: 404 },
-    );
-  }
-
-  const scheduledStart = new Date(data.scheduledStart);
-  const scheduledEnd = new Date(
-    scheduledStart.getTime() + serviceDefinition.maxHours * 60 * 60 * 1000,
-  );
-
-  const conflict = await prisma.booking.findFirst({
-    where: {
-      status: { in: ["PENDING_PAYMENT", "CONFIRMED"] },
-      scheduledStart: { lt: scheduledEnd },
-      scheduledEnd: { gt: scheduledStart },
-    },
-  });
-  if (conflict) {
-    return NextResponse.json(
-      { error: "Horário indisponível. Escolha outro horário." },
-      { status: 409 },
-    );
-  }
-
-  const { depositAmount, depositIsPercentage, remainingAmount } = calculateDeposit({
+  const result = await createBooking({
+    serviceSlug: data.serviceSlug,
+    scheduledStart: new Date(data.scheduledStart),
     servicePrice: data.servicePrice,
-    scheduledStart,
     isOutOfTownSeason: data.isOutOfTownSeason,
+    clientName: data.clientName,
+    clientEmail: data.clientEmail,
+    clientPhone: data.clientPhone,
+    notes: data.notes,
   });
 
-  const booking = await prisma.booking.create({
-    data: {
-      clientName: data.clientName,
-      clientEmail: data.clientEmail,
-      clientPhone: data.clientPhone,
-      serviceId: service.id,
-      scheduledStart,
-      scheduledEnd,
-      isOutOfTownSeason: data.isOutOfTownSeason,
-      servicePrice: data.servicePrice,
-      depositAmount,
-      depositIsPercentage,
-      remainingAmount,
-      notes: data.notes,
-    },
-  });
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
 
-  return NextResponse.json({ booking }, { status: 201 });
+  return NextResponse.json({ booking: result.booking }, { status: 201 });
 }

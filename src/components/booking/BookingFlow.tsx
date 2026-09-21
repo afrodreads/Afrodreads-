@@ -6,17 +6,32 @@ import { SERVICES } from "@/lib/services";
 import { calculateDeposit } from "@/lib/pricing";
 import { formatBRL, formatDateTimeBR, formatTimeBR } from "@/lib/format";
 
-const STEPS = ["Serviço", "Data e horário", "Seus dados", "Resumo"] as const;
+export type QuoteInfo = {
+  token: string;
+  serviceSlug: string;
+  serviceName: string;
+  servicePrice: number;
+  isOutOfTownSeason: boolean;
+};
 
-export function BookingFlow() {
+// Quando vem de um orçamento (link gerado pelo admin), serviço e valor já
+// estão travados: o assistente pula direto para a etapa de data/horário.
+const FULL_STEPS = ["Serviço", "Data e horário", "Seus dados", "Resumo"] as const;
+const QUOTE_STEPS = [
+  { label: "Data e horário", stepIndex: 1 },
+  { label: "Seus dados", stepIndex: 2 },
+  { label: "Resumo", stepIndex: 3 },
+];
+
+export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(quote ? 1 : 0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [serviceSlug, setServiceSlug] = useState(SERVICES[0].slug);
-  const [isOutOfTownSeason, setIsOutOfTownSeason] = useState(false);
-  const [servicePrice, setServicePrice] = useState<number>(0);
+  const [serviceSlug, setServiceSlug] = useState(quote?.serviceSlug ?? SERVICES[0].slug);
+  const [isOutOfTownSeason, setIsOutOfTownSeason] = useState(quote?.isOutOfTownSeason ?? false);
+  const [servicePrice, setServicePrice] = useState<number>(quote?.servicePrice ?? 0);
   const [basePrices, setBasePrices] = useState<Record<string, number | null>>({});
 
   const [date, setDate] = useState("");
@@ -41,6 +56,7 @@ export function BookingFlow() {
   }, [servicePrice, selectedSlot, isOutOfTownSeason]);
 
   useEffect(() => {
+    if (quote) return; // valor já travado pelo orçamento
     fetch("/api/services")
       .then((res) => res.json())
       .then((data) => {
@@ -51,12 +67,13 @@ export function BookingFlow() {
         setBasePrices(map);
       })
       .catch(() => {});
-  }, []);
+  }, [quote]);
 
   useEffect(() => {
+    if (quote) return; // valor já travado pelo orçamento
     const base = basePrices[serviceSlug];
     setServicePrice(base ?? 0);
-  }, [serviceSlug, basePrices]);
+  }, [serviceSlug, basePrices, quote]);
 
   useEffect(() => {
     if (!date) return;
@@ -72,19 +89,23 @@ export function BookingFlow() {
     setSubmitting(true);
     setError(null);
     try {
-      const response = await fetch("/api/bookings", {
+      const endpoint = quote ? `/api/quotes/${quote.token}/complete` : "/api/bookings";
+      const body = quote
+        ? { scheduledStart: selectedSlot, clientName, clientEmail, clientPhone, notes }
+        : {
+            serviceSlug,
+            scheduledStart: selectedSlot,
+            servicePrice,
+            isOutOfTownSeason,
+            clientName,
+            clientEmail,
+            clientPhone,
+            notes,
+          };
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          serviceSlug,
-          scheduledStart: selectedSlot,
-          servicePrice,
-          isOutOfTownSeason,
-          clientName,
-          clientEmail,
-          clientPhone,
-          notes,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -103,12 +124,31 @@ export function BookingFlow() {
         Agende seu horário
       </h1>
 
+      {quote && (
+        <div className="mt-6 rounded-2xl border border-brand-yellow/40 bg-brand-yellow/10 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-brand-yellow">
+            Orçamento da Afro Dreads
+          </p>
+          <p className="mt-1 text-lg font-semibold text-brand-white">{quote.serviceName}</p>
+          <p className="text-sm text-brand-white/70">
+            {formatBRL(quote.servicePrice)}
+            {quote.isOutOfTownSeason && " · Atendimento fora de São Paulo"}
+          </p>
+        </div>
+      )}
+
       <ol className="mt-8 flex gap-4 text-xs font-semibold uppercase tracking-wide text-brand-white/40">
-        {STEPS.map((label, index) => (
-          <li key={label} className={index <= step ? "text-brand-yellow" : ""}>
-            {index + 1}. {label}
-          </li>
-        ))}
+        {quote
+          ? QUOTE_STEPS.map((s, index) => (
+              <li key={s.label} className={s.stepIndex <= step ? "text-brand-yellow" : ""}>
+                {index + 1}. {s.label}
+              </li>
+            ))
+          : FULL_STEPS.map((label, index) => (
+              <li key={label} className={index <= step ? "text-brand-yellow" : ""}>
+                {index + 1}. {label}
+              </li>
+            ))}
       </ol>
 
       <div className="mt-10 rounded-2xl border border-white/10 bg-brand-gray p-6">
@@ -207,7 +247,7 @@ export function BookingFlow() {
             )}
 
             <StepActions
-              onBack={() => setStep(0)}
+              onBack={quote ? undefined : () => setStep(0)}
               onNext={() => setStep(2)}
               nextDisabled={!selectedSlot}
             />
