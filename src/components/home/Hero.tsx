@@ -69,19 +69,13 @@ export function Hero() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.45 }}
-          className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
+          className="mt-10 flex justify-center"
         >
           <Link
             href="/agendamento"
             className="rounded-full bg-brand-yellow px-8 py-3 text-sm font-bold text-brand-black transition-transform hover:scale-105"
           >
             Agendar meu horário
-          </Link>
-          <Link
-            href="/portfolio"
-            className="rounded-full border border-white/30 px-8 py-3 text-sm font-semibold text-brand-white transition-colors hover:border-brand-yellow hover:text-brand-yellow"
-          >
-            Ver portfólio
           </Link>
         </motion.div>
       </div>

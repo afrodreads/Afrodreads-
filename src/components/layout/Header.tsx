@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -26,8 +27,15 @@ export function Header() {
       }`}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="font-display text-xl font-bold tracking-tight text-brand-yellow">
-          AFRO DREADS
+        <Link href="/" className="shrink-0" aria-label="Afro Dreads — página inicial">
+          <Image
+            src="/images/logo-icon.png"
+            alt="Afro Dreads"
+            width={841}
+            height={727}
+            priority
+            className="h-8 w-auto sm:h-10"
+          />
         </Link>
 
         <nav className="hidden gap-8 md:flex">
