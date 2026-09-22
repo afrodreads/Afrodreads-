@@ -1,6 +1,5 @@
 import { Hero } from "@/components/home/Hero";
 import { MarqueeBanner } from "@/components/home/MarqueeBanner";
-import { Manifesto } from "@/components/home/Manifesto";
 import { ServicesSection } from "@/components/home/ServicesSection";
 import { PortfolioPreview } from "@/components/home/PortfolioPreview";
 import { LocationSection } from "@/components/home/LocationSection";
@@ -11,7 +10,6 @@ export default function HomePage() {
     <>
       <Hero />
       <MarqueeBanner />
-      <Manifesto />
       <ServicesSection />
       <PortfolioPreview />
       <LocationSection />
