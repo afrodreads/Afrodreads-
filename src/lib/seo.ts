@@ -1,3 +1,5 @@
+import { WHATSAPP_LINK } from "@/lib/contact";
+
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://afrodreads.com.br";
 
 // Dados estruturados (schema.org) do negócio, injetados como JSON-LD no
@@ -26,7 +28,7 @@ export const businessJsonLd = {
     closes: "18:00",
   },
   sameAs: [
-    "https://wa.me/message/WFY4THHQSOITF1",
+    WHATSAPP_LINK,
     "https://instagram.com/afrodreads_",
     "https://tiktok.com/@afrodreads_",
     "https://youtube.com/@afrodreadsofc",

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { WhatsAppIcon, InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/icons/SocialIcons";
+import { WHATSAPP_LINK } from "@/lib/contact";
 
 const SOCIAL_LINKS = [
-  { name: "WhatsApp", href: "https://wa.me/message/WFY4THHQSOITF1", Icon: WhatsAppIcon },
+  { name: "WhatsApp", href: WHATSAPP_LINK, Icon: WhatsAppIcon },
   { name: "Instagram", href: "https://instagram.com/afrodreads_", Icon: InstagramIcon },
   { name: "TikTok", href: "https://tiktok.com/@afrodreads_", Icon: TikTokIcon },
   { name: "YouTube", href: "https://youtube.com/@afrodreadsofc", Icon: YouTubeIcon },
@@ -21,7 +22,9 @@ export function Footer() {
 
         <div className="flex flex-col gap-4 text-sm text-brand-white/70">
           <div className="flex flex-col gap-2">
-            <Link href="/agendamento" className="hover:text-brand-yellow">Agendar horário</Link>
+            <a href={WHATSAPP_LINK} target="_blank" rel="noreferrer" className="hover:text-brand-yellow">
+              Agendar horário
+            </a>
             <Link href="/portfolio" className="hover:text-brand-yellow">Portfólio</Link>
           </div>
 

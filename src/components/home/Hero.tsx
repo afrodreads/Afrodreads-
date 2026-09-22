@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Link from "next/link";
 import { StripeBand } from "@/components/ui/StripeBand";
+import { WhatsAppIcon } from "@/components/icons/SocialIcons";
+import { WHATSAPP_LINK } from "@/lib/contact";
 
 export function Hero() {
   return (
@@ -71,12 +72,15 @@ export function Hero() {
           transition={{ duration: 0.7, delay: 0.45 }}
           className="mt-10 flex justify-center"
         >
-          <Link
-            href="/agendamento"
-            className="rounded-full bg-brand-yellow px-8 py-3 text-sm font-bold text-brand-black transition-transform hover:scale-105"
+          <a
+            href={WHATSAPP_LINK}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 rounded-full bg-brand-yellow px-8 py-3 text-sm font-bold text-brand-black transition-transform hover:scale-105"
           >
+            <WhatsAppIcon className="h-4 w-4" />
             Agendar meu horário
-          </Link>
+          </a>
         </motion.div>
       </div>
 
