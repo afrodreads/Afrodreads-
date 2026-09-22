@@ -9,13 +9,11 @@ import { WHATSAPP_LINK } from "@/lib/contact";
 const NAV_LINKS = [
   { href: "/#servicos", label: "Serviços" },
   { href: "/portfolio", label: "Portfólio" },
-  { href: "/#sobre", label: "Sobre" },
 ];
 
 const MENU_LINKS = [
   { href: "/", label: "Início" },
   { href: "/#servicos", label: "Serviços" },
-  { href: "/#sobre", label: "Sobre nós" },
 ];
 
 export function Header() {
