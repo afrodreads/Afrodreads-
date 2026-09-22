@@ -5,7 +5,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://afrodreads.com.br"
 // Só as páginas públicas de conteúdo — checkout, orçamento e admin são
 // transacionais/privadas e ficam de fora (ver robots.ts).
 export default function sitemap(): MetadataRoute.Sitemap {
-  const routes = ["", "/portfolio", "/agendamento"];
+  const routes = ["", "/portfolio"];
 
   return routes.map((route) => ({
     url: `${SITE_URL}${route}`,
