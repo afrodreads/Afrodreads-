@@ -28,13 +28,13 @@ export function BeforeAfterSlider({ beforeSrc, afterSrc, alt }: BeforeAfterSlide
       onMouseMove={(e) => e.buttons === 1 && updatePositionFromClientX(e.clientX)}
       onTouchMove={(e) => updatePositionFromClientX(e.touches[0].clientX)}
     >
-      <Image src={afterSrc} alt={`${alt} - depois`} fill className="object-cover" />
+      <Image src={afterSrc} alt={`${alt} - depois`} fill loading="lazy" className="object-cover" />
 
       <div
         className="absolute inset-0 overflow-hidden"
         style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
       >
-        <Image src={beforeSrc} alt={`${alt} - antes`} fill className="object-cover" />
+        <Image src={beforeSrc} alt={`${alt} - antes`} fill loading="lazy" className="object-cover" />
       </div>
 
       <div

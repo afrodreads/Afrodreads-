@@ -20,13 +20,13 @@ export function Manifesto() {
         <p className="mb-4 text-xs font-bold uppercase tracking-[0.3em] text-brand-yellow">
           Nosso manifesto
         </p>
-        <p className="font-display text-3xl uppercase leading-tight text-brand-white sm:text-5xl">
+        <h2 className="font-display text-3xl uppercase leading-tight text-brand-white sm:text-5xl">
           Dread não é <span className="text-brand-yellow">tendência</span>.
           <br />
           É <span className="text-brand-yellow">raiz</span>, é resistência,
           <br />
           é identidade que cresce com você.
-        </p>
+        </h2>
         <p className="mx-auto mt-8 max-w-2xl text-base text-brand-white/70 sm:text-lg">
           Cada fio é tratado com técnica e respeito à sua história. Aqui, formação e
           manutenção de dreadlocks e microlocs são feitas com cuidado real — sem pressa,
