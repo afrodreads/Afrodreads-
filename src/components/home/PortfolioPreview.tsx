@@ -5,9 +5,21 @@ import Link from "next/link";
 import { BeforeAfterSlider } from "@/components/portfolio/BeforeAfterSlider";
 
 const CASES = [
-  { before: "/images/portfolio/caso-1-antes.jpg", after: "/images/portfolio/caso-1-depois.jpg", alt: "Formação de dreadlocks" },
-  { before: "/images/portfolio/caso-2-antes.jpg", after: "/images/portfolio/caso-2-depois.jpg", alt: "Microlocs" },
-  { before: "/images/portfolio/caso-3-antes.jpg", after: "/images/portfolio/caso-3-depois.jpg", alt: "Retwist" },
+  {
+    before: "/images/portfolio/caso-1-antes.jpg",
+    after: "/images/portfolio/caso-1-depois.jpg",
+    alt: "Cliente antes e depois da formação de dreadlocks na Afro Dreads",
+  },
+  {
+    before: "/images/portfolio/caso-2-antes.jpg",
+    after: "/images/portfolio/caso-2-depois.jpg",
+    alt: "Cliente antes e depois da formação de microlocs na Afro Dreads",
+  },
+  {
+    before: "/images/portfolio/caso-3-antes.jpg",
+    after: "/images/portfolio/caso-3-depois.jpg",
+    alt: "Cliente antes e depois de um retwist de dreadlocks na Afro Dreads",
+  },
 ];
 
 export function PortfolioPreview() {

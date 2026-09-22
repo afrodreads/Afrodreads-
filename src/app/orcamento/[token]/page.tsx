@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { BookingFlow } from "@/components/booking/BookingFlow";
+
+// Link de orçamento individual (token privado) — nunca deve ser indexado.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function QuotePage({
   params,

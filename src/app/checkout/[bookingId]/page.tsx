@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatBRL, formatDateTimeBR } from "@/lib/format";
 import { PayDepositButton } from "@/components/checkout/PayDepositButton";
+
+// Página transacional (dados de um agendamento específico) — nunca deve
+// ser indexada.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function CheckoutPage({
   params,
