@@ -1,8 +1,6 @@
 "use client";
 
-import { useRef } from "react";
-import { useGSAP } from "@gsap/react";
-import { gsap, EASE, DURATION, STAGGER, Y_OFFSET } from "@/lib/gsap";
+import { useScrollReveal } from "@/lib/useScrollReveal";
 import { SERVICES } from "@/lib/services";
 import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
@@ -17,25 +15,7 @@ const PLACEHOLDER_VARIANTS = ["default", "alt", "sun"] as const;
 const PREVIEW = SERVICES.slice(0, 5);
 
 export function ServicesSection() {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.from(ref.current!.querySelectorAll("[data-reveal]"), {
-          opacity: 0,
-          y: Y_OFFSET,
-          duration: DURATION,
-          ease: EASE,
-          stagger: STAGGER,
-          scrollTrigger: { trigger: ref.current, start: "top 80%" },
-        });
-      });
-      return () => mm.revert();
-    },
-    { scope: ref },
-  );
+  const ref = useScrollReveal<HTMLDivElement>();
 
   return (
     <section className="bg-surface-sunken px-6 py-16 sm:py-24" ref={ref}>
