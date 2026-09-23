@@ -4,16 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
-import { WHATSAPP_LINK } from "@/lib/contact";
+import { buildWhatsAppLink } from "@/lib/whatsapp";
 
 const NAV_LINKS = [
-  { href: "/#servicos", label: "Serviços" },
+  { href: "/", label: "Home" },
+  { href: "/servicos", label: "Serviços" },
   { href: "/portfolio", label: "Portfólio" },
-];
-
-const MENU_LINKS = [
-  { href: "/", label: "Início" },
-  { href: "/#servicos", label: "Serviços" },
+  { href: "/contato", label: "Contato" },
 ];
 
 export function Header() {
@@ -35,11 +32,11 @@ export function Header() {
 
   return (
     <header
-      className={`fixed top-0 z-50 w-full transition-colors duration-300 ${
-        scrolled || menuOpen ? "bg-brand-black/90 backdrop-blur-sm shadow-lg shadow-black/40" : "bg-transparent"
+      className={`fixed top-0 z-50 w-full font-sans transition-colors duration-300 ${
+        scrolled || menuOpen ? "border-b border-line bg-surface/90 backdrop-blur-md" : "bg-transparent"
       }`}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6">
         <Link href="/" className="shrink-0" aria-label="Afro Dreads — página inicial">
           <Image
             src="/images/logo-icon.png"
@@ -47,16 +44,16 @@ export function Header() {
             width={841}
             height={727}
             priority
-            className="h-8 w-auto sm:h-10"
+            className="h-9 w-auto sm:h-11"
           />
         </Link>
 
-        <nav className="hidden gap-8 md:flex">
+        <nav className="hidden gap-1 md:flex">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-brand-white/90 transition-colors hover:text-brand-yellow"
+              className="rounded-ad-pill px-3.5 py-2 text-[15px] font-medium text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink"
             >
               {link.label}
             </Link>
@@ -64,13 +61,13 @@ export function Header() {
         </nav>
 
         <a
-          href={WHATSAPP_LINK}
+          href={buildWhatsAppLink("geral")}
           target="_blank"
           rel="noreferrer"
-          className="hidden items-center gap-2 rounded-full bg-brand-yellow px-5 py-2 text-sm font-semibold text-brand-black transition-transform hover:scale-105 md:flex"
+          className="hidden items-center gap-2 rounded-ad-pill bg-amarelo px-5 py-2 text-sm font-bold uppercase tracking-wide text-amarelo-on transition-transform hover:scale-105 md:flex"
         >
           <WhatsAppIcon className="h-4 w-4" />
-          Agendar horário
+          Quero ficar no estilo
         </a>
 
         <button
@@ -81,15 +78,15 @@ export function Header() {
           className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 md:hidden"
         >
           <span
-            className={`block h-0.5 w-6 bg-brand-white transition-transform ${
+            className={`block h-0.5 w-6 bg-ink transition-transform ${
               menuOpen ? "translate-y-2 rotate-45" : ""
             }`}
           />
           <span
-            className={`block h-0.5 w-6 bg-brand-white transition-opacity ${menuOpen ? "opacity-0" : ""}`}
+            className={`block h-0.5 w-6 bg-ink transition-opacity ${menuOpen ? "opacity-0" : ""}`}
           />
           <span
-            className={`block h-0.5 w-6 bg-brand-white transition-transform ${
+            className={`block h-0.5 w-6 bg-ink transition-transform ${
               menuOpen ? "-translate-y-2 -rotate-45" : ""
             }`}
           />
@@ -97,23 +94,23 @@ export function Header() {
       </div>
 
       {menuOpen && (
-        <nav className="flex flex-col gap-2 border-t border-white/10 bg-brand-black/95 px-6 py-6 md:hidden">
-          {MENU_LINKS.map((link) => (
+        <nav className="flex flex-col gap-2 border-t border-line bg-surface/95 px-6 py-6 md:hidden">
+          {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setMenuOpen(false)}
-              className="rounded-lg px-3 py-3 text-base font-medium text-brand-white/90 transition-colors hover:bg-white/5 hover:text-brand-yellow"
+              className="rounded-ad-md px-3 py-3 text-base font-medium text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink"
             >
               {link.label}
             </Link>
           ))}
           <a
-            href={WHATSAPP_LINK}
+            href={buildWhatsAppLink("geral")}
             target="_blank"
             rel="noreferrer"
             onClick={() => setMenuOpen(false)}
-            className="mt-2 flex items-center justify-center gap-2 rounded-full bg-brand-yellow px-5 py-3 text-base font-bold text-brand-black transition-transform hover:scale-105"
+            className="mt-2 flex items-center justify-center gap-2 rounded-ad-pill bg-amarelo px-5 py-3 text-base font-bold uppercase tracking-wide text-amarelo-on transition-transform hover:scale-105"
           >
             <WhatsAppIcon className="h-5 w-5" />
             Contato / Agendar

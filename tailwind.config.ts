@@ -12,10 +12,53 @@ const config: Config = {
           white: "#FFFFFF",
           gray: "#18181A",
         },
+        surface: {
+          DEFAULT: "#000000",
+          raised: "#161111",
+          sunken: "#0d0909",
+        },
+        line: {
+          DEFAULT: "#2e2525",
+          strong: "#857676",
+        },
+        ink: {
+          DEFAULT: "#fff8e7",
+          muted: "#c2b6a6",
+        },
+        amarelo: {
+          DEFAULT: "#f1bb09",
+          on: "#000000",
+          text: "#f1bb09",
+          soft: "#2e2400",
+        },
+        roxo: {
+          DEFAULT: "#650c63",
+          on: "#fae9f6",
+          text: "#e59be2",
+          soft: "#2a0a29",
+        },
+        marrom: {
+          DEFAULT: "#791d00",
+          text: "#f08a62",
+          soft: "#2e1006",
+        },
+        folha: {
+          DEFAULT: "#8fbf99",
+          soft: "#1f3325",
+        },
       },
       fontFamily: {
         display: ["var(--font-display)"],
         body: ["var(--font-body)"],
+        serif: ["var(--font-instrument-serif)", "serif"],
+        sans: ["var(--font-dm-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-dm-mono)", "ui-monospace", "monospace"],
+      },
+      borderRadius: {
+        "ad-sm": "8px",
+        "ad-md": "16px",
+        "ad-lg": "24px",
+        "ad-pill": "999px",
       },
       animation: {
         "fade-up": "fade-up 0.8s ease-out forwards",

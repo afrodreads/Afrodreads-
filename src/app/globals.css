@@ -15,12 +15,25 @@ body {
   color: #0b0b0c;
 }
 
-.stripe-band {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    #f4c60a 0,
-    #f4c60a 22px,
-    #0b0b0c 22px,
-    #0b0b0c 44px
-  );
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
+}
+
+/* Campos do novo design system (formulário de contato) */
+.ad-input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #857676;
+  background: #000000;
+  color: #fff8e7;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 16px;
+}
+
+.ad-input:focus-visible {
+  outline: 2px solid #f1bb09;
+  outline-offset: 1px;
 }
