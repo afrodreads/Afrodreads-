@@ -14,6 +14,7 @@ export const businessJsonLd = {
   image: `${SITE_URL}/icon.png`,
   email: "afrodreadsofc@gmail.com",
   telephone: "+55 11 91538-8113",
+  priceRange: "$$",
   address: {
     "@type": "PostalAddress",
     addressLocality: "Pirituba, São Paulo",
