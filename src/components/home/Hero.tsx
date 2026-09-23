@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useGSAP } from "@gsap/react";
 import { gsap, EASE, DURATION, STAGGER, Y_OFFSET } from "@/lib/gsap";
 import { AdEyebrow } from "@/components/ui/Eyebrow";
@@ -8,10 +8,10 @@ import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
-import { HeroLocsVisual } from "@/components/home/HeroLocsVisual";
 
 export function Hero() {
   const ref = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useGSAP(
     () => {
@@ -30,22 +30,58 @@ export function Hero() {
     { scope: ref },
   );
 
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    // O autoplay e feito aqui (em vez do atributo HTML autoplay) porque,
+    // com prefers-reduced-motion, queremos deixar só o poster visível —
+    // ou seja, nunca chamar play().
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reduceMotion) {
+      video.play().catch(() => {});
+    }
+  }, []);
+
   return (
-    <section className="relative overflow-hidden border-b border-line bg-surface pt-32 sm:pt-24">
-      <div ref={ref} className="mx-auto grid max-w-6xl gap-8 px-6 pb-16 pt-6 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-12 sm:pb-24 sm:pt-16">
-        <div className="flex flex-col gap-8">
-          <div data-hero-item className="flex flex-col items-start gap-4">
+    <section
+      className="relative overflow-hidden border-b border-line pt-28 sm:pt-24"
+      style={{ backgroundColor: "#0C0C0C" }}
+    >
+      <div
+        ref={ref}
+        className="mx-auto grid max-w-6xl gap-4 px-6 pb-10 pt-2 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-12 sm:pb-24 sm:pt-16"
+      >
+        <div data-hero-item className="order-first flex justify-center sm:order-none sm:justify-end">
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            preload="auto"
+            poster="/hero-poster.jpg"
+            aria-hidden="true"
+            className="h-[26vh] max-h-[240px] w-auto object-contain sm:h-auto sm:max-h-none sm:w-full sm:max-w-sm"
+          >
+            <source src="/hero.webm" type="video/webm" />
+            <source src="/hero.mp4" type="video/mp4" />
+          </video>
+        </div>
+
+        <div className="flex flex-col items-center gap-4 text-center sm:items-start sm:gap-8 sm:text-left">
+          <div data-hero-item className="flex flex-col items-center gap-2 sm:items-start sm:gap-4">
             <AdEyebrow>Afro Dreads</AdEyebrow>
-            <AdTitle as="h1" size="hero">
+            <AdTitle as="h1" size="hero" className="text-center sm:text-left">
               Vem ficar no <em>estilo</em> com a gente.
             </AdTitle>
           </div>
-          <p data-hero-item className="m-0 max-w-xl text-lg leading-relaxed text-ink-muted sm:text-[17px]">
+          <p
+            data-hero-item
+            className="m-0 max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg sm:text-[17px]"
+          >
             Do primeiro dread às manutenções, criamos um visual pensado para combinar com você, seu
             estilo e sua rotina. <strong className="font-semibold text-amarelo">Escolha o comprimento,
             espessura, cor e estilo.</strong> A gente transforma sua ideia em realidade.
           </p>
-          <div data-hero-item className="flex flex-wrap gap-3">
+          <div data-hero-item className="flex flex-wrap justify-center gap-3 sm:justify-start">
             <AdButton
               href={buildWhatsAppLink("geral")}
               size="lg"
@@ -54,10 +90,6 @@ export function Hero() {
               Quero ficar no estilo
             </AdButton>
           </div>
-        </div>
-
-        <div data-hero-item>
-          <HeroLocsVisual />
         </div>
       </div>
     </section>

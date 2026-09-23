@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import { useGSAP } from "@gsap/react";
-import { gsap, EASE, DURATION, Y_OFFSET } from "@/lib/gsap";
+import { useScrollReveal } from "@/lib/useScrollReveal";
 import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
@@ -134,24 +133,7 @@ function ReviewsCarousel({ items }: { items: Testimonial[] }) {
 }
 
 export function ReviewsSection() {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.from(ref.current!.querySelectorAll("[data-reveal]"), {
-          opacity: 0,
-          y: Y_OFFSET,
-          duration: DURATION,
-          ease: EASE,
-          scrollTrigger: { trigger: ref.current, start: "top 85%" },
-        });
-      });
-      return () => mm.revert();
-    },
-    { scope: ref },
-  );
+  const ref = useScrollReveal<HTMLDivElement>();
 
   if (TESTIMONIALS.length === 0) return null;
 
