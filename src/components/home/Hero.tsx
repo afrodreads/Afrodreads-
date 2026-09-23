@@ -42,6 +42,16 @@ export function Hero() {
     }
   }, []);
 
+  // Video toca uma vez ao carregar a pagina e para no ultimo quadro (sem
+  // loop) — clicar/tocar nele reinicia a animacao do zero, sem precisar
+  // recarregar a pagina.
+  function replayVideo() {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = 0;
+    video.play().catch(() => {});
+  }
+
   return (
     <section
       className="relative overflow-hidden border-b border-line pt-28 sm:pt-24"
@@ -51,15 +61,24 @@ export function Hero() {
         ref={ref}
         className="mx-auto grid max-w-6xl gap-4 px-6 pb-10 pt-2 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-12 sm:pb-24 sm:pt-16"
       >
-        <div data-hero-item className="order-first flex justify-center sm:order-none sm:justify-end">
+        <div data-hero-item className="order-first flex justify-center sm:order-none">
           <video
             ref={videoRef}
             muted
             playsInline
             preload="auto"
             poster="/hero-poster.jpg"
-            aria-hidden="true"
-            className="h-[26vh] max-h-[240px] w-auto object-contain sm:h-auto sm:max-h-none sm:w-full sm:max-w-sm"
+            role="button"
+            tabIndex={0}
+            aria-label="Reproduzir novamente a animação da Afro Dreads"
+            onClick={replayVideo}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                replayVideo();
+              }
+            }}
+            className="h-[26vh] max-h-[240px] w-auto cursor-pointer object-contain sm:h-auto sm:max-h-none sm:w-full sm:max-w-md"
           >
             <source src="/hero.webm" type="video/webm" />
             <source src="/hero.mp4" type="video/mp4" />
