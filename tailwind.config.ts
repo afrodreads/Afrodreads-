@@ -62,7 +62,7 @@ const config: Config = {
       },
       animation: {
         "fade-up": "fade-up 0.8s ease-out forwards",
-        marquee: "marquee 22s linear infinite",
+        marquee: "marquee 40s linear infinite",
         "stripe-scroll": "stripe-scroll 20s linear infinite",
       },
       keyframes: {

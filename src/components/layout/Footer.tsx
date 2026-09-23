@@ -22,6 +22,18 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid grid-cols-1 gap-12 sm:grid-cols-2 md:grid-cols-[1.4fr_1fr_1fr]">
           <div className="flex flex-col items-start gap-3">
+            {/* Espaco reservado para o video animado da persona — troque por
+                um <video autoPlay muted loop playsInline src="/videos/persona.mp4" />
+                quando o arquivo real estiver disponivel. */}
+            <div className="flex h-[180px] w-[180px] flex-col items-center justify-center gap-2 rounded-ad-lg border border-dashed border-line-strong bg-black">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-ink-muted" aria-hidden="true">
+                <rect x="2.5" y="5" width="19" height="14" rx="3" />
+                <path d="M10 9.5l5 2.5-5 2.5v-5Z" fill="currentColor" stroke="none" />
+              </svg>
+              <span className="px-3 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+                Vídeo animado da persona
+              </span>
+            </div>
             <Image src="/images/logo-icon.png" alt="Afro Dreads" width={64} height={55} className="h-14 w-auto" />
             <p className="m-0 max-w-xs text-[15px] leading-relaxed text-ink-muted">
               Seu estilo. Sua identidade. Do seu jeito. 💛
