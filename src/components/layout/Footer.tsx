@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { WhatsAppIcon, InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/icons/SocialIcons";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
@@ -34,10 +33,6 @@ export function Footer() {
                 Vídeo animado da persona
               </span>
             </div>
-            <Image src="/images/logo-icon.png" alt="Afro Dreads" width={64} height={55} className="h-14 w-auto" />
-            <p className="m-0 max-w-xs text-[15px] leading-relaxed text-ink-muted">
-              Seu estilo. Sua identidade. Do seu jeito. 💛
-            </p>
           </div>
 
           <div>
