@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { Anton, Inter } from "next/font/google";
+import { Anton, Inter, Instrument_Serif, DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { WhatsAppFloat } from "@/components/layout/WhatsAppFloat";
 import { businessJsonLd } from "@/lib/seo";
 
 const display = Anton({
@@ -14,6 +15,29 @@ const display = Anton({
 const body = Inter({
   subsets: ["latin"],
   variable: "--font-body",
+});
+
+// Novo design system ("Claude Design"): usados pelos componentes do site de
+// marketing (home, serviços, portfólio, contato) via as classes utilitárias
+// font-serif/font-sans/font-mono do Tailwind. Admin/checkout continuam com
+// Anton/Inter acima, sem mudança.
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-dm-sans",
+});
+
+const dmMono = DM_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-dm-mono",
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://afrodreads.com.br";
@@ -51,7 +75,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${display.variable} ${body.variable} font-body bg-brand-black text-brand-white antialiased`}>
+      <body
+        className={`${display.variable} ${body.variable} ${instrumentSerif.variable} ${dmSans.variable} ${dmMono.variable} font-body bg-brand-black text-brand-white antialiased`}
+      >
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
@@ -60,6 +86,7 @@ export default function RootLayout({
         <Header />
         <main>{children}</main>
         <Footer />
+        <WhatsAppFloat />
       </body>
     </html>
   );

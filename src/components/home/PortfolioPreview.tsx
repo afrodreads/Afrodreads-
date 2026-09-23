@@ -1,8 +1,12 @@
 "use client";
 
-import { motion } from "framer-motion";
-import Link from "next/link";
+import { useRef } from "react";
+import { useGSAP } from "@gsap/react";
+import { gsap, EASE, DURATION, STAGGER, Y_OFFSET } from "@/lib/gsap";
 import { BeforeAfterSlider } from "@/components/portfolio/BeforeAfterSlider";
+import { AdEyebrow } from "@/components/ui/Eyebrow";
+import { AdTitle } from "@/components/ui/SectionTitle";
+import { AdButton } from "@/components/ui/Button";
 
 const CASES = [
   {
@@ -23,43 +27,46 @@ const CASES = [
 ];
 
 export function PortfolioPreview() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.from(ref.current!.querySelectorAll("[data-reveal]"), {
+          opacity: 0,
+          y: Y_OFFSET,
+          duration: DURATION,
+          ease: EASE,
+          stagger: STAGGER,
+          scrollTrigger: { trigger: ref.current, start: "top 80%" },
+        });
+      });
+      return () => mm.revert();
+    },
+    { scope: ref },
+  );
+
   return (
-    <section className="bg-brand-black px-6 py-24">
+    <section className="px-6 py-16 sm:py-24" ref={ref}>
       <div className="mx-auto max-w-6xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-          className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end"
-        >
-          <div>
-            <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-brand-yellow">
-              Transformações
-            </p>
-            <h2 className="font-display text-3xl uppercase text-brand-white sm:text-5xl">
-              Antes <span className="text-brand-yellow">e</span> depois
-            </h2>
+        <div data-reveal className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+          <div className="flex flex-col items-start gap-4">
+            <AdEyebrow>Transformações</AdEyebrow>
+            <AdTitle>
+              Antes <em>e</em> depois
+            </AdTitle>
           </div>
-          <Link
-            href="/portfolio"
-            className="whitespace-nowrap rounded-full border border-white/30 px-6 py-2 text-sm font-semibold text-brand-white transition-colors hover:border-brand-yellow hover:text-brand-yellow"
-          >
+          <AdButton href="/portfolio" variant="outline">
             Ver portfólio completo
-          </Link>
-        </motion.div>
+          </AdButton>
+        </div>
 
         <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
-          {CASES.map((item, index) => (
-            <motion.div
-              key={item.alt}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, delay: index * 0.08 }}
-            >
+          {CASES.map((item) => (
+            <div key={item.alt} data-reveal>
               <BeforeAfterSlider beforeSrc={item.before} afterSrc={item.after} alt={item.alt} />
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

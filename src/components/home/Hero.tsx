@@ -1,90 +1,65 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { StripeBand } from "@/components/ui/StripeBand";
+import { useRef } from "react";
+import { useGSAP } from "@gsap/react";
+import { gsap, EASE, DURATION, STAGGER, Y_OFFSET } from "@/lib/gsap";
+import { AdEyebrow } from "@/components/ui/Eyebrow";
+import { AdTitle } from "@/components/ui/SectionTitle";
+import { AdButton } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
-import { WHATSAPP_LINK } from "@/lib/contact";
+import { buildWhatsAppLink } from "@/lib/whatsapp";
+import { HeroLocsVisual } from "@/components/home/HeroLocsVisual";
 
 export function Hero() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.from(ref.current!.querySelectorAll("[data-hero-item]"), {
+          opacity: 0,
+          y: Y_OFFSET,
+          duration: DURATION,
+          ease: EASE,
+          stagger: STAGGER,
+        });
+      });
+      return () => mm.revert();
+    },
+    { scope: ref },
+  );
+
   return (
-    <section className="relative flex h-screen min-h-[640px] items-center justify-center overflow-hidden bg-brand-black">
-      <video
-        className="absolute inset-0 h-full w-full object-cover opacity-70"
-        autoPlay
-        muted
-        loop
-        playsInline
-        poster="/images/hero-poster.jpg"
-      >
-        <source src="/videos/hero.mp4" type="video/mp4" />
-      </video>
+    <section className="relative overflow-hidden border-b border-line bg-surface pt-32 sm:pt-24">
+      <div ref={ref} className="mx-auto grid max-w-6xl gap-8 px-6 pb-16 pt-6 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-12 sm:pb-24 sm:pt-16">
+        <div className="flex flex-col gap-8">
+          <div data-hero-item className="flex flex-col items-start gap-4">
+            <AdEyebrow>Afro Dreads</AdEyebrow>
+            <AdTitle as="h1" size="hero">
+              Vem ficar no <em>estilo</em> com a gente.
+            </AdTitle>
+          </div>
+          <p data-hero-item className="m-0 max-w-xl text-lg leading-relaxed text-ink-muted sm:text-[17px]">
+            Do primeiro dread às manutenções, criamos um visual pensado para combinar com você, seu
+            estilo e sua rotina. <strong className="font-semibold text-amarelo">Escolha o comprimento,
+            espessura, cor e estilo.</strong> A gente transforma sua ideia em realidade.
+          </p>
+          <div data-hero-item className="flex flex-wrap gap-3">
+            <AdButton
+              href={buildWhatsAppLink("geral")}
+              size="lg"
+              icon={<WhatsAppIcon className="h-5 w-5" />}
+            >
+              Quero ficar no estilo
+            </AdButton>
+          </div>
+        </div>
 
-      {/* Gradiente de apoio: garante contraste mesmo sem o vídeo carregado */}
-      <div className="absolute inset-0 bg-gradient-to-br from-brand-black via-brand-black/85 to-brand-black/60" />
-      <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-transparent to-brand-black/40" />
-
-      {/* Faixas diagonais amarelas ao fundo — referência à lona de tenda de circo */}
-      <div
-        className="stripe-band absolute -left-1/4 top-0 h-full w-1/2 -rotate-12 opacity-[0.07]"
-        aria-hidden="true"
-      />
-      <div
-        className="stripe-band absolute -right-1/4 top-0 h-full w-1/2 rotate-12 opacity-[0.07]"
-        aria-hidden="true"
-      />
-
-      <div className="relative z-10 mx-auto max-w-3xl px-6 text-center">
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-5 inline-block -skew-x-6 bg-brand-yellow px-4 py-1 text-xs font-bold uppercase tracking-[0.3em] text-brand-black"
-        >
-          Estúdio de Dreadlocks
-        </motion.p>
-
-        <motion.h1
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.15 }}
-          className="font-display text-5xl uppercase leading-[0.95] tracking-tight text-brand-white sm:text-7xl md:text-8xl"
-        >
-          Sua raiz.
-          <br />
-          <span className="text-brand-yellow">Sua história.</span>
-          <br />
-          Seus dreads.
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-          className="mx-auto mt-6 max-w-xl text-base text-brand-white/80 sm:text-lg"
-        >
-          Formação, manutenção e revitalização de dreadlocks e microlocs com técnica,
-          cuidado e identidade.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.45 }}
-          className="mt-10 flex justify-center"
-        >
-          <a
-            href={WHATSAPP_LINK}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 rounded-full bg-brand-yellow px-8 py-3 text-sm font-bold text-brand-black transition-transform hover:scale-105"
-          >
-            <WhatsAppIcon className="h-4 w-4" />
-            Agendar meu horário
-          </a>
-        </motion.div>
+        <div data-hero-item>
+          <HeroLocsVisual />
+        </div>
       </div>
-
-      <StripeBand className="absolute bottom-0 left-0" height="h-2" />
     </section>
   );
 }
