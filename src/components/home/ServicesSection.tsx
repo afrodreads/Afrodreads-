@@ -7,10 +7,6 @@ import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
 import { ServiceCarouselList } from "@/components/servicos/ServiceCarouselList";
 
-// Preview de 5 serviços na home, no mesmo carrossel (com vídeo real onde
-// existe) usado na lista completa em /servicos.
-const PREVIEW = SERVICES.slice(0, 5);
-
 export function ServicesSection() {
   const ref = useScrollReveal<HTMLDivElement>();
 
@@ -30,7 +26,7 @@ export function ServicesSection() {
         </div>
 
         <div data-reveal>
-          <ServiceCarouselList services={PREVIEW} />
+          <ServiceCarouselList services={SERVICES} />
         </div>
       </div>
     </section>
