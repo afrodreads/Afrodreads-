@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
 import { AdTag } from "@/components/ui/Tag";
 import { AdButton } from "@/components/ui/Button";
@@ -16,6 +16,7 @@ const INTENT_BY_SLUG: Record<string, WhatsAppMessageKey> = {
   "retwist-twist": "manutencao",
   revitalizacao: "revitalizacao",
   penteados: "geral",
+  "short-dread": "primeira",
 };
 
 const PLACEHOLDER_VARIANTS = ["default", "alt", "sun"] as const;
@@ -33,16 +34,11 @@ export function ServiceListRow({
 }) {
   const intent = INTENT_BY_SLUG[service.slug] ?? "geral";
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [reducedMotion, setReducedMotion] = useState(false);
-
-  useEffect(() => {
-    setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }, []);
 
   // So carrega/toca o video quando o card entra na tela, e pausa quando sai.
   useEffect(() => {
     const el = videoRef.current;
-    if (!el || reducedMotion) return;
+    if (!el) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -57,7 +53,7 @@ export function ServiceListRow({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [reducedMotion]);
+  }, []);
 
   return (
     <article

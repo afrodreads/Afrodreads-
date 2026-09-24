@@ -20,9 +20,10 @@ export function FinalVideoCta() {
     const video = videoRef.current;
     if (!video) return;
 
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion) return; // fica só no poster, nunca chama load()/play()
-
+    // Nao depende de prefers-reduced-motion: video mudo, em loop suave,
+    // decorativo — nao e o tipo de movimento (parallax/flash) que essa
+    // preferencia visa evitar, e no Windows ela frequentemente vem
+    // desligada por padrao de desempenho, nao so por escolha de acessibilidade.
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {

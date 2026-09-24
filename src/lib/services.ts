@@ -66,6 +66,14 @@ export const SERVICES: ServiceDefinition[] = [
     description: "Penteados e finalizações para dreadlocks e microlocs.",
     order: 7,
   },
+  {
+    slug: "short-dread",
+    name: "Short Dread",
+    minHours: 3,
+    maxHours: 5,
+    description: "Formação de dreadlocks curtos, com um visual mais discreto e prático.",
+    order: 8,
+  },
 ];
 
 export function getServiceBySlug(slug: string): ServiceDefinition | undefined {
