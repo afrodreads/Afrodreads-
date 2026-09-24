@@ -27,33 +27,30 @@ export function ServiceListRow({
   service,
   index,
   video,
+  active = true,
 }: {
   service: ServiceDefinition;
   index: number;
   video?: ServiceVideo;
+  active?: boolean;
 }) {
   const intent = INTENT_BY_SLUG[service.slug] ?? "geral";
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // So carrega/toca o video quando o card entra na tela, e pausa quando sai.
+  // So carrega/toca o video do card ativo do carrossel. Tocar mais de um
+  // video ao mesmo tempo sobrecarrega a decodificacao em celulares e trava
+  // o scroll, entao so o card ativo (controlado pelo carrossel) reproduz.
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          if (el.readyState === 0) el.load();
-          el.play().catch(() => {});
-        } else {
-          el.pause();
-        }
-      },
-      { threshold: 0.3 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    if (active) {
+      if (el.readyState === 0) el.load();
+      el.play().catch(() => {});
+    } else {
+      el.pause();
+    }
+  }, [active]);
 
   return (
     <article
