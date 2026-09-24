@@ -20,7 +20,7 @@ export const SERVICES: ServiceDefinition[] = [
   },
   {
     slug: "cabeca-toda",
-    name: "Cabeça toda",
+    name: "Primeira aplicação (cabeça toda)",
     minHours: 4,
     maxHours: 8,
     description: "Formação completa dos dreadlocks em toda a cabeça.",
@@ -44,7 +44,7 @@ export const SERVICES: ServiceDefinition[] = [
   },
   {
     slug: "retwist-twist",
-    name: "Retwist + Twist",
+    name: "Start Locs",
     minHours: 3,
     maxHours: 5,
     description: "Manutenção da raiz combinada com torção ao longo do fio.",
