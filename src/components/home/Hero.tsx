@@ -31,15 +31,12 @@ export function Hero() {
   );
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    // O autoplay e feito aqui (em vez do atributo HTML autoplay) porque,
-    // com prefers-reduced-motion, queremos deixar só o poster visível —
-    // ou seja, nunca chamar play().
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!reduceMotion) {
-      video.play().catch(() => {});
-    }
+    // Autoplay via JS (mais confiavel entre navegadores que o atributo
+    // HTML autoplay quando o video vem depois de outros scripts). Nao
+    // depende de prefers-reduced-motion: e um video mudo e curto, com
+    // controle manual de replay (clique), entao nao se enquadra no tipo
+    // de movimento que essa preferencia visa evitar.
+    videoRef.current?.play().catch(() => {});
   }, []);
 
   // Video toca uma vez ao carregar a pagina e para no ultimo quadro (sem

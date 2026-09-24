@@ -19,6 +19,7 @@ const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
   },
   "retwist-twist": { src: "/services/start-locs.mp4", poster: "/services/start-locs-poster.jpg" },
   penteados: { src: "/services/penteado.mp4", poster: "/services/penteado-poster.jpg" },
+  "short-dread": { src: "/services/short-dread.mp4", poster: "/services/short-dread-poster.jpg" },
 };
 
 // Carrossel arrastavel (cards 3:4) em todos os tamanhos de tela, com
@@ -37,6 +38,10 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
 
   function scrollToIndex(index: number) {
     trackRef.current?.scrollTo({ left: index * cardStep(), behavior: "smooth" });
+  }
+
+  function scrollByAmount(amount: number) {
+    trackRef.current?.scrollBy({ left: amount, behavior: "smooth" });
   }
 
   useEffect(() => {
@@ -67,7 +72,16 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
   }
 
   return (
-    <div>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => scrollByAmount(-296)}
+        aria-label="Serviço anterior"
+        className="absolute left-0 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 h-11 w-11 items-center justify-center rounded-full border border-line-strong bg-surface text-ink hover:border-amarelo hover:text-amarelo sm:flex"
+      >
+        ‹
+      </button>
+
       <div
         ref={trackRef}
         onPointerDown={handlePointerDown}
@@ -82,6 +96,15 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
           </div>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={() => scrollByAmount(296)}
+        aria-label="Próximo serviço"
+        className="absolute right-0 top-1/2 z-10 hidden translate-x-1/2 -translate-y-1/2 h-11 w-11 items-center justify-center rounded-full border border-line-strong bg-surface text-ink hover:border-amarelo hover:text-amarelo sm:flex"
+      >
+        ›
+      </button>
 
       {services.length > 1 && (
         <div className="mt-4 flex justify-center gap-2">
