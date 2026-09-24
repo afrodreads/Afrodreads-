@@ -25,7 +25,7 @@ export function ServicesSection() {
             </AdTitle>
           </div>
           <AdButton href="/servicos" variant="outline">
-            Todos os detalhes →
+            Todos os serviços →
           </AdButton>
         </div>
 

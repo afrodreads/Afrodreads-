@@ -13,8 +13,8 @@ const SHOTS: Shot[] = [
   { slug: "revitalizacao", title: "Revitalização", tall: true, variant: "sun" },
   { slug: "penteados", title: "Penteado", variant: "default" },
   { slug: "microlocs", title: "Microlocs coloridos", variant: "alt" },
-  { slug: "cabeca-toda", title: "Cabeça toda", variant: "sun" },
-  { slug: "retwist-twist", title: "Retwist + twist", variant: "alt" },
+  { slug: "cabeca-toda", title: "Primeira aplicação (cabeça toda)", variant: "sun" },
+  { slug: "retwist-twist", title: "Start Locs", variant: "alt" },
   { slug: "retwist", title: "Manutenção", variant: "default" },
 ];
 
