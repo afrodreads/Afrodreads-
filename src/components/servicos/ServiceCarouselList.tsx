@@ -27,7 +27,9 @@ const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
 // arrastar pro lado (e quantos itens tem).
 export function ServiceCarouselList({ services }: { services: ServiceDefinition[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [inView, setInView] = useState(false);
   const dragState = useRef({ dragging: false, startX: 0, startScrollLeft: 0 });
 
   const cardStep = useCallback(() => {
@@ -55,6 +57,17 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
     return () => track.removeEventListener("scroll", onScroll);
   }, [cardStep]);
 
+  // So permite tocar video quando o carrossel esta visivel na tela.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), {
+      threshold: 0.3,
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.pointerType !== "mouse") return; // toque usa o scroll nativo
     const track = trackRef.current;
@@ -72,7 +85,7 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
   }
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => scrollByAmount(-296)}
@@ -92,7 +105,12 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
       >
         {services.map((service, index) => (
           <div key={service.slug} className="w-[240px] shrink-0 snap-start sm:w-[280px]">
-            <ServiceListRow service={service} index={index} video={SERVICE_VIDEOS[service.slug]} />
+            <ServiceListRow
+              service={service}
+              index={index}
+              video={SERVICE_VIDEOS[service.slug]}
+              active={inView && index === activeIndex}
+            />
           </div>
         ))}
       </div>
