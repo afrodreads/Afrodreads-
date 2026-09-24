@@ -17,6 +17,8 @@ const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
     src: "/services/primeira-aplicacao-cabeca-toda.mp4",
     poster: "/services/primeira-aplicacao-cabeca-toda-poster.jpg",
   },
+  "retwist-twist": { src: "/services/start-locs.mp4", poster: "/services/start-locs-poster.jpg" },
+  penteados: { src: "/services/penteado.mp4", poster: "/services/penteado-poster.jpg" },
 };
 
 // Carrossel arrastavel (cards 3:4) em todos os tamanhos de tela, com
