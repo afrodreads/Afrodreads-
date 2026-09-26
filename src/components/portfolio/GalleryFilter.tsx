@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { SERVICES } from "@/lib/services";
+
+type ShotVideo = { src: string; poster: string };
 
 type Shot = {
   slug: string;
@@ -11,8 +13,17 @@ type Shot = {
   tall?: boolean;
   variant: "default" | "alt" | "sun";
   photo?: string;
+  video?: ShotVideo;
   alt?: string;
 };
+
+// Categorias que existem so no portfolio (nao sao servicos agendaveis com
+// preco/duracao proprios), entao nao vem de SERVICES.
+const EXTRA_CATEGORIES = [
+  { slug: "dread-sintetico-twist", name: "Dread Sintético + Twist" },
+  { slug: "manutencao", name: "Manutenção" },
+  { slug: "manutencao-interlock", name: "Manutenção Interlock" },
+];
 
 const SHOTS: Shot[] = [
   { slug: "primeira-aplicacao-topo", title: "Primeira aplicação", tall: true, variant: "default" },
@@ -52,9 +63,48 @@ const SHOTS: Shot[] = [
     photo: "/portfolio-retwist.jpg",
     alt: "Retwist de dreadlocks feito na Afro Dreads",
   },
+  {
+    slug: "retwist-twist",
+    title: "Start Locs",
+    variant: "alt",
+    photo: "/portfolio-start-locs.jpg",
+    alt: "Start Locs feito na Afro Dreads",
+  },
+  {
+    slug: "dread-sintetico-twist",
+    title: "Dread Sintético + Twist",
+    variant: "sun",
+    photo: "/portfolio-dread-sintetico-twist.jpg",
+    alt: "Dread sintético com twist feito na Afro Dreads",
+  },
+  {
+    slug: "primeira-aplicacao-topo",
+    title: "Primeira aplicação (topo)",
+    variant: "default",
+    photo: "/portfolio-primeira-aplicacao-topo.jpg",
+    alt: "Primeira aplicação de dreadlocks (topo) feita na Afro Dreads",
+  },
+  {
+    slug: "manutencao",
+    title: "Manutenção",
+    variant: "default",
+    video: { src: "/manutencao.mp4", poster: "/manutencao-poster.jpg" },
+    alt: "Manutenção de dreadlocks feita na Afro Dreads",
+  },
+  {
+    slug: "manutencao-interlock",
+    title: "Manutenção Interlock",
+    variant: "alt",
+    video: { src: "/manutencao-interlock.mp4", poster: "/manutencao-interlock-poster.jpg" },
+    alt: "Manutenção Interlock de dreadlocks feita na Afro Dreads",
+  },
 ];
 
-const FILTERS = [{ slug: "todos", name: "Todos" }, ...SERVICES.map((s) => ({ slug: s.slug, name: s.name }))];
+const FILTERS = [
+  { slug: "todos", name: "Todos" },
+  ...SERVICES.map((s) => ({ slug: s.slug, name: s.name })),
+  ...EXTRA_CATEGORIES,
+];
 
 export function GalleryFilter() {
   const [active, setActive] = useState("todos");
@@ -81,31 +131,74 @@ export function GalleryFilter() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:auto-rows-[220px]">
         {SHOTS.filter((s) => active === "todos" || s.slug === active).map((shot, index) => (
-          <figure
-            key={`${shot.slug}-${index}`}
-            className={`relative m-0 overflow-hidden rounded-ad-lg border border-line ${
-              shot.photo ? "aspect-[3/4] h-auto" : `h-[220px] lg:h-auto ${shot.tall ? "lg:row-span-2" : ""}`
-            }`}
-          >
-            {shot.photo ? (
-              <SafeImage
-                src={shot.photo}
-                alt={shot.alt ?? shot.title}
-                fill
-                loading="lazy"
-                className="object-cover"
-                placeholderVariant={shot.variant}
-              />
-            ) : (
-              <PhotoPlaceholder variant={shot.variant} />
-            )}
-            <figcaption className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/85 to-transparent p-4 text-ink">
-              <b className="text-[16px] font-semibold">{shot.title}</b>
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-amarelo">Afro Dreads</span>
-            </figcaption>
-          </figure>
+          <GalleryShot key={`${shot.slug}-${index}`} shot={shot} />
         ))}
       </div>
     </div>
+  );
+}
+
+function GalleryShot({ shot }: { shot: Shot }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hasMedia = Boolean(shot.photo || shot.video);
+
+  // Cada card de video no portfolio tem seu proprio IntersectionObserver
+  // (diferente do carrossel de servicos): aqui os cards ficam numa grade
+  // normal da pagina, entao mais de um pode tocar ao mesmo tempo sem o
+  // problema de decodificacao que existia no carrossel horizontal.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (el.readyState === 0) el.load();
+          el.play().catch(() => {});
+        } else {
+          el.pause();
+        }
+      },
+      { threshold: 0.3 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <figure
+      className={`relative m-0 overflow-hidden rounded-ad-lg border border-line ${
+        hasMedia ? "aspect-[3/4] h-auto" : `h-[220px] lg:h-auto ${shot.tall ? "lg:row-span-2" : ""}`
+      }`}
+    >
+      {shot.video ? (
+        <video
+          ref={videoRef}
+          muted
+          loop
+          playsInline
+          preload="none"
+          poster={shot.video.poster}
+          aria-label={shot.alt ?? shot.title}
+          className="h-full w-full object-cover"
+        >
+          <source src={shot.video.src} type="video/mp4" />
+        </video>
+      ) : shot.photo ? (
+        <SafeImage
+          src={shot.photo}
+          alt={shot.alt ?? shot.title}
+          fill
+          loading="lazy"
+          className="object-cover"
+          placeholderVariant={shot.variant}
+        />
+      ) : (
+        <PhotoPlaceholder variant={shot.variant} />
+      )}
+      <figcaption className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/85 to-transparent p-4 text-ink">
+        <b className="text-[16px] font-semibold">{shot.title}</b>
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-amarelo">Afro Dreads</span>
+      </figcaption>
+    </figure>
   );
 }

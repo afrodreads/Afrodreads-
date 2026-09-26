@@ -20,6 +20,7 @@ const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
   "retwist-twist": { src: "/services/start-locs.mp4", poster: "/services/start-locs-poster.jpg" },
   penteados: { src: "/services/penteado.mp4", poster: "/services/penteado-poster.jpg" },
   "short-dread": { src: "/services/short-dread.mp4", poster: "/services/short-dread-poster.jpg" },
+  revitalizacao: { src: "/revitalizacao.mp4", poster: "/revitalizacao-poster.jpg" },
   "cultivo-agulhado": {
     src: "/dreads-cultivo-agulhado.mp4",
     poster: "/dreads-cultivo-agulhado-poster.jpg",
