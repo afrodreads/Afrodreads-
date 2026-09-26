@@ -5,12 +5,22 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import { AdTag } from "@/components/ui/Tag";
 
 type BeforeAfterSliderProps = {
+  title?: string;
   beforeSrc: string;
   afterSrc: string;
   alt: string;
+  beforeAlt?: string;
+  afterAlt?: string;
 };
 
-export function BeforeAfterSlider({ beforeSrc, afterSrc, alt }: BeforeAfterSliderProps) {
+export function BeforeAfterSlider({
+  title,
+  beforeSrc,
+  afterSrc,
+  alt,
+  beforeAlt,
+  afterAlt,
+}: BeforeAfterSliderProps) {
   const [position, setPosition] = useState(50);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -25,16 +35,17 @@ export function BeforeAfterSlider({ beforeSrc, afterSrc, alt }: BeforeAfterSlide
   return (
     <div
       ref={containerRef}
-      className="relative aspect-[4/5] w-full select-none overflow-hidden rounded-ad-lg border border-line"
+      className="relative aspect-[3/4] w-full select-none overflow-hidden rounded-ad-lg border border-line"
+      style={{ touchAction: "pan-y" }}
       onMouseMove={(e) => e.buttons === 1 && updatePositionFromClientX(e.clientX)}
       onTouchMove={(e) => updatePositionFromClientX(e.touches[0].clientX)}
     >
       <SafeImage
         src={afterSrc}
-        alt={`${alt} - depois`}
+        alt={afterAlt ?? `${alt} - depois`}
         fill
         loading="lazy"
-        className="object-cover"
+        className="object-cover object-center"
         placeholderVariant="sun"
       />
 
@@ -44,13 +55,21 @@ export function BeforeAfterSlider({ beforeSrc, afterSrc, alt }: BeforeAfterSlide
       >
         <SafeImage
           src={beforeSrc}
-          alt={`${alt} - antes`}
+          alt={beforeAlt ?? `${alt} - antes`}
           fill
           loading="lazy"
-          className="object-cover"
+          className="object-cover object-center"
           placeholderVariant="default"
         />
       </div>
+
+      {title && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-10">
+          <h3 className="m-0 font-serif text-xl font-normal uppercase leading-none tracking-tight text-white">
+            {title}
+          </h3>
+        </div>
+      )}
 
       <div className="absolute inset-y-0 w-[3px] bg-amarelo" style={{ left: `${position}%` }}>
         <div className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[3px] border-black bg-amarelo text-amarelo-on shadow-lg">
@@ -74,6 +93,7 @@ export function BeforeAfterSlider({ beforeSrc, afterSrc, alt }: BeforeAfterSlide
         onChange={(e) => setPosition(Number(e.target.value))}
         aria-label="Comparar antes e depois"
         className="absolute inset-0 h-full w-full cursor-ew-resize opacity-0"
+        style={{ touchAction: "pan-y" }}
       />
 
       <span className="pointer-events-none absolute left-3 top-3">
