@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://afrodreads.com.br";
+import { CANONICAL_URL as SITE_URL } from "@/lib/site";
 
 // Só as páginas públicas de conteúdo — checkout, orçamento e admin são
 // transacionais/privadas e ficam de fora (ver robots.ts).

@@ -8,9 +8,9 @@ import { TESTIMONIALS } from "@/lib/testimonials";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
 export const metadata: Metadata = {
-  title: "Portfólio | Afro Dreads",
+  title: "Portfólio de Dreadlocks e Microlocs | Afro Dreads Pirituba",
   description:
-    "Veja antes e depois de dreadlocks, microlocs e retwist feitos na Afro Dreads, em Pirituba, SP.",
+    "Fotos e vídeos de dreadlocks, microlocs, retwist, start locs e revitalização feitos na Afro Dreads, em Pirituba, SP. Veja antes e depois reais.",
   alternates: { canonical: "/portfolio" },
 };
 

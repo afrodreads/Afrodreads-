@@ -5,6 +5,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { WhatsAppFloat } from "@/components/layout/WhatsAppFloat";
 import { businessJsonLd } from "@/lib/seo";
+import { CANONICAL_URL as SITE_URL } from "@/lib/site";
 
 const display = Anton({
   subsets: ["latin"],
@@ -40,8 +41,6 @@ const dmMono = DM_Mono({
   variable: "--font-dm-mono",
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://afrodreads.com.br";
-
 const TITLE = "Dreadlocks e Microlocs em Pirituba, SP | Afro Dreads";
 const DESCRIPTION =
   "Estúdio especializado em dreadlocks e microlocs em Pirituba, SP. Formação, manutenção e revitalização com técnica e cuidado. Agende online.";
@@ -75,14 +74,16 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body
-        className={`${display.variable} ${body.variable} ${instrumentSerif.variable} ${dmSans.variable} ${dmMono.variable} font-body bg-brand-black text-brand-white antialiased`}
-      >
+      <head>
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: JSON.stringify(businessJsonLd) }}
         />
+      </head>
+      <body
+        className={`${display.variable} ${body.variable} ${instrumentSerif.variable} ${dmSans.variable} ${dmMono.variable} font-body bg-brand-black text-brand-white antialiased`}
+      >
         <Header />
         <main>{children}</main>
         <Footer />
