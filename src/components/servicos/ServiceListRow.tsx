@@ -17,6 +17,7 @@ const INTENT_BY_SLUG: Record<string, WhatsAppMessageKey> = {
   revitalizacao: "revitalizacao",
   penteados: "geral",
   "short-dread": "primeira",
+  "cultivo-agulhado": "primeira",
 };
 
 const PLACEHOLDER_VARIANTS = ["default", "alt", "sun"] as const;
