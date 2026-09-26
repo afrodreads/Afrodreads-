@@ -26,7 +26,7 @@ export function ServicesSection() {
         </div>
 
         <div data-reveal>
-          <ServiceCarouselList services={SERVICES} />
+          <ServiceCarouselList services={SERVICES} moreHref="/servicos" />
         </div>
       </div>
     </section>

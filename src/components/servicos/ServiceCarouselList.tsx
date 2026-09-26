@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ServiceListRow, type ServiceVideo } from "@/components/servicos/ServiceListRow";
 import type { ServiceDefinition } from "@/lib/services";
 
 // Videos reais por servico (arquivos em public/services/). Servicos sem
 // entrada aqui continuam mostrando o placeholder de foto no ServiceListRow.
-const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
+export const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
   retwist: { src: "/services/retwist.mp4", poster: "/services/retwist-poster.jpg" },
   microlocs: { src: "/services/microlocs.mp4", poster: "/services/microlocs-poster.jpg" },
   "primeira-aplicacao-topo": {
@@ -30,7 +31,13 @@ const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
 // Carrossel arrastavel (cards 3:4) em todos os tamanhos de tela, com
 // indicador de bolinhas abaixo pra deixar visualmente claro que da pra
 // arrastar pro lado (e quantos itens tem).
-export function ServiceCarouselList({ services }: { services: ServiceDefinition[] }) {
+export function ServiceCarouselList({
+  services,
+  moreHref,
+}: {
+  services: ServiceDefinition[];
+  moreHref?: string;
+}) {
   const trackRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -112,12 +119,16 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
     const track = trackRef.current;
     if (!track) return;
     dragState.current = { dragging: true, startX: e.clientX, startScrollLeft: track.scrollLeft };
-    track.setPointerCapture(e.pointerId);
   }
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragState.current.dragging || !trackRef.current) return;
+    const track = trackRef.current;
+    if (!dragState.current.dragging || !track) return;
     const deltaX = e.clientX - dragState.current.startX;
-    trackRef.current.scrollLeft = dragState.current.startScrollLeft - deltaX;
+    // So captura o ponteiro quando vira arraste de verdade: capturar ja no
+    // pointerdown mandava o clique pro trilho e o card nunca recebia o clique.
+    if (Math.abs(deltaX) < 5) return;
+    if (!track.hasPointerCapture(e.pointerId)) track.setPointerCapture(e.pointerId);
+    track.scrollLeft = dragState.current.startScrollLeft - deltaX;
   }
   function handlePointerUp() {
     dragState.current.dragging = false;
@@ -157,6 +168,20 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
             />
           </div>
         ))}
+        {moreHref && (
+          <div className="w-[240px] shrink-0 snap-center sm:w-[280px] sm:snap-start">
+            <Link
+              href={moreHref}
+              aria-label="Ver todos os serviços"
+              className="group flex h-full w-full flex-col items-center justify-center gap-4 rounded-ad-lg border border-dashed border-line-strong bg-surface-raised text-ink transition-colors hover:border-amarelo"
+            >
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-amarelo text-4xl font-light leading-none text-amarelo-on transition-transform group-hover:scale-110">
+                +
+              </span>
+              <span className="font-serif text-2xl uppercase tracking-tight">Ver todos</span>
+            </Link>
+          </div>
+        )}
       </div>
 
       <button
