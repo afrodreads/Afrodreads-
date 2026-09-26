@@ -14,11 +14,21 @@ export const metadata: Metadata = {
   alternates: { canonical: "/portfolio" },
 };
 
-const CASES = [
+const CASES: {
+  title?: string;
+  before: string;
+  after: string;
+  alt: string;
+  beforeAlt?: string;
+  afterAlt?: string;
+}[] = [
   {
-    before: "/images/portfolio/caso-1-antes.jpg",
-    after: "/images/portfolio/caso-1-depois.jpg",
-    alt: "Cliente antes e depois da formação de dreadlocks na Afro Dreads",
+    title: "Revitalização",
+    before: "/revitalizacao-antes.jpg",
+    after: "/revitalizacao-depois.jpg",
+    alt: "Cliente antes e depois da revitalização de dreadlocks na Afro Dreads",
+    beforeAlt: "Antes da revitalização",
+    afterAlt: "Depois da revitalização",
   },
   {
     before: "/images/portfolio/caso-2-antes.jpg",
@@ -58,7 +68,15 @@ export default function PortfolioPage() {
           </div>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {CASES.map((item) => (
-              <BeforeAfterSlider key={item.alt} beforeSrc={item.before} afterSrc={item.after} alt={item.alt} />
+              <BeforeAfterSlider
+                key={item.alt}
+                title={item.title}
+                beforeSrc={item.before}
+                afterSrc={item.after}
+                alt={item.alt}
+                beforeAlt={item.beforeAlt}
+                afterAlt={item.afterAlt}
+              />
             ))}
           </div>
         </div>
