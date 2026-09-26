@@ -74,6 +74,14 @@ export const SERVICES: ServiceDefinition[] = [
     description: "Formação de dreadlocks curtos, com um visual mais discreto e prático.",
     order: 8,
   },
+  {
+    slug: "cultivo-agulhado",
+    name: "Cultivo Agulhado",
+    minHours: 4,
+    maxHours: 8,
+    description: "Formação de dreadlocks pela técnica de cultivo agulhado.",
+    order: 9,
+  },
 ];
 
 export function getServiceBySlug(slug: string): ServiceDefinition | undefined {
