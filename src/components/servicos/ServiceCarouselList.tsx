@@ -169,16 +169,19 @@ export function ServiceCarouselList({
           </div>
         ))}
         {moreHref && (
-          <div className="w-[240px] shrink-0 snap-center sm:w-[280px] sm:snap-start">
+          <div className="w-[240px] shrink-0 snap-center sm:flex sm:w-auto sm:snap-end sm:items-center sm:pl-6 sm:pr-14">
             <Link
               href={moreHref}
               aria-label="Ver todos os serviços"
-              className="group flex h-full w-full flex-col items-center justify-center gap-4 rounded-ad-lg border border-dashed border-line-strong bg-surface-raised text-ink transition-colors hover:border-amarelo"
+              className="group flex h-full w-full flex-col items-center justify-center gap-4 rounded-ad-lg border border-dashed border-line-strong bg-surface-raised text-ink transition-colors hover:border-amarelo sm:h-auto sm:w-auto sm:gap-3 sm:border-0 sm:bg-transparent"
             >
-              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-amarelo text-4xl font-light leading-none text-amarelo-on transition-transform group-hover:scale-110">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-amarelo text-4xl font-light leading-none text-amarelo-on transition-transform group-hover:scale-110 sm:h-14 sm:w-14 sm:text-3xl">
                 +
               </span>
-              <span className="font-serif text-2xl uppercase tracking-tight">Ver todos</span>
+              <span className="whitespace-nowrap font-serif text-2xl uppercase tracking-tight sm:text-xl">
+                <span className="sm:hidden">Ver todos</span>
+                <span className="hidden sm:inline">Ver mais</span>
+              </span>
             </Link>
           </div>
         )}

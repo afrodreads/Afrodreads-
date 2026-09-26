@@ -55,7 +55,8 @@ export const SERVICES: ServiceDefinition[] = [
     name: "Start Locs",
     minHours: 3,
     maxHours: 5,
-    description: "Manutenção da raiz combinada com torção ao longo do fio.",
+    description:
+      "Início da formação das locs no cabelo natural, com mechas estruturadas de acordo com a textura e o resultado desejado.",
     order: 6,
   },
   {
@@ -79,7 +80,7 @@ export const SERVICES: ServiceDefinition[] = [
     name: "Cultivo Agulhado",
     minHours: 4,
     maxHours: 8,
-    description: "Formação de dreadlocks pela técnica de cultivo agulhado.",
+    description: "Feito exclusivamente com o próprio cabelo, sem uso de extensões.",
     order: 9,
   },
 ];
