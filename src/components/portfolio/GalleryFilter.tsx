@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { SERVICES } from "@/lib/services";
+import { SERVICE_VIDEOS } from "@/components/servicos/ServiceCarouselList";
 
 type ShotVideo = { src: string; poster: string };
 
@@ -96,6 +97,18 @@ const SHOTS: Shot[] = [
   },
 ];
 
+// Os videos da pagina de Servicos tambem aparecem no portfolio, cada um na
+// categoria do proprio servico.
+const SERVICE_VIDEO_SHOTS: Shot[] = SERVICES.filter((s) => SERVICE_VIDEOS[s.slug]).map((s) => ({
+  slug: s.slug,
+  title: s.name,
+  variant: "default",
+  video: SERVICE_VIDEOS[s.slug],
+  alt: `${s.name} feito na Afro Dreads`,
+}));
+
+const ALL_SHOTS = [...SHOTS, ...SERVICE_VIDEO_SHOTS];
+
 const FILTERS = [
   { slug: "todos", name: "Todos" },
   ...SERVICES.map((s) => ({ slug: s.slug, name: s.name })),
@@ -126,7 +139,7 @@ export function GalleryFilter() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:auto-rows-[220px]">
-        {SHOTS.filter((s) => active === "todos" || s.slug === active).map((shot, index) => (
+        {ALL_SHOTS.filter((s) => active === "todos" || s.slug === active).map((shot, index) => (
           <GalleryShot key={`${shot.slug}-${index}`} shot={shot} />
         ))}
       </div>
