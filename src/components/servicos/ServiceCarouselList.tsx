@@ -20,6 +20,10 @@ const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
   "retwist-twist": { src: "/services/start-locs.mp4", poster: "/services/start-locs-poster.jpg" },
   penteados: { src: "/services/penteado.mp4", poster: "/services/penteado-poster.jpg" },
   "short-dread": { src: "/services/short-dread.mp4", poster: "/services/short-dread-poster.jpg" },
+  "cultivo-agulhado": {
+    src: "/dreads-cultivo-agulhado.mp4",
+    poster: "/dreads-cultivo-agulhado-poster.jpg",
+  },
 };
 
 // Carrossel arrastavel (cards 3:4) em todos os tamanhos de tela, com
@@ -51,6 +55,19 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
     if (!track) return;
     function onScroll() {
       if (!track) return;
+      // Nas pontas, o scroll maximo/minimo nem sempre bate exatamente com
+      // index * cardStep (arredondamento, ultimo card sem espaco pra
+      // "centralizar"), entao os ultimos itens nunca ficavam ativos e o
+      // video deles nunca tocava. Forca o primeiro/ultimo indice nos limites.
+      const maxScroll = track.scrollWidth - track.clientWidth;
+      if (track.scrollLeft >= maxScroll - 2) {
+        setActiveIndex(services.length - 1);
+        return;
+      }
+      if (track.scrollLeft <= 2) {
+        setActiveIndex(0);
+        return;
+      }
       setActiveIndex(Math.round(track.scrollLeft / cardStep()));
     }
     track.addEventListener("scroll", onScroll, { passive: true });
