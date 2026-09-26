@@ -4,7 +4,7 @@ import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
 import { FaqAccordion, type FaqItem } from "@/components/ui/FaqAccordion";
 import { FinalCtaBand } from "@/components/ui/FinalCta";
-import { ServiceCarouselList } from "@/components/servicos/ServiceCarouselList";
+import { ServiceGridList } from "@/components/servicos/ServiceGridList";
 import { PolicyRules } from "@/components/servicos/PolicyRules";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
@@ -77,7 +77,7 @@ export default function ServicosPage() {
 
       <section className="px-6 py-16 sm:py-24">
         <div className="mx-auto max-w-6xl">
-          <ServiceCarouselList services={SERVICES} />
+          <ServiceGridList services={SERVICES} />
         </div>
       </section>
 

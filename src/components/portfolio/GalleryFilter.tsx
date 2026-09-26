@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { SERVICES } from "@/lib/services";
+import { SERVICE_VIDEOS } from "@/components/servicos/ServiceCarouselList";
 
 type ShotVideo = { src: string; poster: string };
 
@@ -26,11 +27,6 @@ const EXTRA_CATEGORIES = [
 ];
 
 const SHOTS: Shot[] = [
-  { slug: "primeira-aplicacao-topo", title: "Primeira aplicação", tall: true, variant: "default" },
-  { slug: "revitalizacao", title: "Revitalização", tall: true, variant: "sun" },
-  { slug: "penteados", title: "Penteado", variant: "default" },
-  { slug: "microlocs", title: "Microlocs coloridos", variant: "alt" },
-  { slug: "cabeca-toda", title: "Primeira aplicação (cabeça toda)", variant: "sun" },
   {
     slug: "cabeca-toda",
     title: "Primeira aplicação (cabeça toda)",
@@ -38,6 +34,21 @@ const SHOTS: Shot[] = [
     photo: "/portfolio-aplicacao-cabeca-toda.jpg",
     alt: "Primeira aplicação de dreadlocks (cabeça toda) feita na Afro Dreads",
   },
+  ...[
+    "Cliente sorrindo com dreadlocks castanho-claros na cabeça toda",
+    "Dreadlocks longos castanho-acobreados na cabeça toda, vistos de trás",
+    "Dreadlocks pretos na cabeça toda, vistos de cima",
+    "Dreadlocks pretos com pontas loiras na cabeça toda, vistos de lado",
+    "Dreadlocks longos loiros na cabeça toda, vistos de trás",
+  ].map(
+    (alt, i): Shot => ({
+      slug: "cabeca-toda",
+      title: "Primeira aplicação (cabeça toda)",
+      variant: "sun",
+      photo: `/portfolio-cabeca-toda-${i + 2}.jpg`,
+      alt,
+    }),
+  ),
   {
     slug: "short-dread",
     title: "Short Dread",
@@ -53,6 +64,64 @@ const SHOTS: Shot[] = [
     alt: "Microlocs feitos na Afro Dreads",
   },
   {
+    slug: "microlocs",
+    title: "Microlocs",
+    variant: "sun",
+    photo: "/portfolio-microlocs-2.jpg",
+    alt: "Início da formação de microlocs, com as divisões da raiz aparentes",
+  },
+  {
+    slug: "microlocs",
+    title: "Microlocs",
+    variant: "sun",
+    photo: "/portfolio-microlocs-3.jpg",
+    alt: "Microlocs recém-formados vistos de cima",
+  },
+  {
+    slug: "microlocs",
+    title: "Microlocs",
+    variant: "sun",
+    photo: "/portfolio-microlocs-4.jpg",
+    alt: "Microlocs finalizados vistos de trás",
+  },
+  {
+    slug: "microlocs",
+    title: "Microlocs",
+    variant: "sun",
+    photo: "/portfolio-microlocs-5.jpg",
+    alt: "Microlocs acobreados vistos de lado",
+  },
+  {
+    slug: "microlocs",
+    title: "Microlocs",
+    variant: "sun",
+    photo: "/portfolio-microlocs-6.jpg",
+    alt: "Microlocs acobreados vistos de cima, com as divisões da raiz",
+  },
+  {
+    slug: "microlocs",
+    title: "Microlocs",
+    variant: "sun",
+    photo: "/portfolio-microlocs-7.jpg",
+    alt: "Microlocs acobreados erguidos mostrando as divisões da nuca",
+  },
+  {
+    slug: "microlocs",
+    title: "Microlocs",
+    variant: "sun",
+    video: { src: "/microlocs-2.mp4", poster: "/microlocs-2-poster.jpg" },
+    alt: "Vídeo de microlocs feitos na Afro Dreads",
+  },
+  ...[3, 4, 5, 6].map(
+    (n): Shot => ({
+      slug: "microlocs",
+      title: "Microlocs",
+      variant: "sun",
+      video: { src: `/microlocs-${n}.mp4`, poster: `/microlocs-${n}-poster.jpg` },
+      alt: "Vídeo do processo de microlocs na Afro Dreads",
+    }),
+  ),
+  {
     slug: "retwist",
     title: "Retwist",
     variant: "alt",
@@ -60,11 +129,25 @@ const SHOTS: Shot[] = [
     alt: "Retwist de dreadlocks feito na Afro Dreads",
   },
   {
+    slug: "retwist",
+    title: "Retwist",
+    variant: "alt",
+    video: { src: "/retwist-2.mp4", poster: "/retwist-2-poster.jpg" },
+    alt: "Vídeo de retwist na raiz dos dreadlocks na Afro Dreads",
+  },
+  {
     slug: "retwist-twist",
     title: "Start Locs",
     variant: "alt",
     photo: "/portfolio-start-locs.jpg",
     alt: "Start Locs feito na Afro Dreads",
+  },
+  {
+    slug: "retwist-twist",
+    title: "Start Locs",
+    variant: "alt",
+    video: { src: "/start-locs-2.mp4", poster: "/start-locs-2-poster.jpg" },
+    alt: "Vídeo do processo de Start Locs na Afro Dreads",
   },
   {
     slug: "dread-sintetico-twist",
@@ -80,6 +163,18 @@ const SHOTS: Shot[] = [
     photo: "/portfolio-primeira-aplicacao-topo.jpg",
     alt: "Primeira aplicação de dreadlocks (topo) feita na Afro Dreads",
   },
+  ...[2, 3, 4, 5].map(
+    (n): Shot => ({
+      slug: "primeira-aplicacao-topo",
+      title: "Primeira aplicação (topo)",
+      variant: "default",
+      video: {
+        src: `/primeira-aplicacao-topo-${n}.mp4`,
+        poster: `/primeira-aplicacao-topo-${n}-poster.jpg`,
+      },
+      alt: "Vídeo de primeira aplicação de dreadlocks (topo) na Afro Dreads",
+    }),
+  ),
   {
     slug: "manutencao",
     title: "Manutenção",
@@ -95,6 +190,18 @@ const SHOTS: Shot[] = [
     alt: "Manutenção Interlock de dreadlocks feita na Afro Dreads",
   },
 ];
+
+// Os videos da pagina de Servicos tambem aparecem no portfolio, cada um na
+// categoria do proprio servico.
+const SERVICE_VIDEO_SHOTS: Shot[] = SERVICES.filter((s) => SERVICE_VIDEOS[s.slug]).map((s) => ({
+  slug: s.slug,
+  title: s.name,
+  variant: "default",
+  video: SERVICE_VIDEOS[s.slug],
+  alt: `${s.name} feito na Afro Dreads`,
+}));
+
+const ALL_SHOTS = [...SHOTS, ...SERVICE_VIDEO_SHOTS];
 
 const FILTERS = [
   { slug: "todos", name: "Todos" },
@@ -126,9 +233,14 @@ export function GalleryFilter() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:auto-rows-[220px]">
-        {SHOTS.filter((s) => active === "todos" || s.slug === active).map((shot, index) => (
-          <GalleryShot key={`${shot.slug}-${index}`} shot={shot} />
-        ))}
+        {/* Key pela posicao na lista completa: com o indice da lista filtrada,
+            trocar de filtro reaproveitava o card de outro item (ex.: uma foto
+            virava video) e o video nunca ligava o autoplay. */}
+        {ALL_SHOTS.map((shot, index) => ({ shot, index }))
+          .filter(({ shot }) => active === "todos" || shot.slug === active)
+          .map(({ shot, index }) => (
+            <GalleryShot key={index} shot={shot} />
+          ))}
       </div>
     </div>
   );
@@ -158,7 +270,7 @@ function GalleryShot({ shot }: { shot: Shot }) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [shot.video?.src]);
 
   return (
     <figure

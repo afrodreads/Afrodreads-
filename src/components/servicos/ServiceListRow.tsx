@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
 import { AdTag } from "@/components/ui/Tag";
 import { AdButton } from "@/components/ui/Button";
@@ -28,30 +28,41 @@ export function ServiceListRow({
   service,
   index,
   video,
-  active = true,
+  active,
 }: {
   service: ServiceDefinition;
   index: number;
   video?: ServiceVideo;
+  // Controlado pelo carrossel (so o card ativo toca). Sem essa prop (lista
+  // vertical), cada card toca/pausa sozinho conforme aparece na tela.
   active?: boolean;
 }) {
   const intent = INTENT_BY_SLUG[service.slug] ?? "geral";
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [visible, setVisible] = useState(false);
+  const shouldPlay = active ?? visible;
 
-  // So carrega/toca o video do card ativo do carrossel. Tocar mais de um
-  // video ao mesmo tempo sobrecarrega a decodificacao em celulares e trava
-  // o scroll, entao so o card ativo (controlado pelo carrossel) reproduz.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || active !== undefined) return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), {
+      threshold: 0.5,
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [active]);
+
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
 
-    if (active) {
+    if (shouldPlay) {
       if (el.readyState === 0) el.load();
       el.play().catch(() => {});
     } else {
       el.pause();
     }
-  }, [active]);
+  }, [shouldPlay]);
 
   return (
     <article
@@ -68,7 +79,12 @@ export function ServiceListRow({
             preload="none"
             poster={video.poster}
             aria-label={service.name}
-            className="h-full w-full object-cover"
+            onClick={(e) => {
+              const el = e.currentTarget;
+              if (el.readyState === 0) el.load();
+              el.play().catch(() => {});
+            }}
+            className="h-full w-full cursor-pointer object-cover"
           >
             <source src={video.src} type="video/mp4" />
           </video>
