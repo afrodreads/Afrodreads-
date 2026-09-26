@@ -35,12 +35,33 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [inView, setInView] = useState(false);
+  const [sidePadding, setSidePadding] = useState(0);
   const dragState = useRef({ dragging: false, startX: 0, startScrollLeft: 0 });
 
   const cardStep = useCallback(() => {
     const track = trackRef.current;
     if (!track?.firstElementChild) return 1;
     return (track.firstElementChild as HTMLElement).getBoundingClientRect().width + 16;
+  }, []);
+
+  // No celular so cabe ~1 card e meio por vez, entao o card ativo ficava
+  // colado na borda esquerda ao arrastar. Adiciona espaco nas pontas do
+  // trilho pra cada card poder ficar centralizado (so no celular; no
+  // desktop varios cards ja ficam visiveis lado a lado, sem essa correcao).
+  useEffect(() => {
+    function updateSidePadding() {
+      const track = trackRef.current;
+      if (!track?.firstElementChild) return;
+      if (window.innerWidth >= 640) {
+        setSidePadding(0);
+        return;
+      }
+      const cardWidth = (track.firstElementChild as HTMLElement).getBoundingClientRect().width;
+      setSidePadding(Math.max(0, (track.clientWidth - cardWidth) / 2));
+    }
+    updateSidePadding();
+    window.addEventListener("resize", updateSidePadding);
+    return () => window.removeEventListener("resize", updateSidePadding);
   }, []);
 
   function scrollToIndex(index: number) {
@@ -119,10 +140,15 @@ export function ServiceCarouselList({ services }: { services: ServiceDefinition[
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        className="-mx-6 flex cursor-grab snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2 active:cursor-grabbing [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
+        style={{ paddingLeft: sidePadding, paddingRight: sidePadding }}
+        className="-mx-6 flex cursor-grab snap-x snap-mandatory gap-4 overflow-x-auto pb-2 active:cursor-grabbing [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-0 [&::-webkit-scrollbar]:hidden"
       >
         {services.map((service, index) => (
-          <div key={service.slug} className="w-[240px] shrink-0 snap-start sm:w-[280px]">
+          <div
+            key={service.slug}
+            onClick={() => setActiveIndex(index)}
+            className="w-[240px] shrink-0 snap-center sm:w-[280px] sm:snap-start"
+          >
             <ServiceListRow
               service={service}
               index={index}
