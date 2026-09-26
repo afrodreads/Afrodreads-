@@ -20,6 +20,7 @@ const SERVICE_VIDEOS: Record<string, ServiceVideo> = {
   "retwist-twist": { src: "/services/start-locs.mp4", poster: "/services/start-locs-poster.jpg" },
   penteados: { src: "/services/penteado.mp4", poster: "/services/penteado-poster.jpg" },
   "short-dread": { src: "/services/short-dread.mp4", poster: "/services/short-dread-poster.jpg" },
+  revitalizacao: { src: "/revitalizacao.mp4", poster: "/revitalizacao-poster.jpg" },
 };
 
 // Carrossel arrastavel (cards 3:4) em todos os tamanhos de tela, com

@@ -43,19 +43,19 @@ export const SERVICES: ServiceDefinition[] = [
     order: 4,
   },
   {
-    slug: "retwist-twist",
-    name: "Start Locs",
-    minHours: 3,
-    maxHours: 5,
-    description: "Manutenção da raiz combinada com torção ao longo do fio.",
-    order: 5,
-  },
-  {
     slug: "revitalizacao",
     name: "Revitalização",
     minHours: 6,
     maxHours: 8,
     description: "Tratamento para renovar e revitalizar dreadlocks já formados.",
+    order: 5,
+  },
+  {
+    slug: "retwist-twist",
+    name: "Start Locs",
+    minHours: 3,
+    maxHours: 5,
+    description: "Manutenção da raiz combinada com torção ao longo do fio.",
     order: 6,
   },
   {
