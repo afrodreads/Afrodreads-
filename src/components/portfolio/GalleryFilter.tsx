@@ -119,11 +119,25 @@ const SHOTS: Shot[] = [
     alt: "Retwist de dreadlocks feito na Afro Dreads",
   },
   {
+    slug: "retwist",
+    title: "Retwist",
+    variant: "alt",
+    video: { src: "/retwist-2.mp4", poster: "/retwist-2-poster.jpg" },
+    alt: "Vídeo de retwist na raiz dos dreadlocks na Afro Dreads",
+  },
+  {
     slug: "retwist-twist",
     title: "Start Locs",
     variant: "alt",
     photo: "/portfolio-start-locs.jpg",
     alt: "Start Locs feito na Afro Dreads",
+  },
+  {
+    slug: "retwist-twist",
+    title: "Start Locs",
+    variant: "alt",
+    video: { src: "/start-locs-2.mp4", poster: "/start-locs-2-poster.jpg" },
+    alt: "Vídeo do processo de Start Locs na Afro Dreads",
   },
   {
     slug: "dread-sintetico-twist",
@@ -139,6 +153,18 @@ const SHOTS: Shot[] = [
     photo: "/portfolio-primeira-aplicacao-topo.jpg",
     alt: "Primeira aplicação de dreadlocks (topo) feita na Afro Dreads",
   },
+  ...[2, 3, 4, 5].map(
+    (n): Shot => ({
+      slug: "primeira-aplicacao-topo",
+      title: "Primeira aplicação (topo)",
+      variant: "default",
+      video: {
+        src: `/primeira-aplicacao-topo-${n}.mp4`,
+        poster: `/primeira-aplicacao-topo-${n}-poster.jpg`,
+      },
+      alt: "Vídeo de primeira aplicação de dreadlocks (topo) na Afro Dreads",
+    }),
+  ),
   {
     slug: "manutencao",
     title: "Manutenção",
