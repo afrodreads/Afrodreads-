@@ -23,14 +23,28 @@ const CASES: {
     afterAlt: "Depois da revitalização",
   },
   {
-    before: "/images/portfolio/caso-2-antes.jpg",
-    after: "/images/portfolio/caso-2-depois.jpg",
-    alt: "Cliente antes e depois da formação de microlocs na Afro Dreads",
+    title: "Aplicação",
+    before: "/aplicacao-1-antes.jpg",
+    after: "/aplicacao-1-depois.jpg",
+    alt: "Cliente antes e depois da aplicação de dreadlocks na Afro Dreads",
+    beforeAlt: "Antes da aplicação",
+    afterAlt: "Depois da aplicação",
   },
   {
-    before: "/images/portfolio/caso-3-antes.jpg",
-    after: "/images/portfolio/caso-3-depois.jpg",
-    alt: "Cliente antes e depois de um retwist de dreadlocks na Afro Dreads",
+    title: "Microlocs",
+    before: "/microlocs-antes.jpg",
+    after: "/microlocs-depois.jpg",
+    alt: "Cliente antes e depois da formação de microlocs na Afro Dreads",
+    beforeAlt: "Antes dos microlocs",
+    afterAlt: "Depois dos microlocs",
+  },
+  {
+    title: "Aplicação",
+    before: "/aplicacao-2-antes.jpg",
+    after: "/aplicacao-2-depois.jpg",
+    alt: "Cliente antes e depois da aplicação de dreadlocks na Afro Dreads",
+    beforeAlt: "Antes da aplicação",
+    afterAlt: "Depois da aplicação",
   },
 ];
 
@@ -54,7 +68,7 @@ export function PortfolioPreview() {
 
         <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
           {CASES.map((item) => (
-            <div key={item.alt} data-reveal>
+            <div key={item.before} data-reveal>
               <BeforeAfterSlider
                 title={item.title}
                 beforeSrc={item.before}
