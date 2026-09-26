@@ -27,14 +27,10 @@ const EXTRA_CATEGORIES = [
 
 const SHOTS: Shot[] = [
   { slug: "primeira-aplicacao-topo", title: "Primeira aplicação", tall: true, variant: "default" },
-  { slug: "microlocs", title: "Microlocs", variant: "sun" },
-  { slug: "retwist", title: "Retwist", variant: "alt" },
   { slug: "revitalizacao", title: "Revitalização", tall: true, variant: "sun" },
   { slug: "penteados", title: "Penteado", variant: "default" },
   { slug: "microlocs", title: "Microlocs coloridos", variant: "alt" },
   { slug: "cabeca-toda", title: "Primeira aplicação (cabeça toda)", variant: "sun" },
-  { slug: "retwist-twist", title: "Start Locs", variant: "alt" },
-  { slug: "retwist", title: "Manutenção", variant: "default" },
   {
     slug: "cabeca-toda",
     title: "Primeira aplicação (cabeça toda)",
