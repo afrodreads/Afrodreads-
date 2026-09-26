@@ -32,27 +32,19 @@ const CASES: {
   },
   {
     title: "Aplicação",
-    before: "/aplicacao-1-antes.jpg",
-    after: "/aplicacao-1-depois.jpg",
+    before: "/microlocs-antes.jpg",
+    after: "/microlocs-depois.jpg",
     alt: "Cliente antes e depois da aplicação de dreadlocks na Afro Dreads",
     beforeAlt: "Antes da aplicação",
     afterAlt: "Depois da aplicação",
   },
   {
     title: "Microlocs",
-    before: "/microlocs-antes.jpg",
-    after: "/microlocs-depois.jpg",
+    before: "/aplicacao-2-antes.jpg",
+    after: "/aplicacao-2-depois.jpg",
     alt: "Cliente antes e depois da formação de microlocs na Afro Dreads",
     beforeAlt: "Antes dos microlocs",
     afterAlt: "Depois dos microlocs",
-  },
-  {
-    title: "Aplicação",
-    before: "/aplicacao-2-antes.jpg",
-    after: "/aplicacao-2-depois.jpg",
-    alt: "Cliente antes e depois da aplicação de dreadlocks na Afro Dreads",
-    beforeAlt: "Antes da aplicação",
-    afterAlt: "Depois da aplicação",
   },
 ];
 
