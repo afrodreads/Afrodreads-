@@ -39,6 +39,21 @@ const SHOTS: Shot[] = [
     photo: "/portfolio-aplicacao-cabeca-toda.jpg",
     alt: "Primeira aplicação de dreadlocks (cabeça toda) feita na Afro Dreads",
   },
+  ...[
+    "Cliente sorrindo com dreadlocks castanho-claros na cabeça toda",
+    "Dreadlocks longos castanho-acobreados na cabeça toda, vistos de trás",
+    "Dreadlocks pretos na cabeça toda, vistos de cima",
+    "Dreadlocks pretos com pontas loiras na cabeça toda, vistos de lado",
+    "Dreadlocks longos loiros na cabeça toda, vistos de trás",
+  ].map(
+    (alt, i): Shot => ({
+      slug: "cabeca-toda",
+      title: "Primeira aplicação (cabeça toda)",
+      variant: "sun",
+      photo: `/portfolio-cabeca-toda-${i + 2}.jpg`,
+      alt,
+    }),
+  ),
   {
     slug: "short-dread",
     title: "Short Dread",
