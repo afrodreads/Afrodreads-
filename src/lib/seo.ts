@@ -1,6 +1,7 @@
 import { WHATSAPP_LINK } from "@/lib/contact";
+import { SERVICES } from "@/lib/services";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://afrodreads.com.br";
+import { CANONICAL_URL as SITE_URL } from "@/lib/site";
 
 // Dados estruturados (schema.org) do negócio, injetados como JSON-LD no
 // layout raiz. Endereço mantido só em nível de bairro/cidade — o mesmo
@@ -10,6 +11,8 @@ export const businessJsonLd = {
   "@context": "https://schema.org",
   "@type": "HairSalon",
   name: "Afro Dreads",
+  description:
+    "Estúdio especializado em dreadlocks e microlocs em Pirituba, São Paulo - SP: formação, manutenção, revitalização e penteados, com hora marcada.",
   url: SITE_URL,
   image: `${SITE_URL}/icon.png`,
   email: "afrodreadsofc@gmail.com",
@@ -22,6 +25,19 @@ export const businessJsonLd = {
     addressCountry: "BR",
   },
   areaServed: "São Paulo, SP",
+  hasOfferCatalog: {
+    "@type": "OfferCatalog",
+    name: "Serviços de dreadlocks e microlocs",
+    itemListElement: SERVICES.map((service) => ({
+      "@type": "Offer",
+      itemOffered: {
+        "@type": "Service",
+        name: service.name,
+        description: service.description,
+        url: `${SITE_URL}/servicos#${service.slug}`,
+      },
+    })),
+  },
   openingHoursSpecification: {
     "@type": "OpeningHoursSpecification",
     dayOfWeek: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
