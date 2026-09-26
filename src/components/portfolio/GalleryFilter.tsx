@@ -102,6 +102,15 @@ const SHOTS: Shot[] = [
     video: { src: "/microlocs-2.mp4", poster: "/microlocs-2-poster.jpg" },
     alt: "Vídeo de microlocs feitos na Afro Dreads",
   },
+  ...[3, 4, 5, 6].map(
+    (n): Shot => ({
+      slug: "microlocs",
+      title: "Microlocs",
+      variant: "sun",
+      video: { src: `/microlocs-${n}.mp4`, poster: `/microlocs-${n}-poster.jpg` },
+      alt: "Vídeo do processo de microlocs na Afro Dreads",
+    }),
+  ),
   {
     slug: "retwist",
     title: "Retwist",
@@ -188,9 +197,14 @@ export function GalleryFilter() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:auto-rows-[220px]">
-        {ALL_SHOTS.filter((s) => active === "todos" || s.slug === active).map((shot, index) => (
-          <GalleryShot key={`${shot.slug}-${index}`} shot={shot} />
-        ))}
+        {/* Key pela posicao na lista completa: com o indice da lista filtrada,
+            trocar de filtro reaproveitava o card de outro item (ex.: uma foto
+            virava video) e o video nunca ligava o autoplay. */}
+        {ALL_SHOTS.map((shot, index) => ({ shot, index }))
+          .filter(({ shot }) => active === "todos" || shot.slug === active)
+          .map(({ shot, index }) => (
+            <GalleryShot key={index} shot={shot} />
+          ))}
       </div>
     </div>
   );
@@ -220,7 +234,7 @@ function GalleryShot({ shot }: { shot: Shot }) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [shot.video?.src]);
 
   return (
     <figure
