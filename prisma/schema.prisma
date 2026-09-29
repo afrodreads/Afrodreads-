@@ -89,6 +89,7 @@ model Booking {
 
   payments  Payment[]
   quote     Quote?
+  reviewRequest ReviewRequest?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -151,4 +152,13 @@ model Quote {
   updatedAt DateTime @updatedAt
 
   @@index([status])
+}
+
+// Registro de "pedido de avaliação enviado" (e-mail pós-atendimento). Tabela
+// separada de Booking de propósito: se ela ainda não existir no banco, os
+// agendamentos seguem funcionando e só o envio do pedido de avaliação falha.
+model ReviewRequest {
+  bookingId String   @id
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sentAt    DateTime @default(now())
 }

@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import type { Booking, Service } from "@prisma/client";
 import { formatBRL, formatDateTimeBR } from "@/lib/format";
+import { GOOGLE_REVIEW_URL } from "@/lib/contact";
 
 let resendClient: Resend | undefined;
 
@@ -38,6 +39,52 @@ export async function sendBookingConfirmationEmail(
         </table>
         <p style="margin-top: 16px; color: #555; font-size: 14px;">
           Qualquer dúvida, fale com a gente pelo WhatsApp. Até breve!
+        </p>
+      </div>
+    `,
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Pedido de avaliação no Google enviado no dia seguinte ao atendimento.
+// Tom neutro de propósito: vai para todos os clientes atendidos, sem filtrar
+// quem gostou (o Google desaconselha pedir avaliação só a quem ficou satisfeito).
+export async function sendReviewRequestEmail(
+  booking: Booking & { service: Service },
+): Promise<void> {
+  const from = process.env.EMAIL_FROM ?? "Afro Dreads <contato@afrodreads.com.br>";
+  const name = escapeHtml(booking.clientName);
+  const service = escapeHtml(booking.service.name);
+
+  await getResendClient().emails.send({
+    from,
+    to: booking.clientEmail,
+    subject: "Como foi seu atendimento na Afro Dreads?",
+    html: `
+      <div style="font-family: sans-serif; color: #111; max-width: 480px;">
+        <h1 style="font-size: 20px;">Oi, ${name}! 💛</h1>
+        <p>Ficamos muito felizes por ter você com a gente na Afro Dreads!</p>
+        <p>
+          Sua opinião é muito importante para o nosso trabalho. Se puder, deixe uma avaliação
+          no Google contando como foi o seu atendimento (por exemplo, o serviço que você fez:
+          ${service}). Isso ajuda outras pessoas a nos encontrarem.
+        </p>
+        <p style="margin: 24px 0;">
+          <a href="${GOOGLE_REVIEW_URL}" style="background: #f1bb09; color: #000; text-decoration: none; padding: 12px 20px; border-radius: 999px; font-weight: bold;">
+            Avaliar a Afro Dreads
+          </a>
+        </p>
+        <p>Agradecemos demais pelo apoio!<br />Com carinho,<br />Equipe Afro Dreads 💛</p>
+        <p style="margin-top: 24px; color: #777; font-size: 12px;">
+          Você recebeu este e-mail porque fez um atendimento na Afro Dreads. Se não quiser
+          receber mais mensagens como esta, é só responder este e-mail.
         </p>
       </div>
     `,
