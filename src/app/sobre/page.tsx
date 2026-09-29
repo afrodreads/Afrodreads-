@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
@@ -10,7 +11,7 @@ import { buildWhatsAppLink } from "@/lib/whatsapp";
 
 const TITLE = "Sobre a Afro Dreads | Dreads e Microlocs em Pirituba, SP";
 const DESCRIPTION =
-  "Conheça a Afro Dreads, estúdio de dreadlocks e microlocs em Pirituba, São Paulo, conduzido por Lyon e Thay: como trabalhamos, o que fazemos e o que não fazemos.";
+  "Conheça a história da Afro Dreads, estúdio de dreads e microlocs em Pirituba, SP, nascido em São Luís (MA) e conduzido por Lyon e Thay.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -53,6 +54,46 @@ export default function SobrePage() {
           </p>
         </div>
       </div>
+
+      <section className="border-b border-line px-6 py-16 sm:py-24">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 items-start gap-10 md:grid-cols-[1.2fr_1fr] md:gap-14">
+          <div>
+            <h2 className="m-0 font-serif text-3xl uppercase text-ink">Nossa história</h2>
+            <div className="mt-4 flex flex-col gap-4 text-[15px] leading-relaxed text-ink-muted">
+              <p className="m-0">
+                A Afro Dreads nasceu há 10 anos, em São Luís, no Maranhão, a partir da paixão da Thay pelos dreads, uma
+                paixão que começou muito antes da criação da marca e que hoje soma 14 anos de experiência e dedicação.
+              </p>
+              <p className="m-0">
+                Desde o início, os dreads foram muito mais do que um trabalho. Eles representam identidade, expressão,
+                ancestralidade e uma conexão com a cultura afro-brasileira. É essa relação com a nossa cultura que
+                também faz parte da essência da Afro Dreads e da forma como enxergamos cada cabelo.
+              </p>
+              <p className="m-0">
+                Com o crescimento da marca, o Lyon passou a fazer parte dessa construção e, juntos, seguimos
+                aprimorando nosso trabalho, buscando novas técnicas e mantendo o cuidado que sempre esteve presente em
+                nossa trajetória.
+              </p>
+              <p className="m-0">
+                Hoje, em São Paulo, recebemos cada cliente com a experiência que construímos ao longo dos anos e com o
+                compromisso de oferecer um serviço de qualidade, feito com técnica, cuidado e atenção aos detalhes.
+              </p>
+              <p className="m-0">
+                Cada cabelo carrega uma identidade, e para nós é um privilégio fazer parte dessa transformação.
+              </p>
+              <p className="m-0 font-serif text-2xl text-ink">Seja bem-vindo à Afro Dreads.</p>
+            </div>
+          </div>
+          <Image
+            src="/images/lyon-e-thay.jpg"
+            alt="Lyon e Thay, fundadores da Afro Dreads, lado a lado e sorrindo"
+            width={900}
+            height={1350}
+            sizes="(min-width: 768px) 40vw, 100vw"
+            className="h-auto w-full rounded-ad-lg"
+          />
+        </div>
+      </section>
 
       <article className="px-6 py-16 sm:py-24">
         <div className="mx-auto flex max-w-3xl flex-col gap-12">

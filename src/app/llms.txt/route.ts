@@ -21,6 +21,7 @@ export function GET() {
 
 > Estúdio especializado em dreadlocks e microlocs em Pirituba, São Paulo - SP. Faz formação (primeira aplicação), manutenção, revitalização, microlocs, penteados e outros serviços para dreads, com atendimento com hora marcada.
 
+- História: a Afro Dreads nasceu em São Luís, no Maranhão, a partir da paixão da Thay por dreads, e hoje atende em São Paulo, com o Lyon. Os dreads são tratados como identidade e conexão com a cultura afro-brasileira.
 - Localização: Pirituba, zona noroeste de São Paulo - SP, Brasil. O endereço completo é enviado após a confirmação do agendamento.
 - Atendimento: terça a sábado, das 10h às 18h, com hora marcada.
 - Telefone e WhatsApp: +55 11 91538-8113
