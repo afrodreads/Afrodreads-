@@ -1,4 +1,5 @@
 import { FAQ_ITEMS } from "@/lib/faq";
+import { GUIDES } from "@/lib/guides";
 import { SERVICES } from "@/lib/services";
 
 import { CANONICAL_URL as SITE_URL } from "@/lib/site";
@@ -13,6 +14,7 @@ export function GET() {
     (s) => `- [${s.name}](${SITE_URL}/servicos/${s.slug}) (${s.minHours}h a ${s.maxHours}h): ${s.description}`,
   ).join("\n");
 
+  const guides = GUIDES.map((g) => `- [${g.h1}](${SITE_URL}/guias/${g.slug}): ${g.description}`).join("\n");
   const faq = FAQ_ITEMS.map((f) => `### ${f.question}\n${f.answer}`).join("\n\n");
 
   const body = `# Afro Dreads
@@ -38,6 +40,10 @@ export function GET() {
 ## Serviços
 
 ${services}
+
+## Guias
+
+${guides}
 
 ## Perguntas frequentes
 
