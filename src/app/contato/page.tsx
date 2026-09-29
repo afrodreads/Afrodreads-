@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
@@ -30,6 +31,13 @@ export default function ContatoPage() {
           <AdButton href={buildWhatsAppLink("geral")} size="lg" icon={<WhatsAppIcon className="h-5 w-5" />}>
             Quero falar com a Afro Dreads
           </AdButton>
+          <p className="m-0 text-[15px] text-ink-muted">
+            Primeira vez por aqui? Veja{" "}
+            <Link href="/como-agendar" className="text-ink underline underline-offset-4">
+              como funciona o agendamento
+            </Link>
+            .
+          </p>
         </div>
       </div>
 

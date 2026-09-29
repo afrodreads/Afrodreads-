@@ -19,6 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...GUIDES.map((g) => `/guias/${g.slug}`),
     "/portfolio",
     "/sobre",
+    "/como-agendar",
     "/contato",
   ];
 
