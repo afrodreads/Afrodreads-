@@ -44,6 +44,12 @@ enum QuoteStatus {
   CANCELLED
 }
 
+enum ReviewRequestStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model Service {
   id          String    @id @default(cuid())
   slug        String    @unique
@@ -87,10 +93,11 @@ model Booking {
   cancelledAt      DateTime?
   cancellationRefundedDeposit Boolean?
 
-  payments  Payment[]
-  quote     Quote?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  payments      Payment[]
+  quote         Quote?
+  reviewRequest ReviewRequest?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([scheduledStart, scheduledEnd])
   @@index([status])
@@ -151,4 +158,17 @@ model Quote {
   updatedAt DateTime @updatedAt
 
   @@index([status])
+}
+
+model ReviewRequest {
+  id String @id @default(cuid())
+
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  status ReviewRequestStatus @default(PENDING)
+  sentAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

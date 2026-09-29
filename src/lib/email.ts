@@ -43,3 +43,27 @@ export async function sendBookingConfirmationEmail(
     `,
   });
 }
+
+const GOOGLE_REVIEW_URL = "https://g.page/r/CUFwpwTBzXTjEBM/review";
+
+export async function sendReviewRequestEmail(
+  booking: Pick<Booking, "clientName" | "clientEmail">,
+): Promise<void> {
+  const from = process.env.EMAIL_FROM ?? "Afro Dreads <contato@afrodreads.com.br>";
+
+  await getResendClient().emails.send({
+    from,
+    to: booking.clientEmail,
+    subject: "Como foi seu atendimento na Afro Dreads?",
+    html: `
+      <div style="font-family: sans-serif; color: #111; max-width: 480px;">
+        <p>Oi, ${booking.clientName}! Ficamos muito felizes por ter você com a gente na Afro Dreads! 💛</p>
+        <p>Sua opinião é muito importante para o nosso trabalho. Se puder, deixe uma avaliação no Google contando como foi o seu atendimento (por exemplo, o serviço que você fez). Isso ajuda outras pessoas a nos encontrarem.</p>
+        <p>É só clicar no link abaixo:</p>
+        <p><a href="${GOOGLE_REVIEW_URL}">${GOOGLE_REVIEW_URL}</a></p>
+        <p>Agradecemos demais pelo apoio!</p>
+        <p>Com carinho,<br>Equipe Afro Dreads 💛</p>
+      </div>
+    `,
+  });
+}
