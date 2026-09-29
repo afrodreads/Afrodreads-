@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "implement_output",
+  "type": "object",
+  "required": ["agent", "timestamp", "pipeline_status", "agents_summary", "implementation_status", "consolidated_results", "final_recommendation", "deployment_checklist"],
+  "properties": {
+    "agent": { "const": "implement" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "pipeline_status": { "enum": ["completed", "incomplete", "completed_with_issues"] },
+    "agents_summary": {
+      "type": "object",
+      "required": ["spec", "dev", "qa", "security"],
+      "properties": {
+        "spec": { "enum": ["completed", "idle", "failed"] },
+        "dev": { "enum": ["completed", "idle", "failed"] },
+        "qa": { "enum": ["completed", "idle", "failed"] },
+        "security": { "enum": ["completed", "idle", "failed"] }
+      }
+    },
+    "implementation_status": { "enum": ["ready_for_deploy", "needs_mitigation", "blocked", "failed"] },
+    "consolidated_results": {
+      "type": "object",
+      "required": ["business_rules_implemented", "technical_tasks_completed", "tests_passed", "security_issues"],
+      "properties": {
+        "business_rules_implemented": { "type": "number" },
+        "technical_tasks_completed": { "type": "number" },
+        "tests_passed": { "type": "number" },
+        "security_issues": { "type": "number" }
+      }
+    },
+    "final_recommendation": { "enum": ["deploy", "address_issues", "complete_pipeline_first", "blocked"] },
+    "deployment_checklist": { "type": "array", "items": { "type": "string" } }
+  }
+}

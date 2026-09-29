@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "qa_output",
+  "type": "object",
+  "required": ["agent", "timestamp", "task_id", "tests_performed", "coverage", "issues_found", "status", "recommendation"],
+  "properties": {
+    "agent": { "const": "qa" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "task_id": { "type": "string" },
+    "tests_performed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "description", "result"],
+        "properties": {
+          "type": { "enum": ["unit", "integration", "e2e"] },
+          "description": { "type": "string" },
+          "result": { "enum": ["passed", "failed"] },
+          "details": { "type": "string" }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["percentage", "gaps"],
+      "properties": {
+        "percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "gaps": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "issues_found": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "description", "location", "reproduction_steps"],
+        "properties": {
+          "severity": { "enum": ["critical", "high", "medium", "low"] },
+          "description": { "type": "string" },
+          "location": { "type": "string" },
+          "reproduction_steps": { "type": "string" }
+        }
+      }
+    },
+    "status": { "enum": ["passed", "failed", "needs_security_review"] },
+    "recommendation": { "enum": ["proceed_to_security", "return_to_dev", "blocked"] }
+  }
+}

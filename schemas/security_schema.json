@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "security_output",
+  "type": "object",
+  "required": ["agent", "timestamp", "task_id", "security_checks", "vulnerabilities_found", "status", "final_recommendation"],
+  "properties": {
+    "agent": { "const": "security" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "task_id": { "type": "string" },
+    "security_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "description", "result", "severity", "recommendation"],
+        "properties": {
+          "category": { "enum": ["authentication", "authorization", "injection", "xss", "encryption", "other"] },
+          "description": { "type": "string" },
+          "result": { "enum": ["passed", "failed", "warning"] },
+          "severity": { "enum": ["critical", "high", "medium", "low"] },
+          "recommendation": { "type": "string" }
+        }
+      }
+    },
+    "vulnerabilities_found": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cwe_id", "description", "severity", "location", "remediation"],
+        "properties": {
+          "cwe_id": { "type": "string" },
+          "description": { "type": "string" },
+          "severity": { "enum": ["critical", "high", "medium", "low"] },
+          "location": { "type": "string" },
+          "remediation": { "type": "string" }
+        }
+      }
+    },
+    "status": { "enum": ["approved", "rejected", "needs_mitigation"] },
+    "final_recommendation": { "enum": ["deploy", "return_to_qa", "return_to_dev", "blocked"] }
+  }
+}
