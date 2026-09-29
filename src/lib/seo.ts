@@ -34,7 +34,7 @@ export const businessJsonLd = {
         "@type": "Service",
         name: service.name,
         description: service.description,
-        url: `${SITE_URL}/servicos#${service.slug}`,
+        url: `${SITE_URL}/servicos/${service.slug}`,
       },
     })),
   },
@@ -64,13 +64,33 @@ export function faqJsonLd(items: FaqItem[]) {
   };
 }
 
-export function breadcrumbJsonLd(name: string, path: string) {
+export function breadcrumbJsonLd(
+  name: string,
+  path: string,
+  parents: { name: string; path: string }[] = [],
+) {
+  const trail = [{ name: "Início", path: "/" }, ...parents, { name, path }];
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Início", item: `${SITE_URL}/` },
-      { "@type": "ListItem", position: 2, name, item: `${SITE_URL}${path}` },
-    ],
+    itemListElement: trail.map((step, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: step.name,
+      item: `${SITE_URL}${step.path}`,
+    })),
+  };
+}
+
+export function serviceJsonLd(service: { slug: string; name: string; description: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: service.name,
+    description: service.description,
+    url: `${SITE_URL}/servicos/${service.slug}`,
+    serviceType: "Dreadlocks e microlocs",
+    areaServed: "São Paulo, SP",
+    provider: { "@type": "HairSalon", name: "Afro Dreads", url: SITE_URL },
   };
 }

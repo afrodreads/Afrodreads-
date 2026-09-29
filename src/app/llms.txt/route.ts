@@ -10,7 +10,7 @@ export const dynamic = "force-static";
 // novo aparece aqui automaticamente.
 export function GET() {
   const services = SERVICES.map(
-    (s) => `- ${s.name} (${s.minHours}h a ${s.maxHours}h): ${s.description}`,
+    (s) => `- [${s.name}](${SITE_URL}/servicos/${s.slug}) (${s.minHours}h a ${s.maxHours}h): ${s.description}`,
   ).join("\n");
 
   const faq = FAQ_ITEMS.map((f) => `### ${f.question}\n${f.answer}`).join("\n\n");
