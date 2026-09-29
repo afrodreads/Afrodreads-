@@ -95,19 +95,28 @@ export async function POST(request: NextRequest) {
   }
 
   if (mappedStatus === "APPROVED") {
-    const booking = await prisma.booking.update({
-      where: { id: bookingId },
+    // Só confirma quem ainda está pendente: webhooks repetidos não reenviam o
+    // e-mail e um "approved" atrasado não reativa um agendamento cancelado.
+    const { count } = await prisma.booking.updateMany({
+      where: { id: bookingId, status: "PENDING_PAYMENT" },
       data: { status: "CONFIRMED" },
-      include: { service: true },
     });
 
-    try {
-      await sendBookingConfirmationEmail(booking);
-    } catch (emailError) {
-      // Uma falha no envio do e-mail não pode derrubar o webhook — o
-      // Mercado Pago reenvia webhooks com erro, o que reprocessaria o
-      // pagamento à toa.
-      console.error("Falha ao enviar e-mail de confirmação:", emailError);
+    if (count > 0) {
+      const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: { service: true },
+      });
+      if (booking) {
+        try {
+          await sendBookingConfirmationEmail(booking);
+        } catch (emailError) {
+          // Uma falha no envio do e-mail não pode derrubar o webhook — o
+          // Mercado Pago reenvia webhooks com erro, o que reprocessaria o
+          // pagamento à toa.
+          console.error("Falha ao enviar e-mail de confirmação:", emailError);
+        }
+      }
     }
   }
 
