@@ -35,6 +35,7 @@ export function GET() {
 - [Início](${SITE_URL}/): apresentação do estúdio, serviços em destaque, antes e depois e avaliações.
 - [Serviços](${SITE_URL}/servicos): todos os serviços com descrição, duração, regras de sinal e cancelamento e perguntas frequentes.
 - [Portfólio](${SITE_URL}/portfolio): fotos e vídeos de trabalhos reais, separados por serviço, e comparações de antes e depois.
+- [Sobre](${SITE_URL}/sobre): quem conduz o estúdio (Lyon e Thay), como funciona a avaliação e o atendimento, o que fazemos e o que não fazemos.
 - [Contato](${SITE_URL}/contato): WhatsApp, Instagram e formulário para montar o projeto de dreads.
 
 ## Serviços
