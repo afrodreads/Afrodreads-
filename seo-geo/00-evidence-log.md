@@ -199,3 +199,19 @@ Metodo: 30+ buscas web em pt-BR cobrindo head terms, mid-tail, long-tail, pergun
 | WebFetch: estudiobaroni.com.br | Concorrente direto. Site single-page: historia, tecnica, Vogue, famosos, precos publicos (R$40-70 unitario, R$1.000-2.200 cabeca toda, R$300 manutencao). Vila Madalena/R. Augusta. |
 
 Resultados completos em [`05-keywords.md`](./05-keywords.md) e [`06-serp.md`](./06-serp.md).
+
+## Fases 8–18 — Síntese (2026-09-29)
+
+Fases feitas pelo orquestrador, sem novas buscas na web; usam apenas os arquivos já registrados acima e o código-fonte.
+
+| Fonte | O que comprovou / como foi usada |
+|---|---|
+| `08-entities.md` ← `01`, `02`, `03`, `07`, `src/lib/seo.ts`, `src/lib/services.ts`, `src/app/llms.txt/route.ts` | Mapa de entidades; ausência de Lyon/Thay no site; handles diferentes (`@afrodreads_` × `@afrodreadsofc`); horário/telefone do código |
+| `09-local.md` ← `04`, `05`, `06`, `07` | Concorrência local (Fresha, Baroni, Agulheria); hiperlocal quase vazio; regras de não criar páginas por bairro |
+| `10-clusters.md`, `11-architecture.md` ← `05`, `06`, `07` | 6 clusters, arquitetura de URLs e plano de conteúdo com 28 itens |
+| `briefs/*.md` (8) | Briefs das peças de prioridade ALTA; campos que dependem do dono marcados |
+| `13-internal-linking.md`, `14-structured-data.md`, `15-priorities.md`, `17-roadmap.md` | Plano de links, schema (JSON-LD de exemplo com o texto real do FAQ do site), priorização ALTA/MÉDIA/BAIXA, roadmap de 90 dias |
+| `FINAL-STRATEGY.md` | Entrega final (22 seções) + checklist de QC |
+| E-mails do Google Search Console enviados ao dono (imagens recebidas na sessão) | Coleta de impressões iniciada em 26/09/2026 para o site e para o perfil do Instagram @afrodreads_ |
+
+**Divergência registrada no QC:** endereço do Estúdio Baroni diferente entre `04-competitors.md` (R. Augusta 2690) e `07-geo.md` (R. Aspicuelta 300). Não usado na estratégia.
