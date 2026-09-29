@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "spec_output",
+  "type": "object",
+  "required": ["agent", "timestamp", "user_requirements", "business_rules", "technical_tasks", "status"],
+  "properties": {
+    "agent": { "const": "spec" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "user_requirements": { "type": "string" },
+    "business_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "priority"],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "priority": { "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "technical_tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "business_rule_id", "complexity", "estimated_hours"],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "business_rule_id": { "type": "string" },
+          "complexity": { "enum": ["low", "medium", "high"] },
+          "estimated_hours": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "status": { "enum": ["ready_for_dev", "needs_clarification"] }
+  }
+}

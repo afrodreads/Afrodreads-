@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "dev_output",
+  "type": "object",
+  "required": ["agent", "timestamp", "task_id", "implementation", "business_rules_addressed", "status"],
+  "properties": {
+    "agent": { "const": "dev" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "task_id": { "type": "string" },
+    "implementation": {
+      "type": "object",
+      "required": ["files_created", "files_modified", "code_summary", "dependencies_added"],
+      "properties": {
+        "files_created": { "type": "array", "items": { "type": "string" } },
+        "files_modified": { "type": "array", "items": { "type": "string" } },
+        "code_summary": { "type": "string" },
+        "dependencies_added": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "business_rules_addressed": { "type": "array", "items": { "type": "string" } },
+    "status": { "enum": ["ready_for_qa", "blocked", "needs_clarification"] },
+    "notes": { "type": "string" }
+  }
+}
