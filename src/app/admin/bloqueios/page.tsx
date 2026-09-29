@@ -19,7 +19,6 @@ export default function AdminBlockedDatesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   function load() {
-    setLoading(true);
     fetch("/api/admin/blocked-dates")
       .then((res) => res.json())
       .then((data) => setBlockedDates(data.blockedDates ?? []))

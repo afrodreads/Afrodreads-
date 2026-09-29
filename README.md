@@ -15,7 +15,7 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
   simulador de cor), o fluxo de agendamento em etapas e o painel administrativo.
 - `src/app/admin` — painel protegido por senha: `/admin` (agenda), `/admin/servicos`
   (preço por serviço) e `/admin/bloqueios` (bloqueio de datas). Autenticação simples via
-  cookie assinado (`src/middleware.ts` + `src/lib/adminAuth.ts`), sem depender de conta de usuário.
+  cookie assinado (`src/proxy.ts` + `src/lib/adminAuth.ts`), sem depender de conta de usuário.
 
 ## Regras de negócio já implementadas
 
@@ -24,6 +24,9 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
   `calculateDeposit` em `src/lib/pricing.ts`.
 - Cancelamento: 2+ dias devolve o sinal, 1 dia ou no mesmo dia não devolve —
   `isDepositRefundable` em `src/lib/pricing.ts`, usado em `api/bookings/[id]/cancel`.
+  Quando elegível, o sinal é estornado automaticamente pela Refunds API do Mercado Pago
+  (`refundPayment` em `src/lib/mercadopago.ts`). Se o estorno falhar, o cancelamento é mantido,
+  a resposta traz `refundError: true` e o estorno precisa ser feito manualmente no painel do MP.
 - Pagamento via Mercado Pago Checkout Pro: Pix, boleto e cartão ficam disponíveis por padrão
   para uma Conta Negócio habilitada. O parcelamento não é limitado manualmente, então usa o
   máximo permitido pelo Mercado Pago, com juros repassados ao cliente (comportamento padrão
@@ -74,6 +77,5 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
 ## Próximos passos sugeridos
 
 - Envio de e-mail/WhatsApp de confirmação após o pagamento do sinal.
-- Endpoint de estorno automático (Refunds API do Mercado Pago) quando o cancelamento é elegível.
 - Testes automatizados para `calculateDeposit` e `isDepositRefundable`.
 - Trocar as imagens/vídeo de placeholder pelos assets reais da Afro Dreads.

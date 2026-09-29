@@ -101,7 +101,7 @@ export function ServiceCarouselList({
     }
     track.addEventListener("scroll", onScroll, { passive: true });
     return () => track.removeEventListener("scroll", onScroll);
-  }, [cardStep]);
+  }, [cardStep, services.length]);
 
   // So permite tocar video quando o carrossel esta visivel na tela.
   useEffect(() => {

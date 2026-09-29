@@ -1,4 +1,4 @@
-import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
+import { MercadoPagoConfig, Preference, Payment, PaymentRefund } from "mercadopago";
 
 // Instanciado sob demanda (não no carregamento do módulo) para que a
 // ausência da variável de ambiente não quebre o build — que executa as
@@ -22,6 +22,11 @@ export function getMpPreference(): Preference {
 
 export function getMpPayment(): Payment {
   return new Payment(getMpClient());
+}
+
+/** Estorna integralmente um pagamento aprovado (Refunds API do Mercado Pago). */
+export async function refundPayment(mpPaymentId: string) {
+  return new PaymentRefund(getMpClient()).total({ payment_id: mpPaymentId });
 }
 
 export type CreateDepositPreferenceInput = {
