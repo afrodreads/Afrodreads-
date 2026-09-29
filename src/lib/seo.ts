@@ -1,4 +1,4 @@
-import { WHATSAPP_LINK } from "@/lib/contact";
+import type { FaqItem } from "@/components/ui/FaqAccordion";
 import { SERVICES } from "@/lib/services";
 
 import { CANONICAL_URL as SITE_URL } from "@/lib/site";
@@ -14,7 +14,8 @@ export const businessJsonLd = {
   description:
     "Estúdio especializado em dreadlocks e microlocs em Pirituba, São Paulo - SP: formação, manutenção, revitalização e penteados, com hora marcada.",
   url: SITE_URL,
-  image: `${SITE_URL}/icon.png`,
+  image: [`${SITE_URL}/og-image.png`, `${SITE_URL}/icon.png`],
+  logo: `${SITE_URL}/icon.png`,
   email: "afrodreadsofc@gmail.com",
   telephone: "+55 11 91538-8113",
   priceRange: "$$",
@@ -34,7 +35,7 @@ export const businessJsonLd = {
         "@type": "Service",
         name: service.name,
         description: service.description,
-        url: `${SITE_URL}/servicos#${service.slug}`,
+        url: `${SITE_URL}/servicos/${service.slug}`,
       },
     })),
   },
@@ -45,14 +46,52 @@ export const businessJsonLd = {
     closes: "18:00",
   },
   sameAs: [
-    WHATSAPP_LINK,
     "https://instagram.com/afrodreads_",
     "https://tiktok.com/@afrodreads_",
     "https://youtube.com/@afrodreadsofc",
   ],
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "5.0",
-    reviewCount: "56",
-  },
 };
+
+// FAQPage: as mesmas perguntas visíveis em /servicos, marcadas para o Google e IAs.
+export function faqJsonLd(items: FaqItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  };
+}
+
+export function breadcrumbJsonLd(
+  name: string,
+  path: string,
+  parents: { name: string; path: string }[] = [],
+) {
+  const trail = [{ name: "Início", path: "/" }, ...parents, { name, path }];
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: trail.map((step, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: step.name,
+      item: `${SITE_URL}${step.path}`,
+    })),
+  };
+}
+
+export function serviceJsonLd(service: { slug: string; name: string; description: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: service.name,
+    description: service.description,
+    url: `${SITE_URL}/servicos/${service.slug}`,
+    serviceType: "Dreadlocks e microlocs",
+    areaServed: "São Paulo, SP",
+    provider: { "@type": "HairSalon", name: "Afro Dreads", url: SITE_URL },
+  };
+}

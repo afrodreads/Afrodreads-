@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
 import { AdTag } from "@/components/ui/Tag";
@@ -107,6 +108,12 @@ export function ServiceListRow({
         >
           Agendar
         </AdButton>
+        <Link
+          href={`/servicos/${service.slug}`}
+          className="text-sm text-ink-muted underline underline-offset-4 hover:text-ink"
+        >
+          Saiba mais sobre {service.name}
+        </Link>
       </div>
     </article>
   );

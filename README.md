@@ -15,7 +15,7 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
   simulador de cor), o fluxo de agendamento em etapas e o painel administrativo.
 - `src/app/admin` — painel protegido por senha: `/admin` (agenda), `/admin/servicos`
   (preço por serviço) e `/admin/bloqueios` (bloqueio de datas). Autenticação simples via
-  cookie assinado (`src/middleware.ts` + `src/lib/adminAuth.ts`), sem depender de conta de usuário.
+  cookie assinado (`src/proxy.ts` + `src/lib/adminAuth.ts`), sem depender de conta de usuário.
 
 ## Regras de negócio já implementadas
 
@@ -54,11 +54,15 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
    npm run dev
    ```
 
-## Assets pendentes (adicionar em `public/`)
+## SEO e GEO
 
-- `public/videos/hero.mp4` — vídeo de fundo do hero
-- `public/images/hero-poster.jpg` — poster/fallback do vídeo
-- `public/images/portfolio/*.jpg` — pares antes/depois usados no portfólio
+- `src/lib/site.ts` — endereço canônico do site (`https://www.afrodreads.com.br`), usado em canonical, sitemap, robots, JSON-LD e llms.txt.
+- `src/lib/seo.ts` — JSON-LD (`HairSalon`, `FAQPage`, `BreadcrumbList`, `Service`).
+- `src/lib/faq.ts` — perguntas frequentes (página `/servicos`, schema e `llms.txt`).
+- `src/lib/serviceDetails.ts` — textos das páginas `/servicos/[slug]`.
+- `src/app/robots.ts`, `sitemap.ts`, `llms.txt/route.ts` — arquivos para buscadores e IAs.
+- `public/og-image.png` — imagem de compartilhamento (1200x630, mascote sobre fundo amarelo).
+- Ao mudar o conteúdo público, atualize `LAST_MODIFIED` em `src/app/sitemap.ts`.
 
 ## Deploy (Vercel)
 
@@ -76,4 +80,3 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
 - Envio de e-mail/WhatsApp de confirmação após o pagamento do sinal.
 - Endpoint de estorno automático (Refunds API do Mercado Pago) quando o cancelamento é elegível.
 - Testes automatizados para `calculateDeposit` e `isDepositRefundable`.
-- Trocar as imagens/vídeo de placeholder pelos assets reais da Afro Dreads.
