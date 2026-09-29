@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { GUIDES } from "@/lib/guides";
 import { SERVICES } from "@/lib/services";
 import { CANONICAL_URL as SITE_URL } from "@/lib/site";
 
@@ -14,6 +15,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "",
     "/servicos",
     ...SERVICES.map((s) => `/servicos/${s.slug}`),
+    "/guias",
+    ...GUIDES.map((g) => `/guias/${g.slug}`),
     "/portfolio",
     "/contato",
   ];

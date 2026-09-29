@@ -103,3 +103,19 @@ export function serviceJsonLd(service: { slug: string; name: string; description
     provider: { "@type": "HairSalon", name: "Afro Dreads", url: SITE_URL },
   };
 }
+
+export function articleJsonLd(guide: { slug: string; h1: string; description: string; published: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: guide.h1,
+    description: guide.description,
+    inLanguage: "pt-BR",
+    datePublished: guide.published,
+    dateModified: guide.published,
+    mainEntityOfPage: `${SITE_URL}/guias/${guide.slug}`,
+    image: `${SITE_URL}/og-image.png`,
+    author: { "@type": "Organization", name: "Afro Dreads", url: SITE_URL },
+    publisher: { "@type": "Organization", name: "Afro Dreads", url: SITE_URL },
+  };
+}
