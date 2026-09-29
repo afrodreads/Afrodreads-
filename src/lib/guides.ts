@@ -1,7 +1,7 @@
 // Guias (conteúdo de apoio para SEO/GEO) em /guias. Só usam informações que já
 // estão no site (serviços, durações, regras de sinal). Sem preços: o valor
 // depende do projeto e é combinado pelo WhatsApp.
-export type GuideSection = { heading: string; paragraphs: string[] };
+export type GuideSection = { heading: string; paragraphs: string[]; bullets?: string[] };
 
 export type Guide = {
   slug: string;
@@ -109,6 +109,46 @@ export const GUIDES: Guide[] = [
     ],
     published: "2026-09-29",
     ctaLabel: "Tirar minha dúvida no WhatsApp",
+  },
+  {
+    slug: "cuidados-com-dreads",
+    title: "Cuidados com dreads: como lavar, hidratar e fazer a manutenção | Afro Dreads",
+    h1: "Guia de cuidados com seus dreads",
+    description:
+      "Como cuidar dos dreads depois da aplicação e antes da manutenção: lavagem, hidratação, secagem, palm rolling e frequência da manutenção. Orientações da Afro Dreads, Pirituba.",
+    intro:
+      "Orientações da equipe da Afro Dreads para manter seus dreads organizados, firmes e com um crescimento saudável.",
+    sections: [
+      {
+        heading: "Após a aplicação",
+        paragraphs: [],
+        bullets: [
+          "Lave os dreads 1 vez por semana, utilizando apenas shampoo diluído em água.",
+          "Evite condicionador. Para hidratação, utilize óleos vegetais em pequena quantidade, como óleo de babosa, óleo de semente de uva, óleo de jojoba ou óleo de alecrim.",
+          "Lave preferencialmente durante o dia e deixe os dreads secarem completamente. Se necessário, utilize o secador no ar frio.",
+          "Para dormir, use touca ou fronha de cetim, ajudando a reduzir o frizz.",
+          "Faça palm rolling regularmente para manter os dreads alinhados e firmes.",
+        ],
+      },
+      {
+        heading: "Antes da manutenção",
+        paragraphs: [],
+        bullets: [
+          "Lave os dreads somente com shampoo.",
+          "Compareça com os dreads limpos e completamente secos.",
+          "Evite cremes, óleos e finalizadores antes da manutenção, para não deixar resíduos.",
+        ],
+      },
+      {
+        heading: "Manutenção",
+        paragraphs: [
+          "A primeira manutenção deve ser realizada 1 mês após a aplicação. Depois, recomendamos manter a frequência entre 2 e 3 meses, de acordo com a necessidade dos seus dreads.",
+          "A constância na manutenção ajuda a manter os dreads organizados, maduros, firmes e com um crescimento saudável.",
+        ],
+      },
+    ],
+    published: "2026-09-29",
+    ctaLabel: "Agendar minha manutenção",
   },
 ];
 

@@ -79,6 +79,13 @@ export default async function GuidePage({ params }: { params: Promise<Params> })
                   {text}
                 </p>
               ))}
+              {section.bullets && (
+                <ul className="mt-4 flex list-disc flex-col gap-2 pl-5 text-[15px] leading-relaxed text-ink-muted">
+                  {section.bullets.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
               {showDurations && section.heading === "Duração de cada serviço" && (
                 <ul className="mt-4 flex list-none flex-col gap-2 p-0 text-[15px] text-ink-muted">
                   {SERVICES.map((s) => (
@@ -94,7 +101,7 @@ export default async function GuidePage({ params }: { params: Promise<Params> })
             </section>
           ))}
           <div>
-            <AdButton href={buildWhatsAppLink("duvida")} icon={<WhatsAppIcon className="h-4 w-4" />}>
+            <AdButton href={buildWhatsAppLink(guide.slug === "cuidados-com-dreads" ? "manutencao" : "duvida")} icon={<WhatsAppIcon className="h-4 w-4" />}>
               {guide.ctaLabel}
             </AdButton>
           </div>
