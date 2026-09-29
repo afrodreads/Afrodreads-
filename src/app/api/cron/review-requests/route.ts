@@ -35,29 +35,14 @@ export async function GET(request: NextRequest) {
 
   for (const booking of bookings) {
     try {
-      const reviewRequest = await prisma.reviewRequest.create({
-        data: { bookingId: booking.id, status: "PENDING" },
-      });
-
-      try {
-        await sendReviewRequestEmail(booking);
-        await prisma.reviewRequest.update({
-          where: { id: reviewRequest.id },
-          data: { status: "SENT", sentAt: new Date() },
-        });
-        sent += 1;
-      } catch (error) {
-        console.error(`Falha ao enviar pedido de avaliação (booking ${booking.id}):`, error);
-        await prisma.reviewRequest.update({
-          where: { id: reviewRequest.id },
-          data: { status: "FAILED" },
-        });
-        failed += 1;
-      }
+      await sendReviewRequestEmail(booking);
+      // bookingId é a chave primária: só grava depois do envio confirmado,
+      // assim uma falha aqui faz o próximo cron tentar de novo naturalmente
+      // (a linha simplesmente não existe ainda).
+      await prisma.reviewRequest.create({ data: { bookingId: booking.id } });
+      sent += 1;
     } catch (error) {
-      // bookingId é @unique em ReviewRequest: se duas execuções do cron se
-      // sobrepuserem, a segunda falha aqui e simplesmente pula o agendamento.
-      console.error(`Falha ao criar ReviewRequest (booking ${booking.id}):`, error);
+      console.error(`Falha ao enviar pedido de avaliação (booking ${booking.id}):`, error);
       failed += 1;
     }
   }
