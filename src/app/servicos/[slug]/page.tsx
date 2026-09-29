@@ -30,7 +30,16 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     title,
     description,
     alternates: { canonical: `/servicos/${service.slug}` },
-    openGraph: { title, description, url: `/servicos/${service.slug}` },
+    openGraph: {
+      title,
+      description,
+      url: `/servicos/${service.slug}`,
+      siteName: "Afro Dreads",
+      locale: "pt_BR",
+      type: "website",
+      images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    },
+    twitter: { card: "summary_large_image", title, description, images: ["/og-image.png"] },
   };
 }
 

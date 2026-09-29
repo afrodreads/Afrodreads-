@@ -14,7 +14,8 @@ export const businessJsonLd = {
   description:
     "Estúdio especializado em dreadlocks e microlocs em Pirituba, São Paulo - SP: formação, manutenção, revitalização e penteados, com hora marcada.",
   url: SITE_URL,
-  image: `${SITE_URL}/icon.png`,
+  image: [`${SITE_URL}/og-image.png`, `${SITE_URL}/icon.png`],
+  logo: `${SITE_URL}/icon.png`,
   email: "afrodreadsofc@gmail.com",
   telephone: "+55 11 91538-8113",
   priceRange: "$$",
