@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { WhatsAppIcon, InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/icons/SocialIcons";
+import { InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/icons/SocialIcons";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
 const PAGE_LINKS = [
