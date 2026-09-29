@@ -1,4 +1,4 @@
-import { WHATSAPP_LINK } from "@/lib/contact";
+import type { FaqItem } from "@/components/ui/FaqAccordion";
 import { SERVICES } from "@/lib/services";
 
 import { CANONICAL_URL as SITE_URL } from "@/lib/site";
@@ -45,14 +45,32 @@ export const businessJsonLd = {
     closes: "18:00",
   },
   sameAs: [
-    WHATSAPP_LINK,
     "https://instagram.com/afrodreads_",
     "https://tiktok.com/@afrodreads_",
     "https://youtube.com/@afrodreadsofc",
   ],
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "5.0",
-    reviewCount: "56",
-  },
 };
+
+// FAQPage: as mesmas perguntas visíveis em /servicos, marcadas para o Google e IAs.
+export function faqJsonLd(items: FaqItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  };
+}
+
+export function breadcrumbJsonLd(name: string, path: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Início", item: `${SITE_URL}/` },
+      { "@type": "ListItem", position: 2, name, item: `${SITE_URL}${path}` },
+    ],
+  };
+}

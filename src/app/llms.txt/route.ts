@@ -1,3 +1,4 @@
+import { FAQ_ITEMS } from "@/lib/faq";
 import { SERVICES } from "@/lib/services";
 
 import { CANONICAL_URL as SITE_URL } from "@/lib/site";
@@ -11,6 +12,8 @@ export function GET() {
   const services = SERVICES.map(
     (s) => `- ${s.name} (${s.minHours}h a ${s.maxHours}h): ${s.description}`,
   ).join("\n");
+
+  const faq = FAQ_ITEMS.map((f) => `### ${f.question}\n${f.answer}`).join("\n\n");
 
   const body = `# Afro Dreads
 
@@ -35,6 +38,10 @@ export function GET() {
 ## Serviços
 
 ${services}
+
+## Perguntas frequentes
+
+${faq}
 `;
 
   return new Response(body, {
