@@ -31,13 +31,23 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
 
   const [serviceSlug, setServiceSlug] = useState(quote?.serviceSlug ?? SERVICES[0].slug);
   const [isOutOfTownSeason, setIsOutOfTownSeason] = useState(quote?.isOutOfTownSeason ?? false);
-  const [servicePrice, setServicePrice] = useState<number>(quote?.servicePrice ?? 0);
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
   const [basePrices, setBasePrices] = useState<Record<string, number | null>>({});
+  // Valor derivado: orçamento (travado) > valor digitado > preço base do serviço.
+  const servicePrice =
+    quote?.servicePrice ?? priceOverrides[serviceSlug] ?? basePrices[serviceSlug] ?? 0;
+  const setServicePrice = (value: number) =>
+    setPriceOverrides((prev) => ({ ...prev, [serviceSlug]: value }));
 
   const [date, setDate] = useState("");
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [slotsState, setSlotsState] = useState<{ key: string; slots: string[] } | null>(null);
+  const [chosenSlot, setChosenSlot] = useState<string | null>(null);
+  // Horários só valem para o par serviço+data em que foram carregados.
+  const slotsKey = `${serviceSlug}|${date}`;
+  const loadingSlots = !!date && slotsState?.key !== slotsKey;
+  const availableSlots = slotsState?.key === slotsKey ? slotsState.slots : [];
+  const selectedSlot = chosenSlot && availableSlots.includes(chosenSlot) ? chosenSlot : null;
+  const setSelectedSlot = setChosenSlot;
 
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -70,19 +80,19 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
   }, [quote]);
 
   useEffect(() => {
-    if (quote) return; // valor já travado pelo orçamento
-    const base = basePrices[serviceSlug];
-    setServicePrice(base ?? 0);
-  }, [serviceSlug, basePrices, quote]);
-
-  useEffect(() => {
     if (!date) return;
-    setLoadingSlots(true);
-    setSelectedSlot(null);
+    const key = `${serviceSlug}|${date}`;
+    let cancelled = false;
     fetch(`/api/availability?service=${serviceSlug}&date=${date}`)
       .then((res) => res.json())
-      .then((data) => setAvailableSlots(data.slots ?? []))
-      .finally(() => setLoadingSlots(false));
+      .then((data) => data.slots ?? [])
+      .catch(() => [])
+      .then((slots: string[]) => {
+        if (!cancelled) setSlotsState({ key, slots });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [date, serviceSlug]);
 
   async function handleSubmit() {

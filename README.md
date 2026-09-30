@@ -24,6 +24,9 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
   `calculateDeposit` em `src/lib/pricing.ts`.
 - Cancelamento: 2+ dias devolve o sinal, 1 dia ou no mesmo dia não devolve —
   `isDepositRefundable` em `src/lib/pricing.ts`, usado em `api/bookings/[id]/cancel`.
+  Quando elegível, o sinal é estornado automaticamente pela Refunds API do Mercado Pago
+  (`refundPayment` em `src/lib/mercadopago.ts`). Se o estorno falhar, o cancelamento é mantido,
+  a resposta traz `refundError: true` e o estorno precisa ser feito manualmente no painel do MP.
 - Pagamento via Mercado Pago Checkout Pro: Pix, boleto e cartão ficam disponíveis por padrão
   para uma Conta Negócio habilitada. O parcelamento não é limitado manualmente, então usa o
   máximo permitido pelo Mercado Pago, com juros repassados ao cliente (comportamento padrão
@@ -78,5 +81,4 @@ Next.js (App Router) + Prisma/Postgres + Mercado Pago (Checkout Pro).
 ## Próximos passos sugeridos
 
 - Envio de e-mail/WhatsApp de confirmação após o pagamento do sinal.
-- Endpoint de estorno automático (Refunds API do Mercado Pago) quando o cancelamento é elegível.
 - Testes automatizados para `calculateDeposit` e `isDepositRefundable`.

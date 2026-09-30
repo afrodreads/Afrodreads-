@@ -8,7 +8,10 @@ export function NewQuoteForm() {
   const router = useRouter();
   const [serviceSlug, setServiceSlug] = useState(SERVICES[0].slug);
   const [basePrices, setBasePrices] = useState<Record<string, number | null>>({});
-  const [servicePrice, setServicePrice] = useState<number>(0);
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
+  const servicePrice = priceOverrides[serviceSlug] ?? basePrices[serviceSlug] ?? 0;
+  const setServicePrice = (value: number) =>
+    setPriceOverrides((prev) => ({ ...prev, [serviceSlug]: value }));
   const [isOutOfTownSeason, setIsOutOfTownSeason] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,10 +30,6 @@ export function NewQuoteForm() {
       })
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    setServicePrice(basePrices[serviceSlug] ?? 0);
-  }, [serviceSlug, basePrices]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

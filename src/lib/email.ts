@@ -17,6 +17,15 @@ function getResendClient(): Resend {
   return resendClient;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export async function sendBookingConfirmationEmail(
   booking: Booking & { service: Service },
 ): Promise<void> {
@@ -28,10 +37,10 @@ export async function sendBookingConfirmationEmail(
     subject: "Seu agendamento na Afro Dreads está confirmado!",
     html: `
       <div style="font-family: sans-serif; color: #111; max-width: 480px;">
-        <h1 style="font-size: 20px;">Agendamento confirmado, ${booking.clientName}!</h1>
+        <h1 style="font-size: 20px;">Agendamento confirmado, ${escapeHtml(booking.clientName)}!</h1>
         <p>Recebemos seu sinal e seu horário está garantido.</p>
         <table style="width: 100%; margin-top: 16px; border-collapse: collapse;">
-          <tr><td style="padding: 8px 0; color: #555;">Serviço</td><td style="padding: 8px 0; text-align: right;">${booking.service.name}</td></tr>
+          <tr><td style="padding: 8px 0; color: #555;">Serviço</td><td style="padding: 8px 0; text-align: right;">${escapeHtml(booking.service.name)}</td></tr>
           <tr><td style="padding: 8px 0; color: #555;">Data e horário</td><td style="padding: 8px 0; text-align: right;">${formatDateTimeBR(booking.scheduledStart)}</td></tr>
           <tr><td style="padding: 8px 0; color: #555;">Sinal pago</td><td style="padding: 8px 0; text-align: right;">${formatBRL(Number(booking.depositAmount))}</td></tr>
           <tr><td style="padding: 8px 0; color: #555;">Restante no dia</td><td style="padding: 8px 0; text-align: right;">${formatBRL(Number(booking.remainingAmount))}</td></tr>
