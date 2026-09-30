@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getMpPayment } from "@/lib/mercadopago";
-import { sendBookingConfirmationEmail } from "@/lib/email";
+import { sendBookingConfirmationEmail, sendTeamBookingNotificationEmail } from "@/lib/email";
 
 // Documentação da validação de assinatura:
 // https://www.mercadopago.com.br/developers/pt/docs/checkout-api/webhooks
@@ -108,13 +108,23 @@ export async function POST(request: NextRequest) {
         include: { service: true },
       });
       if (booking) {
-        try {
-          await sendBookingConfirmationEmail(booking);
-        } catch (emailError) {
-          // Uma falha no envio do e-mail não pode derrubar o webhook — o
-          // Mercado Pago reenvia webhooks com erro, o que reprocessaria o
-          // pagamento à toa.
-          console.error("Falha ao enviar e-mail de confirmação:", emailError);
+        // Uma falha no envio do e-mail não pode derrubar o webhook — o
+        // Mercado Pago reenvia webhooks com erro, o que reprocessaria o
+        // pagamento à toa. Os dois e-mails são independentes: se um falhar,
+        // o outro ainda sai.
+        const emails = [
+          { label: "confirmação para o cliente", send: sendBookingConfirmationEmail },
+          { label: "aviso para a equipe", send: sendTeamBookingNotificationEmail },
+        ];
+        for (const { label, send } of emails) {
+          try {
+            await send(booking);
+          } catch (emailError) {
+            console.error(`Falha ao enviar e-mail de ${label}`, {
+              bookingId: booking.id,
+              error: emailError,
+            });
+          }
         }
       }
     }
