@@ -7,6 +7,7 @@ const PAGE_LINKS = [
   { href: "/servicos", label: "Serviços" },
   { href: "/portfolio", label: "Portfólio" },
   { href: "/guias", label: "Guias" },
+  { href: "/sobre", label: "Sobre" },
   { href: "/contato", label: "Contato" },
 ];
 

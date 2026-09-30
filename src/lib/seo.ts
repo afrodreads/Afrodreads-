@@ -10,10 +10,17 @@ const GOOGLE_MAPS_PROFILE = "https://www.google.com/maps?cid=1638995117279854188
 // layout raiz. Endereço mantido só em nível de bairro/cidade — o mesmo
 // nível de detalhe já exposto publicamente pelo site (o endereço completo
 // só é enviado por WhatsApp após a confirmação do agendamento).
+const BUSINESS_ID = `${SITE_URL}/#negocio`;
+
 export const businessJsonLd = {
   "@context": "https://schema.org",
   "@type": "HairSalon",
+  "@id": BUSINESS_ID,
   name: "Afro Dreads",
+  founder: [
+    { "@type": "Person", name: "Lyon" },
+    { "@type": "Person", name: "Thay" },
+  ],
   description:
     "Estúdio especializado em dreadlocks e microlocs em Pirituba, São Paulo - SP: formação, manutenção, revitalização e penteados, com hora marcada.",
   url: SITE_URL,
@@ -70,6 +77,19 @@ export function faqJsonLd(items: FaqItem[]) {
       name: item.question,
       acceptedAnswer: { "@type": "Answer", text: item.answer },
     })),
+  };
+}
+
+// Página "Sobre": aponta para o mesmo negócio já descrito no layout (via @id),
+// sem repetir os dados e sem risco de divergir.
+export function aboutPageJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    name: "Sobre a Afro Dreads",
+    url: `${SITE_URL}/sobre`,
+    inLanguage: "pt-BR",
+    mainEntity: { "@id": BUSINESS_ID },
   };
 }
 
