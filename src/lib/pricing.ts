@@ -1,7 +1,9 @@
 import { getSaoPauloParts, saoPauloCalendarDaysBetween } from "./timezone";
 
-const FIXED_DEPOSIT_BRL = 50;
-const PERCENTAGE_DEPOSIT_RATE = 0.5;
+export const FIXED_DEPOSIT_BRL = 50;
+export const PERCENTAGE_DEPOSIT_RATE = 0.5;
+/** Antecedência mínima (em dias de calendário de SP) para o sinal ser devolvido. */
+export const REFUND_MIN_DAYS_BEFORE = 2;
 const DECEMBER = 12;
 
 export type DepositCalculationInput = {
@@ -55,7 +57,7 @@ export function isDepositRefundable({
   scheduledStart,
   cancellationRequestedAt,
 }: CancellationRefundInput): boolean {
-  return saoPauloCalendarDaysBetween(cancellationRequestedAt, scheduledStart) >= 2;
+  return saoPauloCalendarDaysBetween(cancellationRequestedAt, scheduledStart) >= REFUND_MIN_DAYS_BEFORE;
 }
 
 function roundToCents(value: number): number {
