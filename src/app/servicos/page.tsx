@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SERVICES } from "@/lib/services";
 import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
@@ -53,7 +54,13 @@ export default function ServicosPage() {
             <AdTitle>
               Sinal e <em>cancelamento</em>
             </AdTitle>
-            <p className="m-0 max-w-xl text-[15px] text-ink-muted">Regras simples para o seu horário ficar garantido.</p>
+            <p className="m-0 max-w-xl text-[15px] text-ink-muted">
+              Regras simples para o seu horário ficar garantido. Veja o passo a passo completo em{" "}
+              <Link href="/como-agendar" className="text-ink underline underline-offset-4">
+                como agendar
+              </Link>
+              .
+            </p>
           </div>
           <PolicyRules />
         </div>
