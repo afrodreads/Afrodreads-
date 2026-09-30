@@ -83,7 +83,12 @@ export async function findOrCreateConversation(
         unitId: input.unitId,
         customerId: input.customer.id,
         channel,
-        externalId,
+        // Sem id do canal, usa uma chave própria por cliente: assim duas
+        // entregas simultâneas da primeira mensagem de um cliente novo batem na
+        // restrição única (unidade, canal, externalId) e não criam duas
+        // conversas (o que duplicaria a mensagem). Encontrado no teste de
+        // integração da Fase 3.
+        externalId: externalId ?? `customer:${input.customer.id}`,
         createdAt: now,
       }),
     );

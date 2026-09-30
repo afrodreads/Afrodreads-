@@ -1,7 +1,7 @@
 import type { ToolCallRequest, ToolDefinition } from "./tools";
 
 // Porta do modelo de linguagem. Nesta fase NÃO existe implementação real: não
-// há cliente da API do Claude, nem chamada de rede. Os testes usam um modelo
+// há cliente de API de IA, nem chamada de rede. Os testes usam um modelo
 // roteirizado (testSupport.ts). Uma implementação real é assunto de fase futura.
 
 export type ModelMessage = { role: "user" | "assistant"; content: string };
@@ -19,5 +19,7 @@ export type ModelResponse = {
 };
 
 export interface ModelClient {
+  /** Identificador do modelo (registrado em cada AgentRun). */
+  readonly id: string;
   generate(request: ModelRequest): Promise<ModelResponse>;
 }

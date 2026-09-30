@@ -116,7 +116,7 @@ export function checkDraft(text: string, context: AgentContext): GuardrailResult
   // --- preço: só os valores que o sistema forneceu (sinal, atraso, promoção ativa)
   const allowedAmounts = new Set<number>([
     ...context.policy.quotableAmountsBrl,
-    ...context.promotions.map((promotion) => promotion.priceBrl),
+    ...context.promotions.flatMap((promotion) => (promotion.priceBrl !== null ? [promotion.priceBrl] : [])),
   ]);
   for (const { match, index } of findAll(text, /R\$\s*(\d[\d.]*(?:,\d{1,2})?)/i)) {
     const amount = parseBrl(match.replace(/R\$\s*/i, ""));

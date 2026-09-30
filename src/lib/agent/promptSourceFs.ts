@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import type { PromptSource } from "./prompt";
+import { promptSpecFrom } from "./promptVersion";
 
-/** Lê o V2 de um arquivo (caminho informado pelo chamador; nada fixo aqui). */
+/** Lê o prompt de um arquivo (caminho informado pelo chamador; nada fixo aqui). */
 export function fileSystemPromptSource(path: string): PromptSource {
-  return { load: () => readFile(path, "utf8") };
+  return { load: async () => promptSpecFrom(await readFile(path, "utf8"), path) };
 }

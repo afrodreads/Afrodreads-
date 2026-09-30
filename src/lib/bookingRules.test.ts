@@ -43,6 +43,8 @@ describe("activeBookingWhere", () => {
       OR: [
         { status: "CONFIRMED" },
         { status: "PENDING_PAYMENT", createdAt: { gt: new Date("2026-10-01T14:00:00.000Z") } },
+        // Fase 3: prazo estendido pela equipe (paymentDueAt) ainda válido também ocupa o horário.
+        { status: "PENDING_PAYMENT", paymentDueAt: { gt: now } },
       ],
     });
   });

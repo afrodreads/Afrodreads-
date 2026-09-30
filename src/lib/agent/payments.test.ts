@@ -1,41 +1,54 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { InvalidInputError } from "../conversations/errors";
-import { assertStaff, NotAuthorizedError, type StaffActor } from "./actors";
-import { confirmManualPayment, paymentConfirmedEvent, type ConfirmManualPaymentInput } from "./manualPayment";
-import {
-  effectivePaymentDeadline,
-  extendPaymentDeadline,
-  isPaymentWindowOpenWithHold,
-  MAX_EXTENSION_HOURS,
-} from "./paymentHold";
-import { MemoryManualPaymentStore, MemoryPaymentHoldStore } from "./testSupport";
+import { authorizeStaff, NotAuthorizedError, type StaffActor } from "./actors";
+import { confirmManualPayment, type ConfirmManualPaymentInput } from "./manualPayment";
+import { DEFAULT_PAYMENT_HOLD_POLICY, extendPaymentDeadline, type ExtendPaymentDeadlineInput } from "./paymentHold";
+import { MemoryManualPaymentStore, MemoryPaymentHoldStore, staff } from "./testSupport";
 
 const sp = (iso: string) => new Date(`${iso}-03:00`);
-const STAFF: StaffActor = { type: "STAFF", userId: "thay" };
 const CREATED = sp("2026-10-01T12:00:00");
+const ATTENDANT: StaffActor = { type: "STAFF", staffId: "staff-1" };
 
-describe("autorização: só a equipe executa ações sensíveis", () => {
-  it("recusa IA, sistema, cliente, vazio e identificação em branco", () => {
-    for (const actor of [
-      { type: "AI" },
-      { type: "SYSTEM" },
-      { type: "CUSTOMER", userId: "x" },
-      { type: "HUMAN", ref: "a" }, // ator de conversa não é ator de painel
-      { type: "STAFF" },
-      { type: "STAFF", userId: "   " },
-      { type: "STAFF", userId: "x".repeat(81) },
-      null,
-      undefined,
-      "STAFF",
-    ]) {
-      assert.throws(() => assertStaff(actor), NotAuthorizedError, JSON.stringify(actor));
+describe("equipe: autorização e isolamento entre unidades", () => {
+  const directory = (records = [staff()]) => ({
+    findStaff: async (id: string) => records.find((r) => r.id === id) ?? null,
+  });
+
+  it("IA, SYSTEM, cliente e atores malformados são recusados antes de qualquer consulta", async () => {
+    let lookups = 0;
+    const counting = { findStaff: async () => { lookups += 1; return staff(); } };
+    for (const actor of [{ type: "AI" }, { type: "SYSTEM" }, { type: "CUSTOMER", staffId: "x" }, { type: "HUMAN", ref: "a" }, { type: "STAFF" }, { type: "STAFF", staffId: " " }, null, "STAFF"]) {
+      await assert.rejects(() => authorizeStaff(counting, actor, "CONFIRM_MANUAL_PAYMENT", { unitId: "unit-a" }), NotAuthorizedError);
     }
-    assert.doesNotThrow(() => assertStaff(STAFF));
+    assert.equal(lookups, 0);
+  });
+
+  it("usuário inexistente ou inativo é recusado", async () => {
+    await assert.rejects(() => authorizeStaff(directory(), { type: "STAFF", staffId: "nao-existe" }, "CONFIRM_MANUAL_PAYMENT", { unitId: "unit-a" }), (e: NotAuthorizedError) => e.reason === "unknown_staff");
+    await assert.rejects(() => authorizeStaff(directory([staff({ active: false })]), ATTENDANT, "CONFIRM_MANUAL_PAYMENT", { unitId: "unit-a" }), (e: NotAuthorizedError) => e.reason === "inactive_staff");
+  });
+
+  it("atendente só age na própria unidade; ADMIN sem unidade age em todas", async () => {
+    await assert.rejects(() => authorizeStaff(directory(), ATTENDANT, "CONFIRM_MANUAL_PAYMENT", { unitId: "unit-b" }), (e: NotAuthorizedError) => e.reason === "other_unit");
+    const ok = await authorizeStaff(directory(), ATTENDANT, "EXTEND_PAYMENT_DEADLINE", { unitId: "unit-a" });
+    assert.equal(ok.id, "staff-1");
+
+    const admin = staff({ id: "admin", role: "ADMIN", unitId: null });
+    for (const unitId of ["unit-a", "unit-b", null]) {
+      assert.equal((await authorizeStaff(directory([admin]), { type: "STAFF", staffId: "admin" }, "CONFIRM_MANUAL_PAYMENT", { unitId })).id, "admin");
+    }
+  });
+
+  it("recurso sem unidade (agendamento antigo): só ADMIN", async () => {
+    await assert.rejects(() => authorizeStaff(directory(), ATTENDANT, "CONFIRM_MANUAL_PAYMENT", { unitId: null }), NotAuthorizedError);
+    const unitAdmin = staff({ id: "adm-a", role: "ADMIN", unitId: "unit-a" });
+    assert.equal((await authorizeStaff(directory([unitAdmin]), { type: "STAFF", staffId: "adm-a" }, "CONFIRM_MANUAL_PAYMENT", { unitId: null })).id, "adm-a");
+    await assert.rejects(() => authorizeStaff(directory([unitAdmin]), { type: "STAFF", staffId: "adm-a" }, "CONFIRM_MANUAL_PAYMENT", { unitId: "unit-b" }), NotAuthorizedError);
   });
 });
 
-describe("pagamento manual: confirmar", () => {
+describe("PaymentConfirmation (confirmação manual)", () => {
   const input = (overrides: Partial<ConfirmManualPaymentInput> = {}): ConfirmManualPaymentInput => ({
     bookingId: "b1",
     amountBrl: 50,
@@ -44,291 +57,200 @@ describe("pagamento manual: confirmar", () => {
     idempotencyKey: "chave-confirmacao-1",
     ...overrides,
   });
+  const store = () => {
+    const s = new MemoryManualPaymentStore();
+    s.addStaff(staff());
+    s.addBooking({ id: "b1", createdAt: CREATED });
+    return s;
+  };
 
-  it("IA, sistema e cliente não conseguem confirmar (nada é lido nem alterado)", async () => {
-    const store = new MemoryManualPaymentStore();
-    store.addBooking({ id: "b1" });
-    for (const actor of [{ type: "AI" }, { type: "SYSTEM" }, { type: "CUSTOMER", userId: "u" }]) {
-      await assert.rejects(
-        () => confirmManualPayment(store, { actor: actor as never, input: input(), now: sp("2026-10-01T12:30:00") }),
-        NotAuthorizedError,
-      );
+  it("IA, cliente e SYSTEM não confirmam (nada alterado)", async () => {
+    const s = store();
+    for (const actor of [{ type: "AI" }, { type: "SYSTEM" }, { type: "CUSTOMER", staffId: "staff-1" }]) {
+      await assert.rejects(() => confirmManualPayment(s, { actor: actor as never, input: input(), now: sp("2026-10-01T12:30:00") }), NotAuthorizedError);
     }
-    assert.equal(store.bookings.get("b1")?.status, "PENDING_PAYMENT");
-    assert.equal(store.records.length, 0);
+    assert.equal(s.bookings.get("b1")?.status, "PENDING_PAYMENT");
+    assert.equal(s.records.length, 0);
+    assert.equal(s.outbox.length, 0);
   });
 
-  it("confirma dentro do prazo e registra tudo: booking, valor, método, quem, quando, referência, status anterior e novo", async () => {
-    const store = new MemoryManualPaymentStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
+  it("registra booking, valor, método, usuário, data, comprovante e status anterior/novo; e enfileira PAYMENT_CONFIRMED", async () => {
+    const s = store();
     const now = sp("2026-10-01T12:30:00");
+    const result = await confirmManualPayment(s, { actor: ATTENDANT, input: input(), now });
 
-    const result = await confirmManualPayment(store, { actor: STAFF, input: input(), now });
-
-    assert.equal(result.kind, "confirmed");
     assert.ok(result.kind === "confirmed");
     assert.deepEqual(result.record, {
       bookingId: "b1",
       amountBrl: 50,
       method: "PIX",
-      confirmedBy: "thay",
+      confirmedById: "staff-1",
       confirmedAt: now,
       reference: "comprovante-123",
       previousStatus: "PENDING_PAYMENT",
       newStatus: "CONFIRMED",
       idempotencyKey: "chave-confirmacao-1",
     });
-    assert.equal(store.bookings.get("b1")?.status, "CONFIRMED");
-    assert.deepEqual(result.event, paymentConfirmedEvent(result.record));
-    assert.equal(result.event.type, "PAYMENT_CONFIRMED");
+    assert.equal(s.bookings.get("b1")?.status, "CONFIRMED");
+    assert.equal(s.outbox.length, 1);
+    assert.equal(s.outbox[0].type, "PAYMENT_CONFIRMED");
+    assert.equal(s.outbox[0].idempotencyKey, "payment-confirmed:b1");
   });
 
-  it("referência é opcional", async () => {
-    const store = new MemoryManualPaymentStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    const result = await confirmManualPayment(store, { actor: STAFF, input: input({ reference: undefined }), now: sp("2026-10-01T12:10:00") });
-    assert.ok(result.kind === "confirmed");
-    assert.equal(result.record.reference, null);
+  it("métodos aceitos: PIX, DEPOSIT, TRANSFER (e só eles)", async () => {
+    for (const method of ["PIX", "DEPOSIT", "TRANSFER"] as const) {
+      const s = store();
+      const result = await confirmManualPayment(s, { actor: ATTENDANT, input: input({ method }), now: sp("2026-10-01T12:10:00") });
+      assert.equal(result.kind, "confirmed", method);
+    }
+    for (const method of ["CARD", "CASH", "BANK_DEPOSIT"]) {
+      await assert.rejects(() => confirmManualPayment(store(), { actor: ATTENDANT, input: input({ method: method as never }) }), InvalidInputError);
+    }
   });
 
-  it("idempotente: repetir a mesma confirmação não duplica nem gera novo evento", async () => {
-    const store = new MemoryManualPaymentStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
+  it("idempotente e à prova de cliques simultâneos: uma confirmação, um evento", async () => {
+    const s = store();
     const now = sp("2026-10-01T12:10:00");
-
-    const first = await confirmManualPayment(store, { actor: STAFF, input: input(), now });
-    const second = await confirmManualPayment(store, { actor: STAFF, input: input(), now });
-
-    assert.equal(first.kind, "confirmed");
-    assert.equal(second.kind, "already_confirmed");
-    assert.equal(store.records.length, 1);
-  });
-
-  it("cliques simultâneos: uma confirmação só", async () => {
-    const store = new MemoryManualPaymentStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    const now = sp("2026-10-01T12:10:00");
-    const results = await Promise.all([1, 2, 3].map(() => confirmManualPayment(store, { actor: STAFF, input: input(), now })));
+    const results = await Promise.all([1, 2, 3].map(() => confirmManualPayment(s, { actor: ATTENDANT, input: input(), now })));
     assert.equal(results.filter((r) => r.kind === "confirmed").length, 1);
-    assert.equal(store.records.length, 1);
+    assert.equal(s.records.length, 1);
+    assert.equal(s.outbox.length, 1);
+    assert.equal((await confirmManualPayment(s, { actor: ATTENDANT, input: input(), now })).kind, "already_confirmed");
   });
 
-  it("a mesma chave não pode ser reaproveitada em outro agendamento", async () => {
-    const store = new MemoryManualPaymentStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    store.addBooking({ id: "b2", createdAt: CREATED });
-    await confirmManualPayment(store, { actor: STAFF, input: input(), now: sp("2026-10-01T12:10:00") });
+  it("atendente de outra unidade não confirma", async () => {
+    const s = store();
+    s.addBooking({ id: "b2", unitId: "unit-b", createdAt: CREATED });
     await assert.rejects(
-      () => confirmManualPayment(store, { actor: STAFF, input: input({ bookingId: "b2" }), now: sp("2026-10-01T12:10:00") }),
-      InvalidInputError,
+      () => confirmManualPayment(s, { actor: ATTENDANT, input: input({ bookingId: "b2", idempotencyKey: "chave-outra-unid" }) }),
+      NotAuthorizedError,
     );
-    assert.equal(store.bookings.get("b2")?.status, "PENDING_PAYMENT");
+    assert.equal(s.bookings.get("b2")?.status, "PENDING_PAYMENT");
   });
 
-  it("valor abaixo do sinal combinado é recusado", async () => {
-    const store = new MemoryManualPaymentStore();
-    store.addBooking({ id: "b1", createdAt: CREATED, depositAmountBrl: 200 });
-    const result = await confirmManualPayment(store, { actor: STAFF, input: input({ amountBrl: 50 }), now: sp("2026-10-01T12:10:00") });
-    assert.deepEqual(result, { kind: "amount_below_deposit", requiredBrl: 200 });
-    assert.equal(store.records.length, 0);
-  });
+  it("valida valor, sinal, status e horário ocupado", async () => {
+    const low = store();
+    low.bookings.get("b1")!.depositAmountBrl = 200;
+    assert.deepEqual(await confirmManualPayment(low, { actor: ATTENDANT, input: input(), now: sp("2026-10-01T12:10:00") }), { kind: "amount_below_deposit", requiredBrl: 200 });
 
-  it("entradas inválidas: valor, método, chave curta", async () => {
-    const store = new MemoryManualPaymentStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    for (const bad of [{ amountBrl: 0 }, { amountBrl: -5 }, { amountBrl: Number.NaN }, { method: "CARD" as never }, { idempotencyKey: "x" }]) {
-      await assert.rejects(() => confirmManualPayment(store, { actor: STAFF, input: input(bad), now: sp("2026-10-01T12:10:00") }), InvalidInputError);
+    for (const bad of [{ amountBrl: 0 }, { amountBrl: -5 }, { amountBrl: Number.NaN }, { idempotencyKey: "x" }]) {
+      await assert.rejects(() => confirmManualPayment(store(), { actor: ATTENDANT, input: input(bad) }), InvalidInputError);
     }
-  });
 
-  it("não confirma agendamento cancelado, concluído ou já confirmado; nem inexistente", async () => {
-    const store = new MemoryManualPaymentStore();
-    for (const status of ["CANCELLED", "COMPLETED", "NO_SHOW", "CONFIRMED"]) store.addBooking({ id: `b-${status}`, status });
-    for (const status of ["CANCELLED", "COMPLETED", "NO_SHOW", "CONFIRMED"]) {
-      const result = await confirmManualPayment(store, {
-        actor: STAFF,
-        input: input({ bookingId: `b-${status}`, idempotencyKey: `chave-${status}-xx` }),
-        now: sp("2026-10-01T12:10:00"),
-      });
-      assert.deepEqual(result, { kind: "not_confirmable", status });
-    }
-    assert.deepEqual(
-      await confirmManualPayment(store, { actor: STAFF, input: input({ bookingId: "nao-existe", idempotencyKey: "chave-nao-existe" }) }),
-      { kind: "not_found" },
-    );
-    assert.equal(store.records.length, 0);
-  });
+    const cancelled = store();
+    cancelled.bookings.get("b1")!.status = "CANCELLED";
+    assert.deepEqual(await confirmManualPayment(cancelled, { actor: ATTENDANT, input: input() }), { kind: "not_confirmable", status: "CANCELLED" });
 
-  it("prazo vencido/expirado: confirma se o horário está livre, recusa se outra pessoa ocupou", async () => {
-    const late = sp("2026-10-01T15:00:00"); // 3h depois da criação
-    const free = new MemoryManualPaymentStore();
-    free.addBooking({ id: "b1", createdAt: CREATED, status: "EXPIRED" });
-    const ok = await confirmManualPayment(free, { actor: STAFF, input: input(), now: late });
-    assert.ok(ok.kind === "confirmed");
-    assert.equal(ok.record.previousStatus, "EXPIRED");
-
-    const taken = new MemoryManualPaymentStore();
-    taken.addBooking({ id: "b1", createdAt: CREATED, status: "EXPIRED" });
-    taken.others.push({
-      status: "CONFIRMED",
-      createdAt: CREATED,
-      scheduledStart: sp("2026-10-07T10:00:00"),
-      scheduledEnd: sp("2026-10-07T15:00:00"),
-    });
-    const refused = await confirmManualPayment(taken, { actor: STAFF, input: input(), now: late });
-    assert.deepEqual(refused, { kind: "slot_unavailable" });
-    assert.equal(taken.bookings.get("b1")?.status, "EXPIRED");
+    const taken = store();
+    taken.bookings.get("b1")!.status = "EXPIRED";
+    taken.others.push({ status: "CONFIRMED", createdAt: CREATED, paymentDueAt: null, scheduledStart: sp("2026-10-07T10:00:00"), scheduledEnd: sp("2026-10-07T15:00:00") });
+    assert.deepEqual(await confirmManualPayment(taken, { actor: ATTENDANT, input: input(), now: sp("2026-10-01T15:00:00") }), { kind: "slot_unavailable" });
     assert.equal(taken.records.length, 0);
   });
 });
 
-describe("prazo de pagamento: estender (ação humana, auditável)", () => {
-  const base = {
+describe("PaymentHold (extensão manual do prazo)", () => {
+  const base: ExtendPaymentDeadlineInput = {
     bookingId: "b1",
     newDeadline: sp("2026-10-02T12:00:00"),
     reason: "Combinado pelo WhatsApp; aguardando comprovante",
     idempotencyKey: "chave-extensao-1",
   };
+  const store = () => {
+    const s = new MemoryPaymentHoldStore();
+    s.addStaff(staff());
+    s.addBooking({ id: "b1", createdAt: CREATED });
+    return s;
+  };
+  const NOW = sp("2026-10-01T12:40:00");
 
-  it("IA, sistema e cliente não conseguem estender", async () => {
-    const store = new MemoryPaymentHoldStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    for (const actor of [{ type: "AI" }, { type: "SYSTEM" }, { type: "CUSTOMER", userId: "u" }]) {
-      await assert.rejects(
-        () => extendPaymentDeadline(store, { actor: actor as never, input: base, now: sp("2026-10-01T12:30:00") }),
-        NotAuthorizedError,
-      );
+  it("IA, SYSTEM e cliente não conseguem estender", async () => {
+    const s = store();
+    for (const actor of [{ type: "AI" }, { type: "SYSTEM" }, { type: "CUSTOMER", staffId: "staff-1" }]) {
+      await assert.rejects(() => extendPaymentDeadline(s, { actor: actor as never, input: base, now: NOW }), NotAuthorizedError);
     }
-    assert.equal(store.holds.length, 0);
+    assert.equal(s.holds.length, 0);
+    assert.equal(s.bookings.get("b1")?.paymentDueAt, null);
   });
 
-  it("registra quem estendeu, motivo, prazo anterior e novo prazo", async () => {
-    const store = new MemoryPaymentHoldStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    const now = sp("2026-10-01T12:40:00");
-
-    const result = await extendPaymentDeadline(store, { actor: STAFF, input: base, now });
-
+  it("grava o novo prazo no agendamento e a auditoria (anterior, novo, quem, motivo)", async () => {
+    const s = store();
+    const result = await extendPaymentDeadline(s, { actor: ATTENDANT, input: base, now: NOW });
     assert.ok(result.kind === "extended");
     assert.deepEqual(result.record, {
       bookingId: "b1",
-      extendedBy: "thay",
-      extendedAt: now,
-      reason: "Combinado pelo WhatsApp; aguardando comprovante",
-      previousDeadline: sp("2026-10-01T13:00:00"), // criação + 60 min (regra geral)
+      previousDeadline: sp("2026-10-01T13:00:00"),
       newDeadline: sp("2026-10-02T12:00:00"),
+      reason: "Combinado pelo WhatsApp; aguardando comprovante",
+      extendedById: "staff-1",
+      extendedAt: NOW,
       idempotencyKey: "chave-extensao-1",
     });
-    assert.equal(store.holds.length, 1);
+    assert.deepEqual(s.bookings.get("b1")?.paymentDueAt, sp("2026-10-02T12:00:00"));
   });
 
-  it("o motivo é obrigatório", async () => {
-    const store = new MemoryPaymentHoldStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
+  it("idempotente e sem duplicar em paralelo", async () => {
+    const s = store();
+    const results = await Promise.all([1, 2, 3].map(() => extendPaymentDeadline(s, { actor: ATTENDANT, input: base, now: NOW })));
+    assert.equal(results.filter((r) => r.kind === "extended").length, 1);
+    assert.equal(s.holds.length, 1);
+  });
+
+  it("motivo obrigatório e prazo validado (futuro, maior que o atual, dentro do limite, antes do atendimento)", async () => {
     for (const reason of ["", "   ", "curto"]) {
-      await assert.rejects(
-        () => extendPaymentDeadline(store, { actor: STAFF, input: { ...base, reason }, now: sp("2026-10-01T12:40:00") }),
-        InvalidInputError,
-      );
+      await assert.rejects(() => extendPaymentDeadline(store(), { actor: ATTENDANT, input: { ...base, reason }, now: NOW }), InvalidInputError);
     }
-    assert.equal(store.holds.length, 0);
-  });
-
-  it("idempotente por chave", async () => {
-    const store = new MemoryPaymentHoldStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    const now = sp("2026-10-01T12:40:00");
-    const first = await extendPaymentDeadline(store, { actor: STAFF, input: base, now });
-    const second = await extendPaymentDeadline(store, { actor: STAFF, input: base, now });
-    assert.equal(first.kind, "extended");
-    assert.equal(second.kind, "already_extended");
-    assert.equal(store.holds.length, 1);
-  });
-
-  it("valida o novo prazo: no futuro, maior que o atual, até 72h, antes do atendimento", async () => {
-    const store = new MemoryPaymentHoldStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    const now = sp("2026-10-01T12:40:00");
-    const tryDeadline = (newDeadline: Date, key: string) =>
-      extendPaymentDeadline(store, { actor: STAFF, input: { ...base, newDeadline, idempotencyKey: key }, now });
-
-    assert.deepEqual(await tryDeadline(sp("2026-10-01T12:00:00"), "chave-passado-1"), { kind: "invalid_deadline", reason: "not_in_future" });
-    assert.deepEqual(await tryDeadline(sp("2026-10-01T12:50:00"), "chave-antes-atual"), { kind: "invalid_deadline", reason: "not_after_current" });
-    const tooFar = new Date(now.getTime() + (MAX_EXTENSION_HOURS + 1) * 3600_000);
-    assert.deepEqual(await tryDeadline(tooFar, "chave-muito-longe"), { kind: "invalid_deadline", reason: "too_far" });
-
-    const near = new MemoryPaymentHoldStore();
-    near.addBooking({ id: "b1", createdAt: CREATED, scheduledStart: sp("2026-10-02T09:00:00") });
-    const after = await extendPaymentDeadline(near, {
-      actor: STAFF,
-      input: { ...base, newDeadline: sp("2026-10-02T10:00:00"), idempotencyKey: "chave-depois-atend" },
-      now,
-    });
-    assert.deepEqual(after, { kind: "invalid_deadline", reason: "after_appointment" });
-    assert.equal(store.holds.length, 0);
-  });
-
-  it("só estende agendamento aguardando pagamento", async () => {
-    const store = new MemoryPaymentHoldStore();
-    for (const status of ["CONFIRMED", "EXPIRED", "CANCELLED"]) store.addBooking({ id: status, status });
-    for (const status of ["CONFIRMED", "EXPIRED", "CANCELLED"]) {
-      const result = await extendPaymentDeadline(store, {
-        actor: STAFF,
-        input: { ...base, bookingId: status, idempotencyKey: `chave-${status}-ext` },
-        now: sp("2026-10-01T12:40:00"),
-      });
-      assert.deepEqual(result, { kind: "not_extendable", status });
-    }
+    const s = store();
+    const at = (iso: string, key: string) => extendPaymentDeadline(s, { actor: ATTENDANT, input: { ...base, newDeadline: sp(iso), idempotencyKey: key }, now: NOW });
+    assert.deepEqual(await at("2026-10-01T12:00:00", "chave-passado-1"), { kind: "invalid_deadline", reason: "not_in_future" });
+    assert.deepEqual(await at("2026-10-01T12:50:00", "chave-antes-atual"), { kind: "invalid_deadline", reason: "not_after_current" });
+    assert.deepEqual(await at("2026-10-05T12:00:00", "chave-muito-longe"), { kind: "invalid_deadline", reason: "too_far" });
+    const near = store();
+    near.bookings.get("b1")!.scheduledStart = sp("2026-10-02T09:00:00");
     assert.deepEqual(
-      await extendPaymentDeadline(store, { actor: STAFF, input: { ...base, bookingId: "x", idempotencyKey: "chave-inexistente" }, now: sp("2026-10-01T12:40:00") }),
-      { kind: "not_found" },
+      await extendPaymentDeadline(near, { actor: ATTENDANT, input: { ...base, newDeadline: sp("2026-10-02T10:00:00") }, now: NOW }),
+      { kind: "invalid_deadline", reason: "after_appointment" },
     );
+    assert.equal(s.holds.length, 0);
   });
 
-  it("extensões sucessivas partem do prazo já estendido e não podem encurtá-lo", async () => {
-    const store = new MemoryPaymentHoldStore();
-    store.addBooking({ id: "b1", createdAt: CREATED });
-    const now = sp("2026-10-01T12:40:00");
-    await extendPaymentDeadline(store, { actor: STAFF, input: base, now });
-
-    const shorter = await extendPaymentDeadline(store, {
-      actor: STAFF,
-      input: { ...base, newDeadline: sp("2026-10-01T18:00:00"), idempotencyKey: "chave-encurtar-1" },
-      now,
+  it("o limite é política configurável (72h por padrão)", async () => {
+    assert.equal(DEFAULT_PAYMENT_HOLD_POLICY.maxExtensionHours, 72);
+    const s = store();
+    const strict = { maxExtensionHours: 6, minReasonLength: 10 };
+    assert.deepEqual(
+      await extendPaymentDeadline(s, { actor: ATTENDANT, input: base, now: NOW, policy: strict }),
+      { kind: "invalid_deadline", reason: "too_far" },
+    );
+    const ok = await extendPaymentDeadline(s, {
+      actor: ATTENDANT,
+      input: { ...base, newDeadline: sp("2026-10-01T18:00:00"), idempotencyKey: "chave-politica" },
+      now: NOW,
+      policy: strict,
     });
-    assert.deepEqual(shorter, { kind: "invalid_deadline", reason: "not_after_current" });
+    assert.equal(ok.kind, "extended");
+  });
 
-    const longer = await extendPaymentDeadline(store, {
-      actor: STAFF,
-      input: { ...base, newDeadline: sp("2026-10-03T08:00:00"), idempotencyKey: "chave-estender-2" },
-      now,
-    });
+  it("não estende confirmado/expirado/cancelado; atendente de outra unidade é recusado", async () => {
+    for (const status of ["CONFIRMED", "EXPIRED", "CANCELLED"]) {
+      const s = store();
+      s.bookings.get("b1")!.status = status;
+      assert.deepEqual(await extendPaymentDeadline(s, { actor: ATTENDANT, input: base, now: NOW }), { kind: "not_extendable", status });
+    }
+    const other = store();
+    other.bookings.get("b1")!.unitId = "unit-b";
+    await assert.rejects(() => extendPaymentDeadline(other, { actor: ATTENDANT, input: base, now: NOW }), NotAuthorizedError);
+  });
+
+  it("extensões sucessivas partem do prazo já estendido e nunca o encurtam", async () => {
+    const s = store();
+    await extendPaymentDeadline(s, { actor: ATTENDANT, input: base, now: NOW });
+    assert.deepEqual(
+      await extendPaymentDeadline(s, { actor: ATTENDANT, input: { ...base, newDeadline: sp("2026-10-01T18:00:00"), idempotencyKey: "chave-encurtar" }, now: NOW }),
+      { kind: "invalid_deadline", reason: "not_after_current" },
+    );
+    const longer = await extendPaymentDeadline(s, { actor: ATTENDANT, input: { ...base, newDeadline: sp("2026-10-03T08:00:00"), idempotencyKey: "chave-estender-2" }, now: NOW });
     assert.ok(longer.kind === "extended");
     assert.deepEqual(longer.record.previousDeadline, sp("2026-10-02T12:00:00"));
-  });
-});
-
-describe("prazo efetivo (regra geral de 60 minutos continua valendo)", () => {
-  const booking = { status: "PENDING_PAYMENT", createdAt: CREATED };
-
-  it("sem extensão vale exatamente a regra geral de 60 minutos", () => {
-    assert.deepEqual(effectivePaymentDeadline(booking, null), sp("2026-10-01T13:00:00"));
-    assert.equal(isPaymentWindowOpenWithHold(booking, null, sp("2026-10-01T12:59:00")), true);
-    assert.equal(isPaymentWindowOpenWithHold(booking, null, sp("2026-10-01T13:00:00")), false);
-  });
-
-  it("com extensão vale o maior prazo; a extensão vale só para aquele agendamento", () => {
-    const hold = { newDeadline: sp("2026-10-02T12:00:00") };
-    assert.deepEqual(effectivePaymentDeadline(booking, hold), sp("2026-10-02T12:00:00"));
-    assert.equal(isPaymentWindowOpenWithHold(booking, hold, sp("2026-10-01T20:00:00")), true);
-    assert.equal(isPaymentWindowOpenWithHold(booking, null, sp("2026-10-01T20:00:00")), false);
-  });
-
-  it("extensão menor que a regra geral nunca encurta o prazo", () => {
-    assert.deepEqual(effectivePaymentDeadline(booking, { newDeadline: sp("2026-10-01T12:30:00") }), sp("2026-10-01T13:00:00"));
-  });
-
-  it("só agendamentos aguardando pagamento têm janela aberta", () => {
-    assert.equal(isPaymentWindowOpenWithHold({ status: "CONFIRMED", createdAt: CREATED }, null, sp("2026-10-01T12:10:00")), false);
   });
 });

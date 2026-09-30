@@ -36,7 +36,7 @@ describe("expireStaleBookings", () => {
     const store = new FakeStore([row("velho", "PENDING_PAYMENT", 120), row("recente", "PENDING_PAYMENT", 10)]);
     const report = await expireStaleBookings(store, NOW);
 
-    assert.deepEqual(report, { checked: 1, expired: 1, skippedPaid: 0 });
+    assert.deepEqual(report, { checked: 1, expired: 1, skippedPaid: 0, skippedHeld: 0 });
     assert.equal(store.rows.find((r) => r.id === "velho")?.status, "EXPIRED");
     assert.equal(store.rows.find((r) => r.id === "recente")?.status, "PENDING_PAYMENT");
   });
@@ -58,7 +58,7 @@ describe("expireStaleBookings", () => {
     const store = new FakeStore([row("pago", "PENDING_PAYMENT", 500, true)]);
     const report = await expireStaleBookings(store, NOW);
 
-    assert.deepEqual(report, { checked: 1, expired: 0, skippedPaid: 1 });
+    assert.deepEqual(report, { checked: 1, expired: 0, skippedPaid: 1, skippedHeld: 0 });
     assert.equal(store.rows[0].status, "PENDING_PAYMENT");
   });
 
@@ -70,7 +70,7 @@ describe("expireStaleBookings", () => {
     ]);
     const report = await expireStaleBookings(store, NOW);
 
-    assert.deepEqual(report, { checked: 0, expired: 0, skippedPaid: 0 });
+    assert.deepEqual(report, { checked: 0, expired: 0, skippedPaid: 0, skippedHeld: 0 });
     assert.deepEqual(store.rows.map((r) => r.status), ["CONFIRMED", "CANCELLED", "EXPIRED"]);
   });
 
@@ -78,7 +78,7 @@ describe("expireStaleBookings", () => {
     const store = new FakeStore([row("velho", "PENDING_PAYMENT", 120)]);
     await expireStaleBookings(store, NOW);
     const second = await expireStaleBookings(store, NOW);
-    assert.deepEqual(second, { checked: 0, expired: 0, skippedPaid: 0 });
+    assert.deepEqual(second, { checked: 0, expired: 0, skippedPaid: 0, skippedHeld: 0 });
   });
 
   it("se o status mudou no meio do caminho (pagou agora), não expira", async () => {
@@ -90,7 +90,7 @@ describe("expireStaleBookings", () => {
       return found;
     };
     const report = await expireStaleBookings(store, NOW);
-    assert.deepEqual(report, { checked: 1, expired: 0, skippedPaid: 0 });
+    assert.deepEqual(report, { checked: 1, expired: 0, skippedPaid: 0, skippedHeld: 0 });
     assert.equal(store.rows[0].status, "CONFIRMED");
   });
 });

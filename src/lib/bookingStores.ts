@@ -93,13 +93,26 @@ const prismaExpiryStore: ExpiryStore = {
   async findPendingCreatedUntil(cutoff) {
     const bookings = await prisma.booking.findMany({
       where: { status: "PENDING_PAYMENT", createdAt: { lte: cutoff } },
-      select: { id: true, payments: { where: { status: "APPROVED" }, select: { id: true }, take: 1 } },
+      select: {
+        id: true,
+        paymentDueAt: true,
+        payments: { where: { status: "APPROVED" }, select: { id: true }, take: 1 },
+      },
     });
-    return bookings.map((b) => ({ id: b.id, hasApprovedPayment: b.payments.length > 0 }));
+    return bookings.map((b) => ({
+      id: b.id,
+      hasApprovedPayment: b.payments.length > 0,
+      paymentDueAt: b.paymentDueAt,
+    }));
   },
-  async expire(bookingId) {
+  async expire(bookingId, now) {
     const { count } = await prisma.booking.updateMany({
-      where: { id: bookingId, status: "PENDING_PAYMENT" },
+      // Nunca expira um agendamento cujo prazo foi estendido e ainda vale.
+      where: {
+        id: bookingId,
+        status: "PENDING_PAYMENT",
+        OR: [{ paymentDueAt: null }, { paymentDueAt: { lte: now } }],
+      },
       data: { status: "EXPIRED" },
     });
     return count > 0;

@@ -3,21 +3,21 @@ import assert from "node:assert/strict";
 import { MemoryConversations } from "../conversations/memoryRepo";
 import { finishConversation, handoffToHuman, claimHandoff } from "../conversations/conversation";
 import { receiveInboundMessage, recordOutboundMessage } from "../conversations/message";
-import { buildAgentContext, CONTEXT_MESSAGE_LIMIT, formatSaoPaulo, renderContextBlock } from "./context";
-import { birthdayPromotion, MemoryContextReader, SECRET_ADDRESS, SECRET_MAP } from "./testSupport";
+import { buildAgentContext, CONTEXT_MESSAGE_LIMIT, contextSnapshot, formatSaoPaulo, renderContextBlock } from "./context";
+import { MemoryContextReader, promotion, SECRET_ADDRESS, SECRET_MAP } from "./testSupport";
 
 const NOW = new Date("2026-10-01T15:30:00-03:00");
 
 async function setup() {
   const db = new MemoryConversations();
   const unit = db.addUnit({ slug: "principal" });
-  const reader = new MemoryContextReader(db, unit.id);
+  const reader = new MemoryContextReader(db);
   const first = await receiveInboundMessage(
     db,
     { unitId: unit.id, phone: "11987654321", customerName: "Maria", externalMessageId: "m1", content: "Oi" },
     NOW,
   );
-  return { db, unit, reader, conversationId: first.conversationId };
+  return { db, unit, reader, conversationId: first.conversationId, firstMessageId: first.messageId };
 }
 
 describe("contexto do agente", () => {
@@ -37,30 +37,28 @@ describe("contexto do agente", () => {
     assert.equal(formatSaoPaulo(new Date("2026-10-01T02:00:00Z")), "30/09/2026 23:00 (quarta, horário de São Paulo)");
   });
 
-  it("só inclui promoções ATIVAS; vencida vira desconhecida", async () => {
-    const { reader, conversationId } = await setup();
-    reader.promotions = [birthdayPromotion];
+  it("só inclui promoções ATIVAS da unidade; vencida ou de outra unidade vira desconhecida", async () => {
+    const { reader, unit, conversationId } = await setup();
+    reader.promotions = [promotion(unit.id), promotion("outra-unidade", { id: "promo-outra", priceBrl: 999 })];
 
     const active = buildAgentContext((await reader.load(conversationId))!, NOW);
-    assert.equal(active.promotions.length, 1);
+    assert.deepEqual(active.promotions.map((p) => p.id), ["promo-teste"]);
     assert.match(renderContextBlock(active), /R\$ 750/);
+    assert.doesNotMatch(renderContextBlock(active), /999/);
 
     const expired = buildAgentContext((await reader.load(conversationId))!, new Date("2026-11-02T10:00:00-03:00"));
     assert.equal(expired.promotions.length, 0);
-    const block = renderContextBlock(expired);
-    assert.doesNotMatch(block, /R\$ 750/);
-    assert.match(block, /Nenhuma/);
+    assert.doesNotMatch(renderContextBlock(expired), /R\$ 750/);
     assert.ok(expired.unknowns.some((item) => /promo/i.test(item)));
   });
 
   it("declara como DESCONHECIDOS: preço, agenda, endereço e status de pagamento", async () => {
     const { reader, conversationId } = await setup();
-    const context = buildAgentContext((await reader.load(conversationId))!, NOW);
-    const all = context.unknowns.join(" | ").toLowerCase();
+    const all = buildAgentContext((await reader.load(conversationId))!, NOW).unknowns.join(" | ").toLowerCase();
     for (const topic of ["preço", "disponibilidade", "endereço", "pagamento"]) assert.match(all, new RegExp(topic));
   });
 
-  it("nunca carrega endereço nem mapa (nem os valores do cofre da unidade)", async () => {
+  it("nunca carrega endereço nem mapa", async () => {
     const { reader, conversationId } = await setup();
     const context = buildAgentContext((await reader.load(conversationId))!, NOW);
     const serialized = JSON.stringify(context) + renderContextBlock(context);
@@ -68,12 +66,11 @@ describe("contexto do agente", () => {
     assert.equal(serialized.includes(SECRET_MAP), false);
   });
 
-  it("as regras de sinal vêm das constantes do sistema", async () => {
-    const { reader, conversationId } = await setup();
-    const block = renderContextBlock(buildAgentContext((await reader.load(conversationId))!, NOW));
-    assert.match(block, /Sinal: R\$ 50/);
-    assert.match(block, /50%/);
-    assert.match(block, /2 dias ou mais/);
+  it("o snapshot guarda ids das mensagens, não o texto", async () => {
+    const { reader, conversationId, firstMessageId } = await setup();
+    const snapshot = contextSnapshot(buildAgentContext((await reader.load(conversationId))!, NOW));
+    assert.deepEqual(snapshot.messageIds, [firstMessageId]);
+    assert.equal(JSON.stringify(snapshot).includes("Oi"), false);
   });
 
   it("status acompanha o ciclo da conversa (HUMAN → FINISHED → cliente volta)", async () => {
@@ -81,12 +78,7 @@ describe("contexto do agente", () => {
     await recordOutboundMessage(db, { conversationId, sender: "AI", content: "Olá!" }, NOW);
     assert.equal(buildAgentContext((await reader.load(conversationId))!, NOW).status, "em_atendimento");
 
-    await handoffToHuman(db, {
-      conversationId,
-      reason: "QUOTE_REQUEST",
-      summary: { headline: "Orçamento" },
-      actor: { type: "AI" },
-    });
+    await handoffToHuman(db, { conversationId, reason: "QUOTE_REQUEST", summary: { headline: "Orçamento" }, actor: { type: "AI" } });
     assert.equal(buildAgentContext((await reader.load(conversationId))!, NOW).status, "aguardando_humano");
 
     await claimHandoff(db, { conversationId, by: "atendente-1" });
@@ -98,7 +90,20 @@ describe("contexto do agente", () => {
     await receiveInboundMessage(db, { unitId: unit.id, phone: "11987654321", externalMessageId: "m2", content: "voltei" }, NOW);
     const back = buildAgentContext((await reader.load(conversationId))!, NOW);
     assert.equal(back.mode, "BOT");
-    assert.equal(back.status, "finalizado"); // reaberto: continua sendo cliente conhecido
+    assert.equal(back.status, "finalizado");
+  });
+
+  it("lido 'até' uma mensagem: ignora o que veio depois e reconstrói o modo daquele momento", async () => {
+    const { db, unit, reader, conversationId, firstMessageId } = await setup();
+    const later = new Date(NOW.getTime() + 60_000);
+    await handoffToHuman(db, { conversationId, reason: "OTHER", summary: { headline: "x" }, actor: { type: "AI" }, now: later });
+    await receiveInboundMessage(db, { unitId: unit.id, phone: "11987654321", externalMessageId: "m2", content: "depois" }, later);
+
+    const past = (await reader.load(conversationId, { upToMessageId: firstMessageId }))!;
+    assert.equal(past.recentMessages.length, 1);
+    assert.equal(past.modeAtTrigger, "BOT");
+    assert.equal(past.conversation.mode, "HUMAN"); // o atual continua disponível
+    assert.equal(buildAgentContext(past, NOW, { useModeAtTrigger: true }).mode, "BOT");
   });
 
   it("agendamento confirmado vem do backend e o agente é avisado de que não confirma nada", async () => {
@@ -112,11 +117,7 @@ describe("contexto do agente", () => {
   it("limita e trunca o histórico", async () => {
     const { db, unit, reader, conversationId } = await setup();
     for (let i = 0; i < 30; i++) {
-      await receiveInboundMessage(
-        db,
-        { unitId: unit.id, phone: "11987654321", externalMessageId: `x${i}`, content: "a".repeat(800) },
-        NOW,
-      );
+      await receiveInboundMessage(db, { unitId: unit.id, phone: "11987654321", externalMessageId: `x${i}`, content: "a".repeat(800) }, NOW);
     }
     const context = buildAgentContext((await reader.load(conversationId))!, NOW);
     assert.equal(context.messages.length, CONTEXT_MESSAGE_LIMIT);

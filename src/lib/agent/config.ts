@@ -1,10 +1,11 @@
 // Configuração do agente e da unidade. Nada da unidade (nome, endereço, links,
-// horários, atendente) fica em código: vem de provedores de dados.
+// horários, atendente, estacionamento) fica em código: vem do banco (Unit,
+// Brand, StaffUser) por meio dos provedores abaixo.
 
 /**
  * Modo de operação. Nesta fase SÓ existe "shadow": o agente gera rascunhos e os
- * registra, e nenhuma mensagem chega ao cliente. Não há modo de envio real no tipo de
- * propósito: ligá-lo exige uma fase futura, com código novo e autorização.
+ * registra, e nenhuma mensagem chega ao cliente. Não há modo de envio real no
+ * tipo de propósito: ligá-lo exige uma fase futura, com código novo e autorização.
  */
 export type AgentMode = "shadow";
 
@@ -22,20 +23,25 @@ export function assertShadowMode(config: { mode: string }): asserts config is Ag
   if (config.mode !== "shadow") throw new NotShadowModeError();
 }
 
-/** Dados NÃO sensíveis da unidade que o agente pode usar. */
+/**
+ * Dados NÃO sensíveis da unidade que o agente pode usar. Dados da MARCA (links
+ * públicos) entram em `allowedUrls`; dados da UNIDADE, nos demais campos.
+ */
 export type UnitAgentConfig = {
   unitId: string;
-  /** Como a unidade se chama para o cliente (vem do cadastro). */
+  /** Como a unidade se chama para o cliente (Unit.name). */
   displayName: string;
   /** Região pública (ex.: bairro). Antes da confirmação só isto é dito. */
   publicArea: string | null;
-  /** Texto do horário do atendimento humano, exatamente como a equipe definiu. */
+  /** Texto do horário do atendimento humano, como a equipe cadastrou. */
   humanHoursText: string | null;
-  /** Nome da pessoa que assume os atendimentos. */
+  /** Nome da pessoa (ATTENDANT ativa) que assume os atendimentos. */
   humanName: string | null;
   /** Link de avaliação. Só é enviado por evento SYSTEM. */
   reviewUrl: string | null;
-  /** Links que o agente pode citar (site, portfólio...). Qualquer outro é bloqueado. */
+  /** Informação de estacionamento (usada pelo SYSTEM na localização). */
+  parkingInfo: string | null;
+  /** Links que o agente pode citar (links públicos da marca + avaliação). Qualquer outro é bloqueado. */
   allowedUrls: string[];
 };
 
@@ -45,8 +51,8 @@ export interface UnitConfigProvider {
 
 /**
  * Dados SENSÍVEIS da unidade: endereço completo e link do mapa. Só o
- * despachante de eventos SYSTEM lê isto, depois de o agendamento estar
- * confirmado. O agente (modelo) NUNCA recebe esses valores.
+ * processador de eventos SYSTEM lê isto, depois de o agendamento estar
+ * confirmado. O modelo NUNCA recebe esses valores.
  */
 export type SecureLocation = { address: string; mapUrl: string };
 

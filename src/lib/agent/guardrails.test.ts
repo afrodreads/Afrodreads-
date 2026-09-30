@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildAgentContext, type AgentContext } from "./context";
 import { checkDraft, type ViolationCode } from "./guardrails";
-import { birthdayPromotion, unitConfig } from "./testSupport";
+import { promotion, unitConfig } from "./testSupport";
 
 function context(withPromotion: boolean): AgentContext {
   return buildAgentContext(
@@ -17,14 +17,16 @@ function context(withPromotion: boolean): AgentContext {
         assignedTo: null,
         lastContactAt: null,
       },
+      unitId: "u1",
       customerName: "Maria",
       unit: unitConfig("u1"),
-      promotions: withPromotion ? [birthdayPromotion] : [],
+      promotions: withPromotion ? [promotion("u1")] : [],
       recentMessages: [],
       outboundMessageCount: 1,
       lastTransition: null,
       activeHandoff: null,
       upcomingConfirmedBooking: null,
+      modeAtTrigger: "BOT",
     },
     new Date("2026-10-15T10:00:00-03:00"),
   );

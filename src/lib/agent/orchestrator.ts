@@ -1,133 +1,289 @@
 import { checkAiMayRespond } from "../conversations/conversation";
+import { InvalidInputError } from "../conversations/errors";
 import type { ConversationsStore } from "../conversations/repo";
 import { assertShadowMode } from "./config";
-import { buildAgentContext, type AgentContext, type AgentContextReader } from "./context";
+import { buildAgentContext, contextSnapshot, type AgentContext, type AgentContextReader } from "./context";
 import { checkDraft } from "./guardrails";
 import type { ModelClient } from "./model";
 import { buildSystemPrompt, type PromptSource } from "./prompt";
-import { runKey, type ShadowDraft, type ShadowOutcome, type ShadowRunRecord, type ShadowSink } from "./shadow";
-import { parseToolCall, TOOL_DEFINITIONS, type ProposedAction } from "./tools";
+import type { PromptRegistry } from "./promptVersion";
+import {
+  inboundRunKey,
+  replayRunKey,
+  sanitizeError,
+  type AgentRunOutcome,
+  type AgentRunResult,
+  type AgentRunStore,
+  type AgentRunTrigger,
+} from "./runs";
+import { parseToolCall, TOOL_DEFINITIONS, type LeadData, type ProposedAction } from "./tools";
 
-// Orquestrador do agente em MODO SOMBRA.
+// Orquestrador do agente em MODO SOMBRA:
 //
-// O que ele faz: decide se a IA pode falar, monta o contexto, chama o modelo,
-// confere o rascunho nos guardrails e REGISTRA o resultado.
+//   INPUT → CONTEXT → MODEL → TOOLS → GUARDRAILS → SHADOW RESULT → AgentRun
 //
-// O que ele NÃO faz e NÃO consegue fazer (não há dependência para isso): enviar
-// mensagem, gravar Message, mudar o modo da conversa, executar handoff, mexer em
-// agenda, pagamento ou estorno. As dependências abaixo não incluem nenhum
-// remetente nem escrita de negócio.
+// Nunca → Message OUTBOUND. As dependências abaixo não incluem nenhum remetente
+// nem escrita de negócio: não há como enviar mensagem, mudar a conversa, criar
+// handoff real, mexer em agenda ou pagamento. As ferramentas só PROPÕEM.
 
-export type ShadowRunDeps = {
+export type CoreDeps = {
   config: { mode: string };
-  /** Usado só para LER o modo da conversa (HUMAN bloqueia a IA). */
-  store: ConversationsStore;
   reader: AgentContextReader;
   model: ModelClient;
-  promptSource: PromptSource;
-  sink: ShadowSink;
+  prompt: PromptSource;
+  prompts: PromptRegistry;
+  runs: AgentRunStore;
+  /** Relógio em ms para medir a duração (injetável nos testes). */
+  clock?: () => number;
 };
 
-export type ShadowRunInput = { conversationId: string; triggerMessageId: string; now?: Date };
+/** Execução ao vivo (sombra): também LÊ o modo atual da conversa. */
+export type LiveDeps = CoreDeps & { store: ConversationsStore };
 
-export type ShadowRunResult = { outcome: ShadowOutcome; draft: ShadowDraft | null; duplicate: boolean };
+export type RunOutcome = AgentRunOutcome | "SKIPPED_NOT_BOT" | "DUPLICATE" | "NO_CONTEXT";
+
+export type RunResult = { outcome: RunOutcome; runId: string | null; result: AgentRunResult | null };
 
 function fallbackText(context: AgentContext): string {
   const who = context.unit.humanName ?? "a equipe";
   return `Essa informação eu prefiro confirmar com a equipe para não te passar nada errado. Vou encaminhar para ${who}. 💛`;
 }
 
-export async function runAgentShadow(deps: ShadowRunDeps, input: ShadowRunInput): Promise<ShadowRunResult> {
-  assertShadowMode(deps.config);
-
-  const now = input.now ?? new Date();
-  const key = runKey(input.conversationId, input.triggerMessageId);
-
-  // Idempotência: a mesma mensagem-gatilho processada duas vezes (reentrega do
-  // webhook, retry) gera um único rascunho e uma única chamada ao modelo.
-  if (!(await deps.sink.claim(key))) return { outcome: "duplicate", draft: null, duplicate: true };
-
-  const finish = async (
-    outcome: ShadowOutcome,
-    mode: ShadowRunRecord["mode"],
-    draft: ShadowDraft | null = null,
-  ): Promise<ShadowRunResult> => {
-    await deps.sink.complete({
-      key,
-      conversationId: input.conversationId,
-      triggerMessageId: input.triggerMessageId,
-      at: now,
-      outcome,
-      mode,
-      draft,
-    });
-    return { outcome, draft, duplicate: false };
+function emptyResult(outcome: AgentRunOutcome, durationMs: number, now: Date): AgentRunResult {
+  return {
+    outcome,
+    agentStatus: null,
+    mode: null,
+    intent: null,
+    temperature: null,
+    qualification: null,
+    candidateText: null,
+    blockedOriginalText: null,
+    guardrailOk: null,
+    violations: [],
+    proposedHandoff: null,
+    proposedActions: [],
+    rejectedToolCalls: [],
+    contextSnapshot: null,
+    durationMs,
+    errorCode: null,
+    errorMessage: null,
+    completedAt: now,
   };
+}
 
-  // HUMAN (e FINISHED) bloqueiam a IA por completo: o modelo nem é chamado.
-  const gate = await checkAiMayRespond(deps.store, input.conversationId);
-  if (!gate.allowed) return finish("skipped_not_bot", gate.mode);
+type ExecuteArgs = {
+  key: (promptSha256: string) => string;
+  trigger: AgentRunTrigger;
+  conversationId: string;
+  triggerMessageId: string;
+  replayOfRunId: string | null;
+  replayLabel: string | null;
+  now: Date;
+  /** Replay: usa o modo da conversa no momento da mensagem (e não o atual). */
+  historical: boolean;
+  /** Ao vivo: relê o modo depois do modelo (a equipe pode ter assumido). */
+  stillAllowed?: () => Promise<boolean>;
+};
 
-  const raw = await deps.reader.load(input.conversationId);
-  if (!raw) return finish("context_unavailable", gate.mode);
+async function execute(deps: CoreDeps, args: ExecuteArgs): Promise<RunResult> {
+  const clock = deps.clock ?? Date.now;
 
-  const context = buildAgentContext(raw, now);
-  const last = context.messages[context.messages.length - 1];
-  if (!last || last.role !== "user") return finish("nothing_to_answer", gate.mode);
+  // INPUT → CONTEXT (lido até a mensagem-gatilho)
+  const raw = await deps.reader.load(args.conversationId, { upToMessageId: args.triggerMessageId });
+  if (!raw) return { outcome: "NO_CONTEXT", runId: null, result: null };
 
-  let response;
+  const context = buildAgentContext(raw, args.now, { useModeAtTrigger: args.historical });
+  // HUMAN/FINISHED naquele momento: a IA não responde, então não há execução.
+  if (context.mode !== "BOT") return { outcome: "SKIPPED_NOT_BOT", runId: null, result: null };
+
+  const spec = await deps.prompt.load();
+  const promptVersionId = await deps.prompts.ensure(spec);
+
+  const created = await deps.runs.create({
+    idempotencyKey: args.key(spec.sha256),
+    unitId: raw.unitId,
+    conversationId: args.conversationId,
+    triggerMessageId: args.triggerMessageId,
+    trigger: args.trigger,
+    replayOfRunId: args.replayOfRunId,
+    replayLabel: args.replayLabel,
+    modelId: deps.model.id,
+    promptVersionId,
+    startedAt: args.now,
+  });
+  if (!created.created) return { outcome: "DUPLICATE", runId: created.id, result: null };
+
+  const started = clock();
+  const finish = async (result: AgentRunResult): Promise<RunResult> => {
+    await deps.runs.complete(created.id, result);
+    return { outcome: result.outcome, runId: created.id, result };
+  };
+  const elapsed = () => Math.max(0, Math.round(clock() - started));
+
   try {
-    response = await deps.model.generate({
-      system: await buildSystemPrompt(deps.promptSource, context),
-      messages: context.messages.map((message) => ({ role: message.role, content: message.text })),
-      tools: TOOL_DEFINITIONS,
+    const base = {
+      ...emptyResult("NOTHING_TO_ANSWER", 0, args.now),
+      agentStatus: context.status,
+      mode: context.mode,
+      contextSnapshot: contextSnapshot(context),
+    };
+
+    const last = context.messages[context.messages.length - 1];
+    if (!last || last.role !== "user" || last.id !== args.triggerMessageId) {
+      return finish({ ...base, outcome: "NOTHING_TO_ANSWER", durationMs: elapsed() });
+    }
+
+    // MODEL
+    let response;
+    try {
+      response = await deps.model.generate({
+        system: buildSystemPrompt(spec, context),
+        messages: context.messages.map((message) => ({ role: message.role, content: message.text })),
+        tools: TOOL_DEFINITIONS,
+      });
+    } catch (error) {
+      const safe = sanitizeError(error);
+      return finish({ ...base, outcome: "MODEL_ERROR", durationMs: elapsed(), errorCode: safe.code, errorMessage: safe.message });
+    }
+
+    if (args.stillAllowed && !(await args.stillAllowed())) {
+      return finish({ ...base, outcome: "DISCARDED_MODE_CHANGED", durationMs: elapsed() });
+    }
+
+    // TOOLS (só propostas)
+    const proposedActions: ProposedAction[] = [];
+    const rejectedToolCalls: AgentRunResult["rejectedToolCalls"] = [];
+    for (const call of response.toolCalls) {
+      const parsed = parseToolCall(call);
+      if (parsed.ok) proposedActions.push(parsed.action);
+      else rejectedToolCalls.push({ name: parsed.name, reason: parsed.reason });
+    }
+
+    let qualification: LeadData | null = null;
+    for (const action of proposedActions) {
+      if (action.tool === "update_lead_data") qualification = { ...(qualification ?? {}), ...action.data };
+    }
+
+    // GUARDRAILS
+    const originalText = response.text?.trim() ? response.text.trim() : null;
+    const verdict = originalText ? checkDraft(originalText, context) : { ok: true, violations: [] };
+
+    let candidateText = originalText;
+    let blockedOriginalText: string | null = null;
+    if (!verdict.ok) {
+      blockedOriginalText = originalText;
+      candidateText = fallbackText(context);
+      proposedActions.push({
+        tool: "request_handoff",
+        reason: "AI_UNCERTAIN",
+        summary: {
+          headline: "Rascunho da IA bloqueado pelos guardrails",
+          collected: { violacoes: [...new Set(verdict.violations.map((v) => v.code))].join(", ").slice(0, 300) },
+        },
+      });
+    }
+
+    const handoff = proposedActions.find((action) => action.tool === "request_handoff");
+
+    // SHADOW RESULT → AgentRun
+    return finish({
+      ...base,
+      outcome: verdict.ok ? "DRAFT_SAVED" : "DRAFT_BLOCKED",
+      intent: qualification?.intent ?? null,
+      temperature: qualification?.temperature ?? null,
+      qualification,
+      candidateText,
+      blockedOriginalText,
+      guardrailOk: verdict.ok,
+      violations: verdict.violations,
+      proposedHandoff: handoff && handoff.tool === "request_handoff" ? { reason: handoff.reason, summary: handoff.summary } : null,
+      proposedActions,
+      rejectedToolCalls,
+      durationMs: elapsed(),
     });
-  } catch {
-    return finish("model_error", gate.mode);
-  }
-
-  // O modo pode ter mudado enquanto o modelo gerava (a equipe assumiu): descarta.
-  const after = await checkAiMayRespond(deps.store, input.conversationId);
-  if (!after.allowed) return finish("discarded_mode_changed", after.mode);
-
-  const proposedActions: ProposedAction[] = [];
-  const rejectedToolCalls: ShadowDraft["rejectedToolCalls"] = [];
-  for (const call of response.toolCalls) {
-    const parsed = parseToolCall(call);
-    if (parsed.ok) proposedActions.push(parsed.action);
-    else rejectedToolCalls.push({ name: parsed.name, reason: parsed.reason });
-  }
-
-  const originalText = response.text?.trim() ? response.text.trim() : null;
-  const verdict = originalText ? checkDraft(originalText, context) : { ok: true, violations: [] };
-
-  let text = originalText;
-  let blockedOriginalText: string | null = null;
-  if (!verdict.ok) {
-    blockedOriginalText = originalText;
-    text = fallbackText(context);
-    // Um rascunho barrado vira proposta de encaminhamento, para a equipe ver.
-    proposedActions.push({
-      tool: "request_handoff",
-      reason: "AI_UNCERTAIN",
-      summary: {
-        headline: "Rascunho da IA bloqueado pelos guardrails",
-        collected: { violacoes: [...new Set(verdict.violations.map((v) => v.code))].join(", ").slice(0, 300) },
-      },
+  } catch (error) {
+    const safe = sanitizeError(error);
+    return finish({
+      ...emptyResult("INTERNAL_ERROR", elapsed(), args.now),
+      errorCode: safe.code,
+      errorMessage: safe.message,
     });
   }
+}
 
-  const draft: ShadowDraft = {
+/**
+ * Execução para uma mensagem nova do cliente (sombra). Em HUMAN/FINISHED o
+ * modelo NÃO é chamado e NENHUM AgentRun é criado.
+ */
+export async function runAgentShadow(
+  deps: LiveDeps,
+  input: { conversationId: string; triggerMessageId: string; now?: Date },
+): Promise<RunResult> {
+  assertShadowMode(deps.config);
+  const now = input.now ?? new Date();
+
+  const gate = await checkAiMayRespond(deps.store, input.conversationId);
+  if (!gate.allowed) return { outcome: "SKIPPED_NOT_BOT", runId: null, result: null };
+
+  return execute(deps, {
+    key: () => inboundRunKey(input.triggerMessageId),
+    trigger: "INBOUND",
     conversationId: input.conversationId,
     triggerMessageId: input.triggerMessageId,
-    createdAt: now,
-    text,
-    blockedOriginalText,
-    violations: verdict.violations,
-    proposedActions,
-    rejectedToolCalls,
-    context: { status: context.status, mode: context.mode, activePromotions: context.promotions.length },
-  };
+    replayOfRunId: null,
+    replayLabel: null,
+    now,
+    historical: false,
+    stillAllowed: async () => (await checkAiMayRespond(deps.store, input.conversationId)).allowed,
+  });
+}
 
-  return finish(verdict.ok ? "draft_saved" : "draft_blocked", after.mode, draft);
+export type ReplayDeps = CoreDeps & {
+  messages: { findMessage(id: string): Promise<{ id: string; conversationId: string; sender: string; createdAt: Date } | null> };
+};
+
+/**
+ * REPLAY interno: reexecuta o agente em sombra para uma mensagem já salva (ou
+ * para a mensagem de um AgentRun), com o prompt/modelo das dependências. Não
+ * recebe ConversationsStore: não há como alterar conversa, criar handoff real,
+ * enviar mensagem, mexer em agendamento ou pagamento. Grava só um AgentRun
+ * (trigger REPLAY). Idempotente por (mensagem, prompt, modelo, rótulo).
+ *
+ * O contexto é reconstruído como era no momento da mensagem: mensagens e
+ * transições posteriores ficam de fora, e a data de referência é a da mensagem.
+ */
+export async function replayAgentRun(
+  deps: ReplayDeps,
+  input: { messageId?: string; sourceRunId?: string; label: string; now?: Date },
+): Promise<RunResult> {
+  assertShadowMode(deps.config);
+  const label = input.label.trim();
+  if (!label || label.length > 60) throw new InvalidInputError("Informe um rótulo curto para o replay.");
+
+  let messageId = input.messageId ?? null;
+  let replayOfRunId: string | null = null;
+  if (input.sourceRunId) {
+    const source = await deps.runs.find(input.sourceRunId);
+    if (!source) throw new InvalidInputError("AgentRun de origem não encontrado.");
+    messageId = source.triggerMessageId;
+    replayOfRunId = source.id;
+  }
+  if (!messageId) throw new InvalidInputError("Informe a mensagem ou o AgentRun de origem.");
+
+  const message = await deps.messages.findMessage(messageId);
+  if (!message) throw new InvalidInputError("Mensagem não encontrada.");
+  if (message.sender !== "CUSTOMER") throw new InvalidInputError("Replay só para mensagens do cliente.");
+
+  const target = messageId;
+  return execute(deps, {
+    key: (promptSha256) => replayRunKey({ messageId: target, promptSha256, modelId: deps.model.id, label }),
+    trigger: "REPLAY",
+    conversationId: message.conversationId,
+    triggerMessageId: target,
+    replayOfRunId,
+    replayLabel: label,
+    now: input.now ?? message.createdAt,
+    historical: true,
+  });
 }

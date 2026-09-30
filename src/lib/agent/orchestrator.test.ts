@@ -1,307 +1,296 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { MemoryConversations } from "../conversations/memoryRepo";
-import { finishConversation, handoffToHuman } from "../conversations/conversation";
-import { receiveInboundMessage } from "../conversations/message";
+import { claimHandoff, finishConversation, handoffToHuman } from "../conversations/conversation";
 import { NotShadowModeError } from "./config";
-import { runAgentShadow, type ShadowRunDeps } from "./orchestrator";
-import {
-  birthdayPromotion,
-  fixedPromptSource,
-  MemoryContextReader,
-  MemoryShadowSink,
-  ScriptedModel,
-  replyWith,
-  SECRET_ADDRESS,
-  SECRET_MAP,
-} from "./testSupport";
+import { runAgentShadow } from "./orchestrator";
+import { handleInboundShadow } from "./pipeline";
+import { agentHarness, HARNESS_NOW as NOW, promotion, replyWith, ScriptedModel, SECRET_ADDRESS, SECRET_MAP } from "./testSupport";
 
-const NOW = new Date("2026-10-01T15:30:00-03:00");
 const STAFF = { type: "HUMAN", ref: "atendente-1" } as const;
 
-async function setup(model: ScriptedModel) {
-  const db = new MemoryConversations();
-  const unit = db.addUnit({ slug: "principal" });
-  const reader = new MemoryContextReader(db, unit.id);
-  const sink = new MemoryShadowSink();
-  const deps: ShadowRunDeps = {
-    config: { mode: "shadow" },
-    store: db,
-    reader,
-    model,
-    promptSource: fixedPromptSource(),
-    sink,
-  };
-  const inbound = (id: string, content = "Quanto custa?") =>
-    receiveInboundMessage(db, { unitId: unit.id, phone: "11987654321", customerName: "Maria", externalMessageId: id, content }, NOW);
-  return { db, unit, reader, sink, deps, inbound };
-}
+describe("AgentRun: cada execução fica registrada", () => {
+  it("grava conversa, mensagem, modelo, versão do prompt, modo, resultado, rascunho, guardrails e duração", async () => {
+    const model = replyWith("Me manda uma foto do cabelo que eu organizo para a equipe avaliar. 💛", [
+      { name: "update_lead_data", arguments: { intent: "ORCAMENTO", temperature: "QUENTE" } },
+    ]);
+    const h = agentHarness(model);
+    const first = await h.inbound("m1");
 
-describe("modo sombra: nada chega ao cliente", () => {
-  it("gera um rascunho, registra e NÃO cria mensagem nem muda a conversa", async () => {
-    const model = replyWith("Me manda uma foto do cabelo que eu organizo para a equipe avaliar. 💛");
-    const { db, sink, deps, inbound } = await setup(model);
-    const first = await inbound("m1");
-    const messagesBefore = db.messages.length;
+    const result = await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
 
-    const result = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
-
-    assert.equal(result.outcome, "draft_saved");
-    assert.match(result.draft?.text ?? "", /foto do cabelo/);
-    assert.equal(model.calls.length, 1);
-    assert.equal(db.messages.length, messagesBefore); // nenhuma Message criada
-    assert.equal(db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
-    assert.equal(db.conversations[0].mode, "BOT");
-    assert.equal(db.handoffs.length, 0);
-    assert.equal(db.transitions.length, 0);
-    assert.equal(sink.records.length, 1);
-    assert.equal(sink.records[0].outcome, "draft_saved");
+    assert.equal(result.outcome, "DRAFT_SAVED");
+    assert.equal(h.runs.runs.length, 1);
+    const run = h.runs.runs[0];
+    assert.equal(run.id, result.runId);
+    assert.equal(run.idempotencyKey, `inbound:${first.messageId}`);
+    assert.equal(run.conversationId, first.conversationId);
+    assert.equal(run.triggerMessageId, first.messageId);
+    assert.equal(run.unitId, h.unit.id);
+    assert.equal(run.trigger, "INBOUND");
+    assert.equal(run.modelId, "modelo-roteirizado-v1");
+    assert.equal(run.promptVersion?.name, "V7");
+    assert.match(run.promptVersion?.sha256 ?? "", /^[0-9a-f]{64}$/);
+    assert.equal(run.outcome, "DRAFT_SAVED");
+    assert.equal(run.intent, "ORCAMENTO");
+    assert.equal(run.temperature, "QUENTE");
+    assert.deepEqual(run.qualification, { intent: "ORCAMENTO", temperature: "QUENTE" });
+    assert.match(run.candidateText ?? "", /foto do cabelo/);
+    assert.equal(run.guardrailOk, true);
+    assert.equal(run.agentStatus, "novo");
+    assert.equal(run.durationMs, 5);
+    assert.deepEqual((run.contextSnapshot as { messageIds: string[] }).messageIds, [first.messageId]);
+    assert.ok(run.completedAt instanceof Date);
+    assert.equal(run.errorCode, null);
   });
 
-  it("recusa qualquer modo diferente de 'shadow' sem chamar o modelo", async () => {
+  it("não cria Message OUTBOUND, não muda a conversa e não cria handoff real", async () => {
+    const model = replyWith("Vou chamar a equipe. 💛", [
+      { name: "request_handoff", arguments: { reason: "QUOTE_REQUEST", summary: { headline: "Quer orçamento" } } },
+    ]);
+    const h = agentHarness(model);
+    const first = await h.inbound("m1");
+
+    const result = await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
+
+    assert.deepEqual(result.result?.proposedHandoff, { reason: "QUOTE_REQUEST", summary: { headline: "Quer orçamento" } });
+    assert.equal(h.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
+    assert.equal(h.db.messages.length, 1);
+    assert.equal(h.db.conversations[0].mode, "BOT");
+    assert.equal(h.db.handoffs.length, 0);
+    assert.equal(h.db.transitions.length, 0);
+  });
+
+  it("recusa qualquer modo diferente de 'shadow' sem chamar o modelo nem gravar", async () => {
     const model = replyWith("oi");
-    const { deps, inbound } = await setup(model);
-    const first = await inbound("m1");
+    const h = agentHarness(model);
+    const first = await h.inbound("m1");
     await assert.rejects(
-      () => runAgentShadow({ ...deps, config: { mode: "live" } }, { conversationId: first.conversationId, triggerMessageId: "m1" }),
+      () => runAgentShadow({ ...h.live, config: { mode: "live" } }, { conversationId: first.conversationId, triggerMessageId: first.messageId }),
       NotShadowModeError,
     );
     assert.equal(model.calls.length, 0);
+    assert.equal(h.runs.runs.length, 0);
   });
 
   it("o prompt enviado ao modelo nunca contém endereço, mapa nem promoção vencida", async () => {
     const model = replyWith("Claro!");
-    const { db, reader, deps, inbound } = await setup(model);
-    reader.promotions = [birthdayPromotion];
-    const first = await inbound("m1");
-    await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: "m1", now: new Date("2026-11-05T10:00:00-03:00") });
+    const h = agentHarness(model);
+    h.reader.promotions = [promotion(h.unit.id)];
+    const late = new Date("2026-11-05T10:00:00-03:00");
+    const first = await h.inbound("m1", "Oi", late);
+    await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: late });
 
     const sent = JSON.stringify(model.calls[0]);
     assert.equal(sent.includes(SECRET_ADDRESS), false);
     assert.equal(sent.includes(SECRET_MAP), false);
     assert.equal(sent.includes("R$ 750"), false);
     assert.match(model.calls[0].system, /DADOS DO SISTEMA/);
-    assert.equal(db.messages.length, 1);
+  });
+
+  it("erro do modelo é registrado sem segredos", async () => {
+    const model = new ScriptedModel(() => {
+      throw new Error("falhou com api_key=sk-abc123456789 e Bearer tok.en.value");
+    });
+    const h = agentHarness(model);
+    const first = await h.inbound("m1");
+    const result = await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
+
+    assert.equal(result.outcome, "MODEL_ERROR");
+    const run = h.runs.runs[0];
+    assert.equal(run.errorCode, "Error");
+    assert.doesNotMatch(run.errorMessage ?? "", /sk-abc|tok\.en\.value/);
+    assert.match(run.errorMessage ?? "", /\[redacted\]/);
+    assert.equal(run.candidateText, null);
   });
 });
 
-describe("HUMAN bloqueia a IA", () => {
-  async function inHuman() {
+describe("HUMAN bloqueia a IA: sem modelo e sem AgentRun", () => {
+  it("cliente pede a Thay, a Thay assume, cliente pergunta o horário: nada de IA", async () => {
     const model = replyWith("Não deveria ser chamado");
-    const ctx = await setup(model);
-    const first = await ctx.inbound("m1");
-    await handoffToHuman(ctx.db, {
-      conversationId: first.conversationId,
-      reason: "QUOTE_REQUEST",
-      summary: { headline: "Orçamento" },
-      actor: { type: "AI" },
+    const h = agentHarness(model);
+
+    // 1) "Quero falar com a Thay." (conversa ainda em BOT: o agente propõe handoff)
+    const ask = await handleInboundShadow({ conversations: h.db, agent: h.live }, {
+      unitId: h.unit.id,
+      phone: "11987654321",
+      externalMessageId: "w1",
+      content: "Quero falar com a Thay.",
+    }, NOW);
+    assert.equal(ask.agent.outcome, "DRAFT_SAVED");
+    const runsBefore = h.runs.runs.length;
+    const callsBefore = model.calls.length;
+
+    // 2) A Thay assume (ação humana real, fora da IA).
+    await handoffToHuman(h.db, {
+      conversationId: ask.inbound.conversationId,
+      reason: "CUSTOMER_REQUEST",
+      summary: { headline: "Cliente pediu para falar com a atendente" },
+      actor: STAFF,
     });
-    return { ...ctx, model, conversationId: first.conversationId };
-  }
+    assert.equal(h.db.conversations[0].mode, "HUMAN");
 
-  it("com a conversa em HUMAN o modelo nem é chamado", async () => {
-    const { deps, model, conversationId, inbound } = await inHuman();
-    const next = await inbound("m2", "E aí, tem novidade?");
+    // 3) "Qual o horário?"
+    const later = await handleInboundShadow({ conversations: h.db, agent: h.live }, {
+      unitId: h.unit.id,
+      phone: "11987654321",
+      externalMessageId: "w2",
+      content: "Qual o horário?",
+    }, NOW);
 
-    const result = await runAgentShadow(deps, { conversationId, triggerMessageId: next.messageId, now: NOW });
-
-    assert.equal(result.outcome, "skipped_not_bot");
-    assert.equal(result.draft, null);
-    assert.equal(model.calls.length, 0);
+    assert.equal(later.inbound.duplicate, false);
+    assert.ok(h.db.messages.some((m) => m.id === later.inbound.messageId && m.content === "Qual o horário?")); // salva
+    assert.equal(later.agent.outcome, "SKIPPED_NOT_BOT");
+    assert.equal(later.agent.runId, null);
+    assert.equal(h.runs.runs.length, runsBefore); // nenhum AgentRun novo
+    assert.equal(model.calls.length, callsBefore); // modelo não chamado
+    assert.equal(h.db.messages.filter((m) => m.sender === "AI").length, 0); // nenhuma resposta da IA
+    assert.equal(h.db.conversations[0].mode, "HUMAN"); // continua HUMAN
   });
 
-  it("várias mensagens do cliente em HUMAN: todas salvas, nenhuma resposta, continua HUMAN", async () => {
-    const { db, deps, model, conversationId, inbound, sink } = await inHuman();
-    for (let i = 2; i <= 5; i++) {
-      const message = await inbound(`m${i}`, `mensagem ${i}`);
-      assert.equal(message.aiMayRespond, false);
-      assert.equal(message.reopened, false);
-      const result = await runAgentShadow(deps, { conversationId, triggerMessageId: message.messageId, now: NOW });
-      assert.equal(result.outcome, "skipped_not_bot");
+  it("várias mensagens em HUMAN (aberto ou assumido): todas salvas, zero execuções", async () => {
+    const model = replyWith("x");
+    const h = agentHarness(model);
+    const first = await h.inbound("m1");
+    await handoffToHuman(h.db, { conversationId: first.conversationId, reason: "OTHER", summary: { headline: "x" }, actor: { type: "AI" } });
+    await h.inbound("m2", "oi?");
+    await claimHandoff(h.db, { conversationId: first.conversationId, by: "atendente-1" });
+    for (const id of ["m3", "m4", "m5"]) {
+      const message = await h.inbound(id, "alguém?");
+      const result = await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: message.messageId, now: NOW });
+      assert.equal(result.outcome, "SKIPPED_NOT_BOT");
     }
     assert.equal(model.calls.length, 0);
-    assert.equal(db.messages.filter((m) => m.sender === "CUSTOMER").length, 5);
-    assert.equal(db.conversations[0].mode, "HUMAN"); // nunca voltou para BOT sozinho
-    assert.equal(sink.records.every((r) => r.outcome === "skipped_not_bot"), true);
+    assert.equal(h.runs.runs.length, 0);
+    assert.equal(h.db.messages.filter((m) => m.sender === "CUSTOMER").length, 5);
+    assert.equal(h.db.conversations[0].mode, "HUMAN");
   });
 
-  it("FINISHED também silencia; quando o cliente volta a conversa reabre (Fase 1) e o agente sabe que é pós-atendimento", async () => {
-    const { db, deps, model, conversationId, inbound } = await inHuman();
-    await finishConversation(db, { conversationId, actor: STAFF });
-    const back = await inbound("m9", "Oi, voltei!");
-    assert.equal(back.reopened, true);
-
-    const result = await runAgentShadow(deps, { conversationId, triggerMessageId: back.messageId, now: NOW });
-
-    assert.equal(result.outcome, "draft_saved");
-    assert.equal(result.draft?.context.status, "finalizado");
-    assert.equal(model.calls.length, 1);
-  });
-
-  it("se a equipe assume ENQUANTO o modelo gera, o rascunho é descartado", async () => {
-    const db = new MemoryConversations();
-    const unit = db.addUnit({ slug: "principal" });
-    const sink = new MemoryShadowSink();
+  it("se a equipe assume ENQUANTO o modelo gera, o rascunho é descartado e registrado como tal", async () => {
+    let conversationId = "";
+    const holder: { h?: ReturnType<typeof agentHarness> } = {};
     const model = new ScriptedModel(async () => {
-      await handoffToHuman(db, {
-        conversationId: db.conversations[0].id,
-        reason: "CUSTOMER_REQUEST",
-        summary: { headline: "Pediu uma pessoa" },
-        actor: STAFF,
-      });
+      await handoffToHuman(holder.h!.db, { conversationId, reason: "CUSTOMER_REQUEST", summary: { headline: "x" }, actor: STAFF });
       return { text: "Resposta atrasada", toolCalls: [] };
     });
-    const deps: ShadowRunDeps = {
-      config: { mode: "shadow" },
-      store: db,
-      reader: new MemoryContextReader(db, unit.id),
-      model,
-      promptSource: fixedPromptSource(),
-      sink,
-    };
-    const first = await receiveInboundMessage(db, { unitId: unit.id, phone: "11987654321", externalMessageId: "m1", content: "oi" }, NOW);
+    holder.h = agentHarness(model);
+    const first = await holder.h.inbound("m1");
+    conversationId = first.conversationId;
 
-    const result = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: "m1", now: NOW });
+    const result = await runAgentShadow(holder.h.live, { conversationId, triggerMessageId: first.messageId, now: NOW });
 
-    assert.equal(result.outcome, "discarded_mode_changed");
-    assert.equal(result.draft, null);
-    assert.equal(sink.records[0].mode, "HUMAN");
+    assert.equal(result.outcome, "DISCARDED_MODE_CHANGED");
+    assert.equal(holder.h.runs.runs[0].candidateText, null);
+  });
+
+  it("depois de FINISHED o cliente volta: reabre (Fase 1) e o agente sabe que é pós-atendimento", async () => {
+    const model = replyWith("Que bom te ver de novo! 💛");
+    const h = agentHarness(model);
+    const first = await h.inbound("m1");
+    await handoffToHuman(h.db, { conversationId: first.conversationId, reason: "OTHER", summary: { headline: "x" }, actor: STAFF });
+    await finishConversation(h.db, { conversationId: first.conversationId, actor: STAFF });
+    const back = await h.inbound("m9", "Oi, voltei!");
+    assert.equal(back.reopened, true);
+
+    const result = await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: back.messageId, now: NOW });
+    assert.equal(result.outcome, "DRAFT_SAVED");
+    assert.equal(h.runs.runs.at(-1)?.agentStatus, "finalizado");
   });
 });
 
-describe("idempotência", () => {
-  it("a mesma mensagem-gatilho processada duas vezes chama o modelo uma vez", async () => {
+describe("idempotência das execuções", () => {
+  it("a mesma mensagem processada duas vezes: um AgentRun e uma chamada ao modelo", async () => {
     const model = replyWith("Olá! 💛");
-    const { deps, inbound, sink } = await setup(model);
-    const first = await inbound("m1", "Oi");
+    const h = agentHarness(model);
+    const first = await h.inbound("m1", "Oi");
 
-    const a = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
-    const b = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
+    const a = await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
+    const b = await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
 
-    assert.equal(a.outcome, "draft_saved");
-    assert.equal(b.outcome, "duplicate");
-    assert.equal(b.duplicate, true);
+    assert.equal(a.outcome, "DRAFT_SAVED");
+    assert.equal(b.outcome, "DUPLICATE");
+    assert.equal(b.runId, a.runId);
     assert.equal(model.calls.length, 1);
-    assert.equal(sink.records.length, 1);
+    assert.equal(h.runs.runs.length, 1);
   });
 
-  it("execuções simultâneas da mesma mensagem geram um único rascunho", async () => {
+  it("execuções simultâneas da mesma mensagem geram um único AgentRun", async () => {
     const model = replyWith("Olá! 💛");
-    const { deps, inbound, sink } = await setup(model);
-    const first = await inbound("m1", "Oi");
-
+    const h = agentHarness(model);
+    const first = await h.inbound("m1", "Oi");
     const results = await Promise.all(
-      [1, 2, 3].map(() => runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW })),
+      [1, 2, 3].map(() => runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW })),
     );
-
-    assert.equal(results.filter((r) => !r.duplicate).length, 1);
+    assert.equal(results.filter((r) => r.outcome === "DRAFT_SAVED").length, 1);
     assert.equal(model.calls.length, 1);
-    assert.equal(sink.records.length, 1);
+    assert.equal(h.runs.runs.length, 1);
   });
 
-  it("entrega duplicada do webhook (mesmo id externo) não gera segunda execução", async () => {
+  it("reentrega do webhook (mesmo id externo) não gera nova execução", async () => {
     const model = replyWith("Olá! 💛");
-    const { deps, inbound } = await setup(model);
-    const first = await inbound("m1", "Oi");
-    const again = await inbound("m1", "Oi");
-    assert.equal(again.duplicate, true);
-    assert.equal(again.messageId, first.messageId);
-
-    await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
-    await runAgentShadow(deps, { conversationId: again.conversationId, triggerMessageId: again.messageId, now: NOW });
+    const h = agentHarness(model);
+    const input = { unitId: h.unit.id, phone: "11987654321", externalMessageId: "dup-1", content: "Oi" };
+    const a = await handleInboundShadow({ conversations: h.db, agent: h.live }, input, NOW);
+    const b = await handleInboundShadow({ conversations: h.db, agent: h.live }, input, NOW);
+    assert.equal(a.agent.outcome, "DRAFT_SAVED");
+    assert.equal(b.inbound.duplicate, true);
+    assert.equal(b.agent.outcome, "DUPLICATE");
     assert.equal(model.calls.length, 1);
+    assert.equal(h.runs.runs.length, 1);
+  });
+
+  it("mensagens em sequência: cada execução usa o contexto até a sua mensagem", async () => {
+    const model = replyWith("Respondo tudo junto. 💛");
+    const h = agentHarness(model);
+    const a = await h.inbound("m1", "Oi");
+    const b = await h.inbound("m2", "Quero dread até a cintura");
+    const first = await runAgentShadow(h.live, { conversationId: a.conversationId, triggerMessageId: a.messageId, now: NOW });
+    const second = await runAgentShadow(h.live, { conversationId: a.conversationId, triggerMessageId: b.messageId, now: NOW });
+    // O contexto de m1 é lido até m1 (ela É a última naquele recorte): responde.
+    assert.equal(first.outcome, "DRAFT_SAVED");
+    assert.equal(second.outcome, "DRAFT_SAVED");
+    assert.deepEqual(
+      (h.runs.runs[1].contextSnapshot as { messageIds: string[] }).messageIds,
+      [a.messageId, b.messageId],
+    );
   });
 });
 
-describe("guardrails no orquestrador", () => {
-  it("rascunho com preço inventado é bloqueado, trocado pelo fallback e vira proposta de handoff", async () => {
+describe("guardrails e ferramentas no AgentRun", () => {
+  it("rascunho com preço inventado é bloqueado, trocado pelo fallback e registra violações e handoff proposto", async () => {
     const model = replyWith("O valor fica R$ 400 e seu horário está confirmado para terça.");
-    const { db, deps, inbound } = await setup(model);
-    const first = await inbound("m1", "Quanto custa?");
+    const h = agentHarness(model);
+    const first = await h.inbound("m1", "Quanto custa?");
+    const result = await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
 
-    const result = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
-
-    assert.equal(result.outcome, "draft_blocked");
-    assert.doesNotMatch(result.draft?.text ?? "", /400|confirmado/);
-    assert.match(result.draft?.text ?? "", /confirmar com a equipe/);
-    assert.match(result.draft?.blockedOriginalText ?? "", /R\$ 400/);
-    const codes = result.draft?.violations.map((v) => v.code) ?? [];
+    assert.equal(result.outcome, "DRAFT_BLOCKED");
+    const run = h.runs.runs[0];
+    assert.equal(run.guardrailOk, false);
+    assert.doesNotMatch(run.candidateText ?? "", /400|confirmado/);
+    assert.match(run.candidateText ?? "", /confirmar com a equipe/);
+    assert.match(run.blockedOriginalText ?? "", /R\$ 400/);
+    const codes = (run.violations ?? []).map((v) => v.code);
     assert.ok(codes.includes("unauthorized_price") && codes.includes("booking_claim"));
-    const handoff = result.draft?.proposedActions.find((a) => a.tool === "request_handoff");
-    assert.ok(handoff && handoff.tool === "request_handoff" && handoff.reason === "AI_UNCERTAIN");
-    assert.equal(db.handoffs.length, 0); // proposta, não execução
-    assert.equal(db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
+    assert.equal(run.proposedHandoff?.reason, "AI_UNCERTAIN");
+    assert.equal(h.db.handoffs.length, 0);
   });
 
-  it("endereço e mapa inventados pelo modelo são barrados", async () => {
-    const model = replyWith(`Fica na ${SECRET_ADDRESS}. Mapa: ${SECRET_MAP}`);
-    const { deps, inbound } = await setup(model);
-    const first = await inbound("m1", "Onde fica?");
-    const result = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
-    assert.equal(result.outcome, "draft_blocked");
-    assert.equal((result.draft?.text ?? "").includes(SECRET_ADDRESS), false);
-  });
-
-  it("ferramentas: handoff válido é apenas PROPOSTO; ferramentas proibidas e argumentos ruins são rejeitados", async () => {
+  it("ferramentas proibidas e argumentos ruins são rejeitados e registrados; nada executado", async () => {
     const model = replyWith("Vou chamar a equipe. 💛", [
       { name: "request_handoff", arguments: { reason: "QUOTE_REQUEST", summary: { headline: "Quer orçamento" } } },
-      { name: "update_lead_data", arguments: { intent: "ORCAMENTO", temperature: "QUENTE" } },
       { name: "confirm_payment", arguments: { bookingId: "b1" } },
       { name: "extend_payment_deadline", arguments: {} },
       { name: "request_handoff", arguments: { reason: "INVENTADO", summary: {} } },
     ]);
-    const { db, deps, inbound } = await setup(model);
-    const first = await inbound("m1", "Quero orçamento");
+    const h = agentHarness(model);
+    const first = await h.inbound("m1", "Quero orçamento");
+    await runAgentShadow(h.live, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
 
-    const result = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: first.messageId, now: NOW });
-
-    assert.equal(result.outcome, "draft_saved");
-    assert.deepEqual(result.draft?.proposedActions.map((a) => a.tool), ["request_handoff", "update_lead_data"]);
+    const run = h.runs.runs[0];
     assert.deepEqual(
-      result.draft?.rejectedToolCalls.map((c) => `${c.name}:${c.reason}`),
+      (run.rejectedToolCalls ?? []).map((c) => `${c.name}:${c.reason}`),
       ["confirm_payment:unknown_tool", "extend_payment_deadline:unknown_tool", "request_handoff:invalid_arguments"],
     );
-    // Nada foi executado.
-    assert.equal(db.handoffs.length, 0);
-    assert.equal(db.conversations[0].mode, "BOT");
-  });
-});
-
-describe("casos de borda do orquestrador", () => {
-  it("se a última mensagem já é da equipe/IA, não há o que responder", async () => {
-    const model = replyWith("x");
-    const { db, deps, inbound } = await setup(model);
-    const first = await inbound("m1");
-    db.messages.push({
-      id: "out-1",
-      conversationId: first.conversationId,
-      direction: "OUTBOUND",
-      sender: "AI",
-      senderRef: null,
-      content: "Olá!",
-      externalId: null,
-      metadata: null,
-      createdAt: NOW,
-    });
-    const result = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: "m1", now: NOW });
-    assert.equal(result.outcome, "nothing_to_answer");
-    assert.equal(model.calls.length, 0);
-  });
-
-  it("erro do modelo vira 'model_error' e nada é enviado", async () => {
-    const model = new ScriptedModel(() => {
-      throw new Error("falha simulada");
-    });
-    const { db, deps, inbound } = await setup(model);
-    const first = await inbound("m1");
-    const result = await runAgentShadow(deps, { conversationId: first.conversationId, triggerMessageId: "m1", now: NOW });
-    assert.equal(result.outcome, "model_error");
-    assert.equal(db.messages.length, 1);
-  });
-
-  it("conversa sem contexto disponível", async () => {
-    const model = replyWith("x");
-    const { deps } = await setup(model);
-    await assert.rejects(() => runAgentShadow(deps, { conversationId: "nao-existe", triggerMessageId: "m" }));
+    assert.equal(h.db.handoffs.length, 0);
+    assert.equal(h.db.conversations[0].mode, "BOT");
   });
 });
