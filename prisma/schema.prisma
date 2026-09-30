@@ -91,11 +91,20 @@ model Booking {
   payments      Payment[]
   quote         Quote?
   reviewRequest ReviewRequest?
+
+  // Opcionais de propósito: agendamentos antigos (e os criados antes do
+  // vínculo) continuam válidos sem cliente/unidade. Ver docs/agent-foundation.md.
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  unitId     String?
+  unit       Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([scheduledStart, scheduledEnd])
   @@index([status])
+  @@index([customerId])
+  @@index([unitId])
 }
 
 model Payment {
@@ -159,4 +168,191 @@ model ReviewRequest {
   bookingId String   @id
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sentAt    DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Fundação do agente de atendimento (Fase 1)
+//
+// Somente estrutura de dados e estados. Nada aqui envia mensagem nem chama IA.
+// Regras em src/lib/conversations/; visão geral em docs/agent-foundation.md.
+// ---------------------------------------------------------------------------
+
+enum ConversationChannel {
+  WHATSAPP
+}
+
+// Quem responde a conversa agora. A IA só pode responder em BOT.
+enum ConversationMode {
+  BOT
+  HUMAN
+  FINISHED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageSender {
+  CUSTOMER
+  AI
+  HUMAN
+  SYSTEM
+}
+
+// Quem provocou uma mudança de estado (o cliente nunca muda o estado).
+enum ActorType {
+  AI
+  HUMAN
+  SYSTEM
+}
+
+enum HandoffStatus {
+  OPEN
+  CLAIMED
+  RESOLVED
+}
+
+enum HandoffReason {
+  CUSTOMER_REQUEST
+  QUOTE_REQUEST
+  SCHEDULING
+  PAYMENT
+  CANCELLATION_OR_REFUND
+  COMPLAINT_OR_HEALTH
+  AGE_POLICY
+  OUT_OF_SCOPE
+  AI_UNCERTAIN
+  INTAKE_COMPLETE
+  HUMAN_TAKEOVER
+  OTHER
+}
+
+// Unidade física. A marca (Afro Dreads) não é uma unidade: endereço, telefone
+// e horário de cada unidade ficam em dados, nunca em código.
+model Unit {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  timezone  String   @default("America/Sao_Paulo")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers     Customer[]
+  conversations Conversation[]
+  bookings      Booking[]
+}
+
+model Customer {
+  id     String @id @default(cuid())
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  // Telefone normalizado (E.164 com "+", ex.: +5511987654321).
+  // Ver src/lib/conversations/phone.ts.
+  phone String
+  name  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings      Booking[]
+  conversations Conversation[]
+
+  // Um mesmo telefone pode existir em unidades diferentes, nunca duplicado
+  // dentro da mesma.
+  @@unique([unitId, phone])
+  @@index([phone])
+}
+
+model Conversation {
+  id         String   @id @default(cuid())
+  unitId     String
+  unit       Unit     @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  channel ConversationChannel @default(WHATSAPP)
+  // Identificador da conversa/contato no canal (ex.: id do contato no provedor).
+  externalId String?
+
+  mode ConversationMode @default(BOT)
+  // Quem está atendendo quando mode = HUMAN (identificador do atendente).
+  assignedTo String?
+
+  lastContactAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  messages    Message[]
+  handoffs    Handoff[]
+  transitions ConversationTransition[]
+
+  // Postgres aceita vários NULL: só conversas com id externo são únicas.
+  @@unique([unitId, channel, externalId])
+  @@index([customerId])
+  @@index([unitId, mode])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  direction MessageDirection
+  sender    MessageSender
+  // Identificador do atendente quando sender = HUMAN.
+  senderRef String?
+
+  content String
+  // Identificador da mensagem no canal; garante idempotência de reentregas.
+  externalId String?
+  // Somente metadados mínimos (ex.: tipo do conteúdo). Nunca o payload bruto.
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([conversationId, externalId])
+  @@index([conversationId, createdAt])
+}
+
+model Handoff {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  reason HandoffReason
+  // Resumo estruturado (HandoffSummary em src/lib/conversations/handoff.ts).
+  summary Json
+  status  HandoffStatus @default(OPEN)
+
+  requestedBy    ActorType
+  requestedByRef String?
+  claimedBy      String?
+  claimedAt      DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([conversationId, status])
+  @@index([status, createdAt])
+}
+
+// Trilha de auditoria: toda mudança de modo da conversa gera uma linha.
+model ConversationTransition {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  fromMode ConversationMode
+  toMode   ConversationMode
+  actor    ActorType
+  actorRef String?
+  reason   String?
+  handoffId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
 }

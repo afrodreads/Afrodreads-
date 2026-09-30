@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createBooking } from "@/lib/booking";
+import { linkBookingToCustomerBestEffort } from "@/lib/conversations/wiring";
 
 const completeQuoteSchema = z.object({
   scheduledStart: z.string().datetime(),
@@ -86,6 +87,10 @@ export async function POST(
     where: { id: quote.id },
     data: { bookingId: result.booking.id },
   });
+
+  // Relaciona o agendamento ao cliente (por telefone). Melhor esforço: nunca
+  // impede nem atrasa a confirmação do agendamento já criado.
+  await linkBookingToCustomerBestEffort(result.booking.id);
 
   return NextResponse.json({ booking: result.booking }, { status: 201 });
 }
