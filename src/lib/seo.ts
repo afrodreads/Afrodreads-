@@ -124,6 +124,26 @@ export function serviceJsonLd(service: { slug: string; name: string; description
   };
 }
 
+export function videoJsonLd(video: {
+  id: string;
+  name: string;
+  description: string;
+  uploadDate: string;
+  duration: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    name: video.name,
+    description: video.description,
+    inLanguage: "pt-BR",
+    thumbnailUrl: `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`,
+    uploadDate: video.uploadDate,
+    duration: video.duration,
+    embedUrl: `https://www.youtube.com/embed/${video.id}`,
+  };
+}
+
 export function articleJsonLd(guide: { slug: string; h1: string; description: string; published: string }) {
   return {
     "@context": "https://schema.org",

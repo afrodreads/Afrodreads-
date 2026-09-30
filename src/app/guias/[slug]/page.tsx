@@ -7,7 +7,7 @@ import { AdButton } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { GUIDES, getGuideBySlug } from "@/lib/guides";
 import { SERVICES } from "@/lib/services";
-import { articleJsonLd, breadcrumbJsonLd } from "@/lib/seo";
+import { articleJsonLd, breadcrumbJsonLd, videoJsonLd } from "@/lib/seo";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
 type Params = { slug: string };
@@ -46,6 +46,7 @@ export default async function GuidePage({ params }: { params: Promise<Params> })
 
   const others = GUIDES.filter((g) => g.slug !== guide.slug);
   const showDurations = guide.slug === "quanto-tempo-leva-fazer-dreads";
+  const relatedService = guide.serviceSlug ? SERVICES.find((s) => s.slug === guide.serviceSlug) : undefined;
 
   return (
     <>
@@ -56,6 +57,7 @@ export default async function GuidePage({ params }: { params: Promise<Params> })
           __html: JSON.stringify([
             articleJsonLd(guide),
             breadcrumbJsonLd(guide.h1, `/guias/${guide.slug}`, [{ name: "Guias", path: "/guias" }]),
+            ...(guide.video ? [videoJsonLd(guide.video)] : []),
           ]),
         }}
       />
@@ -71,6 +73,19 @@ export default async function GuidePage({ params }: { params: Promise<Params> })
 
       <article className="px-6 py-16 sm:py-24">
         <div className="mx-auto flex max-w-3xl flex-col gap-10">
+          {guide.video && (
+            <div className="aspect-video w-full overflow-hidden rounded-ad-lg border border-line bg-surface-sunken">
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${guide.video.id}`}
+                title={guide.video.name}
+                loading="lazy"
+                allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                className="h-full w-full"
+              />
+            </div>
+          )}
           {guide.sections.map((section) => (
             <section key={section.heading}>
               <h2 className="m-0 font-serif text-3xl uppercase text-ink">{section.heading}</h2>
@@ -100,6 +115,15 @@ export default async function GuidePage({ params }: { params: Promise<Params> })
               )}
             </section>
           ))}
+          {relatedService && (
+            <p className="m-0 text-[15px] leading-relaxed text-ink-muted">
+              Conheça o serviço:{" "}
+              <Link href={`/servicos/${relatedService.slug}`} className="text-ink underline underline-offset-4">
+                {relatedService.name}
+              </Link>{" "}
+              ({relatedService.minHours}h a {relatedService.maxHours}h de atendimento).
+            </p>
+          )}
           <div>
             <AdButton href={buildWhatsAppLink(guide.slug === "cuidados-com-dreads" ? "manutencao" : "duvida")} icon={<WhatsAppIcon className="h-4 w-4" />}>
               {guide.ctaLabel}

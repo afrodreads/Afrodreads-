@@ -1,7 +1,16 @@
-// Guias (conteúdo de apoio para SEO/GEO) em /guias. Só usam informações que já
-// estão no site (serviços, durações, regras de sinal). Sem preços: o valor
-// depende do projeto e é combinado pelo WhatsApp.
+// Guias (conteúdo de apoio para SEO/GEO) em /guias. Usam informações que já
+// estão no site (serviços, durações, regras de sinal) e conteúdo fornecido pela
+// equipe (ex.: roteiro de vídeo). Sem preços: o valor depende do projeto e é
+// combinado pelo WhatsApp.
 export type GuideSection = { heading: string; paragraphs: string[]; bullets?: string[] };
+
+export type GuideVideo = {
+  id: string; // ID do vídeo no YouTube
+  name: string;
+  description: string;
+  uploadDate: string; // AAAA-MM-DD
+  duration: string; // ISO 8601, ex.: PT4M47S
+};
 
 export type Guide = {
   slug: string;
@@ -12,6 +21,8 @@ export type Guide = {
   sections: GuideSection[];
   published: string;
   ctaLabel: string;
+  serviceSlug?: string; // serviço relacionado (slug de SERVICES)
+  video?: GuideVideo;
 };
 
 export const GUIDES: Guide[] = [
@@ -149,6 +160,110 @@ export const GUIDES: Guide[] = [
     ],
     published: "2026-09-29",
     ctaLabel: "Agendar minha manutenção",
+  },
+  {
+    slug: "microlocs-o-que-sao-como-funcionam",
+    title: "Microlocs: o que são, métodos, manutenção e tempo | Afro Dreads",
+    h1: "Microlocs: o guia completo antes de começar",
+    description:
+      "Tudo sobre microlocs: o que são, os 3 métodos de início, quantidade, manutenção, como lavar e quanto tempo levam para amadurecer. Afro Dreads, Pirituba.",
+    intro:
+      "Este guia reúne o que a Thay, da Afro Dreads, explica no vídeo abaixo: as respostas para as dúvidas mais comuns de quem quer começar microlocs.",
+    sections: [
+      {
+        heading: "O que são microlocs?",
+        paragraphs: [
+          "Microlocs são locs bem fininhas, feitas em pequenas divisões por todo o cabelo. Elas são permanentes e passam por um processo natural de maturação até adquirirem a aparência característica das locs.",
+          "Por serem menores, elas têm bastante movimento, são leves, delicadas e permitem fazer diversos penteados sem perder a identidade das locs.",
+        ],
+      },
+      {
+        heading: "Qualquer tipo de cabelo pode fazer microlocs?",
+        paragraphs: [
+          "Sim. As microlocs podem ser feitas em diferentes tipos e curvaturas de cabelo.",
+          "O que muda não é se você pode ou não fazer, mas qual método será mais indicado para o seu tipo de fio. Essa escolha leva em consideração a textura, a curvatura, a densidade, o comprimento do cabelo e também o resultado que você deseja.",
+        ],
+      },
+      {
+        heading: "Quais são os métodos de início?",
+        paragraphs: ["Existem três métodos principais para começar microlocs:"],
+        bullets: [
+          "Micro twists: cada divisão é torcida individualmente. Com o passar do tempo, as twists vão se compactando naturalmente até se transformarem em locs. É um processo gradual e faz parte da evolução das microlocs.",
+          "Micro tranças: cada divisão é feita em forma de microtrança. Assim como as twists, elas também passam pelo processo de maturação até se transformarem em locs. É um método bastante resistente no início e muito utilizado em alguns tipos de cabelo.",
+          "Método agulhado: cada microloc é construída manualmente com uma agulha de crochet. A grande vantagem é que a loc já sai estruturada desde o primeiro dia. Esse método também permite adicionar extensões, caso você queira começar com mais comprimento ou mais volume.",
+        ],
+      },
+      {
+        heading: "Quantas microlocs você vai ter?",
+        paragraphs: [
+          "Não existe uma quantidade padrão. Tudo varia conforme o tamanho do seu cabelo, a quantidade de cabelo, a densidade dos fios e a espessura que você deseja para as locs.",
+          "De forma geral, um trabalho dificilmente terá menos de 200 microlocs. Dependendo do cabelo, esse número pode passar de 300, 400 ou até 500. Quanto menores forem as divisões, maior será a quantidade de microlocs.",
+        ],
+      },
+      {
+        heading: "Como funciona a manutenção?",
+        paragraphs: [
+          "Depois que você dá início ao cultivo, o seu cabelo continua crescendo normalmente. Por isso, é necessário reorganizar a raiz periodicamente.",
+          "Uma das técnicas mais utilizadas é o interlock: ele consiste em passar a ponta da loc por dentro da própria raiz, utilizando uma ferramenta específica. Essa técnica mantém cada divisão organizada, fortalece a base das locs e acompanha o crescimento natural do cabelo.",
+        ],
+      },
+      {
+        heading: "De quanto em quanto tempo fazer a manutenção?",
+        paragraphs: [
+          "O ideal é fazer as manutenções em no máximo 30 a 90 dias. Esse intervalo pode variar conforme a velocidade de crescimento do seu cabelo.",
+          "Se você demorar muito para fazer a manutenção, as raízes podem começar a se unir, o que deixa o processo mais demorado e dificulta a separação correta das divisões.",
+        ],
+      },
+      {
+        heading: "Como lavar as microlocs?",
+        paragraphs: [
+          "Você pode lavar normalmente. A higiene do couro cabeludo é essencial para manter as microlocs saudáveis.",
+          "O ideal é usar um shampoo leve, que faça uma boa limpeza e seja suave (pode ser um neutro), e enxaguar muito bem para evitar resíduos.",
+          "Nos métodos de micro twists e micro tranças, principalmente nas primeiras semanas, alguns cuidados extras podem ser indicados para preservar a estrutura inicial enquanto as locs começam o processo de maturação.",
+        ],
+      },
+      {
+        heading: "Quanto tempo as microlocs levam para amadurecer?",
+        paragraphs: [
+          "Depende muito do seu tipo de cabelo e do método utilizado. Em média:",
+        ],
+        bullets: [
+          "Cabelos crespos (como 4A, 4B e 4C): a maturação costuma acontecer entre 6 meses e 1 ano.",
+          "Cabelos cacheados (como 3A, 3B e 3C): esse processo geralmente leva entre 1 e 2 anos.",
+          "Microlocs iniciadas no método agulhado: como já começam estruturadas, a aparência inicial é diferente. Ainda assim, elas também passam por um processo de amadurecimento interno, que costuma levar cerca de 1 ano, podendo variar de acordo com o tipo de cabelo e os cuidados ao longo da jornada.",
+        ],
+      },
+      {
+        heading: "Esses são apenas prazos médios",
+        paragraphs: [
+          "Cada cabelo amadurece no seu próprio tempo. Fatores como a rotina de cuidados, a frequência das manutenções e as características naturais dos fios podem acelerar ou prolongar esse processo.",
+        ],
+      },
+      {
+        heading: "As microlocs dão muito trabalho?",
+        paragraphs: [
+          "Na verdade, não. Depois que você cria uma rotina de cuidados e faz as manutenções no período recomendado, elas costumam ser muito práticas no dia a dia. Você continua lavando o cabelo, cuidando do couro cabeludo e vivendo normalmente.",
+        ],
+      },
+      {
+        heading: "Vale a pena fazer microlocs?",
+        paragraphs: [
+          "Se você procura um estilo duradouro, versátil, leve e cheio de personalidade, as microlocs podem ser uma excelente escolha.",
+          "O mais importante é escolher o método ideal para o seu tipo de cabelo, respeitar o processo de maturação e manter uma boa rotina de cuidados. Assim, você acompanha a evolução das suas microlocs e aproveita cada fase dessa transformação.",
+        ],
+      },
+    ],
+    published: "2026-09-29",
+    ctaLabel: "Quero fazer minha avaliação de microlocs",
+    serviceSlug: "microlocs",
+    video: {
+      id: "A9BejPrvxik",
+      name: "Microlocs: tudo que você precisa saber antes de fazer",
+      description:
+        "A Thay, da Afro Dreads, explica o que são microlocs, os métodos de início, a quantidade, a manutenção, como lavar e quanto tempo levam para amadurecer.",
+      uploadDate: "2026-09-04",
+      duration: "PT4M47S",
+    },
   },
 ];
 

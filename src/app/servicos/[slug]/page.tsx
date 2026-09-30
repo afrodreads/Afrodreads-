@@ -6,6 +6,7 @@ import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
 import { AdTag } from "@/components/ui/Tag";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
+import { GUIDES } from "@/lib/guides";
 import { SERVICES, getServiceBySlug } from "@/lib/services";
 import { SERVICE_DETAILS } from "@/lib/serviceDetails";
 import { serviceJsonLd, breadcrumbJsonLd } from "@/lib/seo";
@@ -99,6 +100,15 @@ export default async function ServicePage({ params }: { params: Promise<Params> 
             <div>
               <h2 className="m-0 font-serif text-3xl uppercase text-ink">Sobre o serviço</h2>
               <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">{detail?.about ?? service.description}</p>
+              {GUIDES.filter((g) => g.serviceSlug === service.slug).map((g) => (
+                <p key={g.slug} className="mt-3 text-[15px] leading-relaxed text-ink-muted">
+                  Leia também:{" "}
+                  <Link href={`/guias/${g.slug}`} className="text-ink underline underline-offset-4">
+                    {g.h1}
+                  </Link>
+                  .
+                </p>
+              ))}
             </div>
             {detail?.bestFor && (
               <div>
