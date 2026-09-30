@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getMpPayment } from "@/lib/mercadopago";
 import { sendBookingConfirmationEmail, sendTeamBookingNotificationEmail } from "@/lib/email";
+import { processApprovedPaymentNow } from "@/lib/bookingStores";
 
 // Documentação da validação de assinatura:
 // https://www.mercadopago.com.br/developers/pt/docs/checkout-api/webhooks
@@ -82,11 +83,15 @@ export async function POST(request: NextRequest) {
   });
 
   if (paymentRecord) {
+    // Um pagamento já estornado por nós nunca volta a "aprovado" por causa de
+    // um webhook repetido ou fora de ordem (isso reabriria a porta para um
+    // segundo estorno ou para reconfirmar um agendamento devolvido).
+    const keepRefunded = paymentRecord.status === "REFUNDED" && mappedStatus === "APPROVED";
     await prisma.payment.update({
       where: { id: paymentRecord.id },
       data: {
         mpPaymentId: String(payment.id),
-        status: mappedStatus,
+        status: keepRefunded ? "REFUNDED" : mappedStatus,
         method: mappedMethod,
         installments: payment.installments ?? undefined,
         rawWebhookPayload: payment as unknown as object,
@@ -94,15 +99,25 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (mappedStatus === "APPROVED") {
+  if (mappedStatus === "APPROVED" && paymentRecord?.status !== "REFUNDED") {
     // Só confirma quem ainda está pendente: webhooks repetidos não reenviam o
     // e-mail e um "approved" atrasado não reativa um agendamento cancelado.
-    const { count } = await prisma.booking.updateMany({
-      where: { id: bookingId, status: "PENDING_PAYMENT" },
-      data: { status: "CONFIRMED" },
+    // Pagamento aprovado depois do prazo de pagamento: reconfirma se o
+    // horário ainda está livre; se não, estorna o sinal (ver paymentProcessing).
+    const outcome = await processApprovedPaymentNow({
+      bookingId,
+      mpPaymentId: String(payment.id),
     });
 
-    if (count > 0) {
+    if (outcome === "refunded" || outcome === "refund_failed") {
+      console.error("Pagamento aprovado para um horário que já não está disponível", {
+        bookingId,
+        mpPaymentId: String(payment.id),
+        outcome,
+      });
+    }
+
+    if (outcome === "confirmed" || outcome === "reconfirmed") {
       const booking = await prisma.booking.findUnique({
         where: { id: bookingId },
         include: { service: true },

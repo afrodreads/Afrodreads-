@@ -5,10 +5,10 @@ import { createBooking } from "@/lib/booking";
 
 const completeQuoteSchema = z.object({
   scheduledStart: z.string().datetime(),
-  clientName: z.string().min(2),
-  clientEmail: z.string().email(),
-  clientPhone: z.string().min(8),
-  notes: z.string().optional(),
+  clientName: z.string().min(2).max(120),
+  clientEmail: z.string().email().max(200),
+  clientPhone: z.string().min(8).max(30),
+  notes: z.string().max(1000).optional(),
 });
 
 export async function POST(
@@ -35,25 +35,56 @@ export async function POST(
     return NextResponse.json({ error: "Este link expirou." }, { status: 409 });
   }
 
-  const data = parsed.data;
-  const result = await createBooking({
-    serviceSlug: quote.service.slug,
-    scheduledStart: new Date(data.scheduledStart),
-    servicePrice: Number(quote.servicePrice),
-    isOutOfTownSeason: quote.isOutOfTownSeason,
-    clientName: data.clientName,
-    clientEmail: data.clientEmail,
-    clientPhone: data.clientPhone,
-    notes: data.notes,
+  // O link é de uso único: "consumimos" o orçamento de forma atômica ANTES de
+  // criar o agendamento. Duas requisições simultâneas com o mesmo token não
+  // passam as duas (só uma vê count > 0).
+  const now = new Date();
+  const claim = await prisma.quote.updateMany({
+    where: { id: quote.id, status: { in: ["SENT", "OPENED"] }, expiresAt: { gt: now } },
+    data: { status: "COMPLETED", completedAt: now },
   });
+  if (claim.count === 0) {
+    return NextResponse.json(
+      { error: "Este orçamento não está mais disponível." },
+      { status: 409 },
+    );
+  }
+
+  // Se a criação do agendamento falhar (horário indisponível, erro...), o
+  // orçamento volta ao estado anterior para o cliente poder tentar de novo.
+  const releaseQuote = () =>
+    prisma.quote.updateMany({
+      where: { id: quote.id, status: "COMPLETED", bookingId: null },
+      data: { status: quote.status, completedAt: null },
+    });
+
+  const data = parsed.data;
+  let result;
+  try {
+    // O valor do serviço vem SEMPRE do orçamento gravado no banco.
+    result = await createBooking({
+      serviceSlug: quote.service.slug,
+      scheduledStart: new Date(data.scheduledStart),
+      servicePrice: Number(quote.servicePrice),
+      isOutOfTownSeason: quote.isOutOfTownSeason,
+      clientName: data.clientName,
+      clientEmail: data.clientEmail,
+      clientPhone: data.clientPhone,
+      notes: data.notes,
+    });
+  } catch (error) {
+    await releaseQuote();
+    throw error;
+  }
 
   if ("error" in result) {
+    await releaseQuote();
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
   await prisma.quote.update({
     where: { id: quote.id },
-    data: { status: "COMPLETED", completedAt: new Date(), bookingId: result.booking.id },
+    data: { bookingId: result.booking.id },
   });
 
   return NextResponse.json({ booking: result.booking }, { status: 201 });

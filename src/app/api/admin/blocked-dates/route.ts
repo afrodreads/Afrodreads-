@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { saoPauloDayAsUtcMidnight } from "@/lib/timezone";
 
 export async function GET() {
   const blockedDates = await prisma.blockedDate.findMany({
-    where: { date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+    // BlockedDate.date é a meia-noite UTC do dia de calendário de São Paulo.
+    where: { date: { gte: saoPauloDayAsUtcMidnight(new Date()) } },
     orderBy: { date: "asc" },
   });
   return NextResponse.json({ blockedDates });

@@ -24,9 +24,16 @@ export function getMpPayment(): Payment {
   return new Payment(getMpClient());
 }
 
-/** Estorna integralmente um pagamento aprovado (Refunds API do Mercado Pago). */
-export async function refundPayment(mpPaymentId: string) {
-  return new PaymentRefund(getMpClient()).total({ payment_id: mpPaymentId });
+/**
+ * Estorna integralmente um pagamento aprovado (Refunds API do Mercado Pago).
+ * `idempotencyKey` faz o Mercado Pago tratar chamadas repetidas como a mesma
+ * operação, então repetir o pedido nunca gera estorno duplicado.
+ */
+export async function refundPayment(mpPaymentId: string, idempotencyKey?: string) {
+  return new PaymentRefund(getMpClient()).total({
+    payment_id: mpPaymentId,
+    requestOptions: idempotencyKey ? { idempotencyKey } : undefined,
+  });
 }
 
 export type CreateDepositPreferenceInput = {
