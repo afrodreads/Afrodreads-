@@ -14,6 +14,7 @@ enum BookingStatus {
   CANCELLED
   COMPLETED
   NO_SHOW
+  EXPIRED
 }
 
 enum PaymentType {
@@ -57,6 +58,7 @@ model Service {
   active      Boolean   @default(true)
   bookings    Booking[]
   quotes      Quote[]
+  promotions  Promotion[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
@@ -90,11 +92,30 @@ model Booking {
   payments      Payment[]
   quote         Quote?
   reviewRequest ReviewRequest?
+
+  // Opcionais de propósito: agendamentos antigos (e os criados antes do
+  // vínculo) continuam válidos sem cliente/unidade. Ver docs/agent-foundation.md.
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  unitId     String?
+  unit       Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  // Fase 3 (opcionais, retrocompatíveis):
+  // - paymentDueAt: prazo de pagamento estendido manualmente pela equipe
+  //   (PaymentHold). Nulo = vale a regra geral de 60 minutos.
+  // - appointmentType: nulo = não classificado (nunca inventado).
+  paymentDueAt    DateTime?
+  appointmentType AppointmentType?
+
+  paymentConfirmations PaymentConfirmation[]
+  paymentHolds         PaymentHold[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([scheduledStart, scheduledEnd])
   @@index([status])
+  @@index([customerId])
+  @@index([unitId])
 }
 
 model Payment {
@@ -158,4 +179,466 @@ model ReviewRequest {
   bookingId String   @id
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sentAt    DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Fundação do agente de atendimento (Fase 1)
+//
+// Somente estrutura de dados e estados. Nada aqui envia mensagem nem chama IA.
+// Regras em src/lib/conversations/; visão geral em docs/agent-foundation.md.
+// ---------------------------------------------------------------------------
+
+enum ConversationChannel {
+  WHATSAPP
+}
+
+// Quem responde a conversa agora. A IA só pode responder em BOT.
+enum ConversationMode {
+  BOT
+  HUMAN
+  FINISHED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageSender {
+  CUSTOMER
+  AI
+  HUMAN
+  SYSTEM
+}
+
+// Quem provocou uma mudança de estado (o cliente nunca muda o estado).
+enum ActorType {
+  AI
+  HUMAN
+  SYSTEM
+}
+
+enum HandoffStatus {
+  OPEN
+  CLAIMED
+  RESOLVED
+}
+
+enum HandoffReason {
+  CUSTOMER_REQUEST
+  QUOTE_REQUEST
+  SCHEDULING
+  PAYMENT
+  CANCELLATION_OR_REFUND
+  COMPLAINT_OR_HEALTH
+  AGE_POLICY
+  OUT_OF_SCOPE
+  AI_UNCERTAIN
+  INTAKE_COMPLETE
+  HUMAN_TAKEOVER
+  OTHER
+}
+
+// Unidade física. A marca (Afro Dreads) não é uma unidade: endereço, telefone
+// e horário de cada unidade ficam em dados, nunca em código.
+model Unit {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  timezone  String   @default("America/Sao_Paulo")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Configuração da unidade (Fase 3). Dados da UNIDADE, não da marca.
+  brandId        String?
+  brand          Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  // Público (pode ir ao agente): bairro/região, horário do atendimento humano,
+  // link de avaliação e informação de estacionamento.
+  publicArea     String?
+  humanHoursText String?
+  reviewUrl      String?
+  parkingInfo    String?
+  // Sensível (só eventos SYSTEM, depois da confirmação; nunca vai ao modelo).
+  address        String?
+  mapUrl         String?
+  phone          String?
+
+  customers     Customer[]
+  conversations Conversation[]
+  bookings      Booking[]
+  staff         StaffUser[]
+  promotions    Promotion[]
+  agentRuns     AgentRun[]
+}
+
+model Customer {
+  id     String @id @default(cuid())
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  // Telefone normalizado (E.164 com "+", ex.: +5511987654321).
+  // Ver src/lib/conversations/phone.ts.
+  phone String
+  name  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings      Booking[]
+  conversations Conversation[]
+
+  // Um mesmo telefone pode existir em unidades diferentes, nunca duplicado
+  // dentro da mesma.
+  @@unique([unitId, phone])
+  @@index([phone])
+}
+
+model Conversation {
+  id         String   @id @default(cuid())
+  unitId     String
+  unit       Unit     @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  channel ConversationChannel @default(WHATSAPP)
+  // Identificador da conversa/contato no canal (ex.: id do contato no provedor).
+  externalId String?
+
+  mode ConversationMode @default(BOT)
+  // Quem está atendendo quando mode = HUMAN (identificador do atendente).
+  assignedTo String?
+
+  lastContactAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  messages    Message[]
+  handoffs    Handoff[]
+  transitions ConversationTransition[]
+  agentRuns   AgentRun[]
+
+  // Postgres aceita vários NULL: só conversas com id externo são únicas.
+  @@unique([unitId, channel, externalId])
+  @@index([customerId])
+  @@index([unitId, mode])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  direction MessageDirection
+  sender    MessageSender
+  // Identificador do atendente quando sender = HUMAN.
+  senderRef String?
+
+  content String
+  // Identificador da mensagem no canal; garante idempotência de reentregas.
+  externalId String?
+  // Somente metadados mínimos (ex.: tipo do conteúdo). Nunca o payload bruto.
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  agentRuns AgentRun[]
+
+  @@unique([conversationId, externalId])
+  @@index([conversationId, createdAt])
+}
+
+model Handoff {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  reason HandoffReason
+  // Resumo estruturado (HandoffSummary em src/lib/conversations/handoff.ts).
+  summary Json
+  status  HandoffStatus @default(OPEN)
+
+  requestedBy    ActorType
+  requestedByRef String?
+  claimedBy      String?
+  claimedAt      DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([conversationId, status])
+  @@index([status, createdAt])
+}
+
+// Trilha de auditoria: toda mudança de modo da conversa gera uma linha.
+model ConversationTransition {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  fromMode ConversationMode
+  toMode   ConversationMode
+  actor    ActorType
+  actorRef String?
+  reason   String?
+  handoffId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Fase 3: persistência e observabilidade do agente (modo sombra)
+//
+// Nada aqui envia mensagem. AgentRun é só registro do que a IA TERIA feito;
+// SystemEvent é a fila de eventos do sistema (processada em sombra).
+// Ver docs/agent-phase3.md.
+// ---------------------------------------------------------------------------
+
+enum AppointmentType {
+  FIRST_APPLICATION
+  MAINTENANCE
+}
+
+enum AgentRunMode {
+  SHADOW
+}
+
+enum AgentRunTrigger {
+  INBOUND // mensagem do cliente
+  REPLAY // reexecução interna para comparar versões
+}
+
+enum AgentRunOutcome {
+  DRAFT_SAVED
+  DRAFT_BLOCKED
+  NOTHING_TO_ANSWER
+  DISCARDED_MODE_CHANGED
+  CONTEXT_UNAVAILABLE
+  MODEL_ERROR
+  INTERNAL_ERROR
+}
+
+enum SystemEventType {
+  PAYMENT_CONFIRMED
+  SERVICE_FINISHED
+}
+
+enum SystemEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  SKIPPED
+  FAILED
+}
+
+enum StaffRole {
+  ADMIN
+  ATTENDANT
+}
+
+enum ManualPaymentMethod {
+  PIX
+  DEPOSIT
+  TRANSFER
+}
+
+// Marca (dados comuns a todas as unidades: nome, links públicos).
+model Brand {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  // Links públicos que o agente pode citar (lista de URLs).
+  publicLinks Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  units Unit[]
+}
+
+// Versão do prompt, identificada pelo hash do conteúdo (normalizado para LF).
+model PromptVersion {
+  id         String   @id @default(cuid())
+  // Nome declarado no próprio arquivo (ex.: "V2").
+  name       String
+  sha256     String   @unique
+  sourcePath String
+  // Conteúdo guardado para comparar versões mesmo depois de o arquivo mudar.
+  content    String
+  createdAt  DateTime @default(now())
+
+  runs AgentRun[]
+}
+
+// Uma execução do agente (sempre em sombra). Guarda o suficiente para
+// reconstruir a decisão: contexto usado, versão do prompt, modelo, resposta
+// candidata, ferramentas, guardrails e tempo. Nunca guarda segredos.
+model AgentRun {
+  id             String @id @default(cuid())
+  // inbound:<mensagem> ou replay:<mensagem>:<prompt>:<modelo>:<rótulo>
+  idempotencyKey String @unique
+
+  unitId           String
+  unit             Unit         @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  conversationId   String
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  triggerMessageId String
+  triggerMessage   Message      @relation(fields: [triggerMessageId], references: [id], onDelete: Cascade)
+
+  mode          AgentRunMode    @default(SHADOW)
+  trigger       AgentRunTrigger
+  replayOfRunId String?
+  replayLabel   String?
+
+  modelId         String
+  promptVersionId String
+  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id], onDelete: Restrict)
+
+  // Nulo enquanto a execução não termina.
+  outcome     AgentRunOutcome?
+  // Estado da conversa no vocabulário do V2, no momento da execução.
+  agentStatus String?
+
+  // Qualificação produzida pela IA (proposta, nunca ação).
+  intent        String?
+  temperature   String?
+  qualification Json?
+
+  candidateText       String?
+  blockedOriginalText String?
+  guardrailOk         Boolean?
+  violations          Json?
+  proposedHandoff     Json?
+  proposedActions     Json?
+  rejectedToolCalls   Json?
+  // Resumo do contexto (estado, ids das mensagens usadas, promoções, desconhecidos).
+  contextSnapshot     Json?
+
+  durationMs   Int?
+  errorCode    String?
+  errorMessage String?
+
+  // Fase 4A: uso e custo do modelo (para medir o modo sombra) e agrupamento.
+  inputTokens         Int?
+  outputTokens        Int?
+  cacheReadTokens     Int?
+  cacheWriteTokens    Int?
+  estimatedCostUsd    Decimal? @db.Decimal(12, 6)
+  // Modelo que efetivamente respondeu (pode diferir do configurado em caso de fallback).
+  servedModel         String?
+  stopReason          String?
+  // Quantas mensagens do cliente esta execução respondeu juntas.
+  groupedMessageCount Int?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([conversationId, startedAt])
+  @@index([triggerMessageId, promptVersionId])
+  @@index([unitId, startedAt])
+  @@index([outcome])
+  @@index([intent])
+}
+
+// Fila de eventos do SYSTEM (outbox). Um evento = uma ação, no máximo.
+model SystemEvent {
+  id             String            @id @default(cuid())
+  idempotencyKey String            @unique
+  type           SystemEventType
+  unitId         String?
+  // Entidade relacionada (BOOKING ou CONVERSATION) e seu id.
+  entityType     String
+  entityId       String
+  payload        Json
+  status         SystemEventStatus @default(PENDING)
+  attempts       Int               @default(0)
+  lastError      String?
+  // Plano de mensagens (sem endereço/mapa) e dados que faltaram.
+  plan           Json?
+  missing        Json?
+  skippedReason  String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  processedAt    DateTime?
+
+  @@index([status, createdAt])
+  @@index([entityType, entityId])
+}
+
+// Pessoas da equipe. Sem senha aqui: o vínculo com o login vem depois
+// (authSubject). ADMIN sem unidade = acesso a todas as unidades.
+model StaffUser {
+  id          String    @id @default(cuid())
+  name        String
+  role        StaffRole
+  unitId      String?
+  unit        Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  active      Boolean   @default(true)
+  authSubject String?   @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  paymentConfirmations PaymentConfirmation[]
+  paymentHolds         PaymentHold[]
+}
+
+// Confirmação MANUAL de pagamento (Pix/depósito/transferência). Só a equipe.
+model PaymentConfirmation {
+  id             String              @id @default(cuid())
+  idempotencyKey String              @unique
+  bookingId      String
+  booking        Booking             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  amount         Decimal             @db.Decimal(10, 2)
+  method         ManualPaymentMethod
+  confirmedById  String
+  confirmedBy    StaffUser           @relation(fields: [confirmedById], references: [id], onDelete: Restrict)
+  confirmedAt    DateTime
+  reference      String?
+  previousStatus BookingStatus
+  newStatus      BookingStatus
+  createdAt      DateTime            @default(now())
+
+  @@index([bookingId])
+}
+
+// Extensão manual do prazo de pagamento (auditoria). O prazo vigente fica em
+// Booking.paymentDueAt.
+model PaymentHold {
+  id               String    @id @default(cuid())
+  idempotencyKey   String    @unique
+  bookingId        String
+  booking          Booking   @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  previousDeadline DateTime
+  newDeadline      DateTime
+  reason           String
+  extendedById     String
+  extendedBy       StaffUser @relation(fields: [extendedById], references: [id], onDelete: Restrict)
+  createdAt        DateTime  @default(now())
+
+  @@index([bookingId, createdAt])
+}
+
+// Promoção como dado estruturado, por unidade. Datas são dias de calendário de
+// São Paulo (inclusive nas duas pontas).
+model Promotion {
+  id                        String    @id @default(cuid())
+  unitId                    String
+  unit                      Unit      @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  name                      String
+  active                    Boolean   @default(true)
+  startsOn                  DateTime? @db.Date
+  endsOn                    DateTime  @db.Date
+  priceBrl                  Decimal?  @db.Decimal(10, 2)
+  // Regras/critérios em texto curto (lista).
+  rules                     Json
+  // Condições estruturadas (ex.: área, corte, material).
+  conditions                Json?
+  serviceId                 String?
+  service                   Service?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  requiresStaffConfirmation Boolean   @default(true)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  @@index([unitId, active])
 }

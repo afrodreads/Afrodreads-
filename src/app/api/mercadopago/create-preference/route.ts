@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createDepositPreference } from "@/lib/mercadopago";
+import { isPaymentWindowOpen } from "@/lib/bookingRules";
 
 const schema = z.object({ bookingId: z.string() });
 
@@ -22,6 +23,12 @@ export async function POST(request: NextRequest) {
   if (booking.status !== "PENDING_PAYMENT") {
     return NextResponse.json(
       { error: "Este agendamento não está aguardando pagamento" },
+      { status: 409 },
+    );
+  }
+  if (!isPaymentWindowOpen(booking, new Date())) {
+    return NextResponse.json(
+      { error: "O prazo para pagar este sinal terminou. Peça um novo link à Afro Dreads." },
       { status: 409 },
     );
   }

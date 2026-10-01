@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatBRL, formatDateTimeBR, formatTimeBR } from "@/lib/format";
+import { saoPauloDateKey } from "@/lib/timezone";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING_PAYMENT: "Aguardando pagamento",
@@ -9,6 +10,7 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: "Cancelado",
   COMPLETED: "Concluído",
   NO_SHOW: "Não compareceu",
+  EXPIRED: "Expirado (sem pagamento)",
 };
 
 export type AdminBooking = {
@@ -69,7 +71,13 @@ function BookingCard({
         body: JSON.stringify({ action: "cancel" }),
       });
       if (!response.ok) throw new Error();
+      const data = await response.json();
       onUpdate({ ...booking, status: "CANCELLED" });
+      if (data.refundError) {
+        setError(
+          "Cancelado, mas o estorno automático do sinal falhou. Cancele de novo para tentar outra vez ou devolva pelo Mercado Pago.",
+        );
+      }
     } catch {
       setError("Não foi possível cancelar. Tente novamente.");
     } finally {
@@ -160,7 +168,7 @@ function BookingCard({
           <input
             type="date"
             value={date}
-            min={new Date().toISOString().split("T")[0]}
+            min={saoPauloDateKey(new Date())}
             onChange={(e) => handleDateChange(e.target.value)}
             className="rounded-lg border border-white/20 bg-brand-black px-3 py-2 text-sm text-brand-white"
           />

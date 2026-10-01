@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { BookingsList } from "@/components/admin/BookingsList";
+import { startOfSaoPauloDay } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
   const bookings = await prisma.booking.findMany({
-    where: { scheduledStart: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+    // "Hoje" no calendário de São Paulo (o servidor roda em UTC).
+    where: { scheduledStart: { gte: startOfSaoPauloDay(new Date()) } },
     orderBy: { scheduledStart: "asc" },
     include: { service: true },
     take: 50,

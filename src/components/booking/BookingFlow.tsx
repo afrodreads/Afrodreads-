@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { SERVICES } from "@/lib/services";
 import { calculateDeposit } from "@/lib/pricing";
 import { formatBRL, formatDateTimeBR, formatTimeBR } from "@/lib/format";
+import { saoPauloDateKey } from "@/lib/timezone";
 
 export type QuoteInfo = {
   token: string;
@@ -223,7 +224,7 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
               <input
                 type="date"
                 value={date}
-                min={new Date().toISOString().split("T")[0]}
+                min={saoPauloDateKey(new Date())}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full rounded-lg border border-white/20 bg-brand-black px-4 py-3 text-brand-white"
               />

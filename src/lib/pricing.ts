@@ -1,8 +1,10 @@
-import { differenceInCalendarDays } from "date-fns";
+import { getSaoPauloParts, saoPauloCalendarDaysBetween } from "./timezone";
 
-const FIXED_DEPOSIT_BRL = 50;
-const PERCENTAGE_DEPOSIT_RATE = 0.5;
-const DECEMBER_MONTH_INDEX = 11; // Date.getMonth() é 0-indexado
+export const FIXED_DEPOSIT_BRL = 50;
+export const PERCENTAGE_DEPOSIT_RATE = 0.5;
+/** Antecedência mínima (em dias de calendário de SP) para o sinal ser devolvido. */
+export const REFUND_MIN_DAYS_BEFORE = 2;
+const DECEMBER = 12;
 
 export type DepositCalculationInput = {
   servicePrice: number;
@@ -19,14 +21,15 @@ export type DepositCalculationResult = {
 /**
  * Regra de negócio: sinal fixo de R$50 o ano todo, exceto em dezembro e em
  * atendimentos por temporada fora de SP, quando o sinal passa a ser 50% do
- * valor do serviço.
+ * valor do serviço. "Dezembro" é o mês do atendimento no calendário de
+ * São Paulo (não o do servidor).
  */
 export function calculateDeposit({
   servicePrice,
   scheduledStart,
   isOutOfTownSeason,
 }: DepositCalculationInput): DepositCalculationResult {
-  const isDecember = scheduledStart.getMonth() === DECEMBER_MONTH_INDEX;
+  const isDecember = getSaoPauloParts(scheduledStart).month === DECEMBER;
   const usesPercentage = isDecember || isOutOfTownSeason;
 
   const depositAmount = usesPercentage
@@ -48,16 +51,13 @@ export type CancellationRefundInput = {
 /**
  * Regra de negócio: cancelamento com 2 ou mais dias de antecedência devolve
  * o sinal; com 1 dia ou no mesmo dia do atendimento, o sinal não é devolvido.
+ * Os dias são contados no calendário de São Paulo.
  */
 export function isDepositRefundable({
   scheduledStart,
   cancellationRequestedAt,
 }: CancellationRefundInput): boolean {
-  const daysUntilAppointment = differenceInCalendarDays(
-    scheduledStart,
-    cancellationRequestedAt,
-  );
-  return daysUntilAppointment >= 2;
+  return saoPauloCalendarDaysBetween(cancellationRequestedAt, scheduledStart) >= REFUND_MIN_DAYS_BEFORE;
 }
 
 function roundToCents(value: number): number {

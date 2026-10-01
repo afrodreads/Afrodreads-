@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatBRL, formatDateTimeBR } from "@/lib/format";
 import { PayDepositButton } from "@/components/checkout/PayDepositButton";
+import { isPaymentWindowOpen } from "@/lib/bookingRules";
 
 // Página transacional (dados de um agendamento específico) — nunca deve
 // ser indexada.
@@ -42,7 +43,17 @@ export default async function CheckoutPage({
       </div>
 
       <div className="mt-8">
-        <PayDepositButton bookingId={booking.id} />
+        {isPaymentWindowOpen(booking, new Date()) ? (
+          <PayDepositButton bookingId={booking.id} />
+        ) : (
+          <p className="text-sm text-brand-white/70">
+            {booking.status === "CONFIRMED"
+              ? "Seu agendamento já está confirmado. Obrigado!"
+              : booking.status === "CANCELLED"
+                ? "Este agendamento foi cancelado. Fale com a Afro Dreads se quiser agendar de novo."
+                : "O prazo para pagar este sinal terminou. Fale com a Afro Dreads para receber um novo link."}
+          </p>
+        )}
       </div>
     </div>
   );
