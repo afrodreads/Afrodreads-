@@ -25,6 +25,9 @@ export type ViolationCode =
   | "internal_leak"
   | "sensitive_request"
   | "unrealistic_promise"
+  | "response_too_long"
+  | "model_refusal"
+  | "truncated_response"
   | "style_emoji"
   | "style_length";
 
@@ -39,6 +42,38 @@ export type GuardrailResult = {
 };
 
 const MAX_LENGTH = 700;
+/** Acima disto o rascunho nem é considerado: longo demais para WhatsApp. */
+export const MAX_CANDIDATE_CHARS = 1500;
+
+// --- valores escritos por extenso ("quatrocentos reais", "R$ setecentos")
+const NUMBER_WORDS: Record<string, number> = {
+  zero: 0, um: 1, uma: 1, dois: 2, duas: 2, "três": 3, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8,
+  nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, dezesseis: 16,
+  dezessete: 17, dezoito: 18, dezenove: 19, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60,
+  setenta: 70, oitenta: 80, noventa: 90, cem: 100, cento: 100, duzentos: 200, duzentas: 200, trezentos: 300,
+  trezentas: 300, quatrocentos: 400, quatrocentas: 400, quinhentos: 500, quinhentas: 500, seiscentos: 600,
+  seiscentas: 600, setecentos: 700, setecentas: 700, oitocentos: 800, oitocentas: 800, novecentos: 900,
+  novecentas: 900,
+};
+const WORD_ALT = [...Object.keys(NUMBER_WORDS), "mil"].sort((a, b) => b.length - a.length).join("|");
+const WORD = `(?<!\\p{L})(?:${WORD_ALT})(?!\\p{L})`;
+const NUMBER_PHRASE = `${WORD}(?:\\s+(?:e\\s+)?${WORD})*`;
+const CURRENCY_AFTER = "(?:reais|real|contos?|pilas?)";
+
+/** "mil e duzentos" → 1200; "quatrocentos e cinquenta" → 450. */
+function parseNumberWords(phrase: string): number {
+  let total = 0;
+  let current = 0;
+  for (const word of phrase.toLowerCase().split(/\s+/).filter((w) => w && w !== "e")) {
+    if (word === "mil") {
+      total += (current || 1) * 1000;
+      current = 0;
+    } else {
+      current += NUMBER_WORDS[word] ?? 0;
+    }
+  }
+  return total + current;
+}
 
 function excerptOf(text: string, index: number): string {
   return text.slice(Math.max(0, index - 10), index + 40).replace(/\s+/g, " ").trim();
@@ -72,15 +107,24 @@ const PAYMENT_CLAIMS = [
   /(recebi|recebemos|identifiquei|confirmei)\s+(o\s+|seu\s+)?(pagamento|pix|sinal|dep[oó]sito)/i,
   /(pix|dep[oó]sito|transfer[eê]ncia)\s+(caiu|confirmad|recebid|identificad)/i,
   /comprovante\s+(foi\s+)?(confirmad|aprovad|validad)/i,
+  /pagamento\s+(caiu|entrou|t[aá]\s+ok|est[aá]\s+ok|deu\s+certo)/i,
+  /\b(caiu|entrou)\s+(o\s+|seu\s+)?(pix|pagamento|sinal)/i,
 ];
 
 const BOOKING_CLAIMS = [
   /(hor[aá]rio|agendamento|data|vaga|reserva)\s+(est[aá]\s+|foi\s+|ficou\s+|j[aá]\s+est[aá]\s+)?(confirmad|garantid|reservad|marcad|agendad)/i,
   /\b(reservei|agendei|marquei|garanti)\b/i,
+  /\bconfirmad[oa]\s+(para|pra)\b/i,
+  /^\s*confirmad[oa]\b/i,
+  /\bt[aá]\s+(confirmad|marcad|agendad)/i,
+  /\bpode\s+vir\b/i,
 ];
 
 const AVAILABILITY_CLAIMS = [
   /\b(tenho|temos|h[aá])\s+(uma\s+|algumas\s+)?(vagas?|hor[aá]rios?)\b/i,
+  /\btem\s+(uma\s+)?vagas?\b/i,
+  /\bvagas?\s+(amanh[aã]|hoje|para|pra|na|no|dispon)/i,
+  /\b(consigo|conseguimos|d[aá]\s+pra)\s+(te\s+)?encaixar\b/i,
   /(est[aá]|fica|ficou)\s+dispon[ií]vel/i,
   /(agenda|hor[aá]rio)\s+(est[aá]\s+)?livre/i,
 ];
@@ -89,6 +133,7 @@ const ADDRESS_OR_MAP = [
   /(maps\.google|google\.[a-z.]+\/maps|goo\.gl\/maps|maps\.app\.goo\.gl|waze\.com)/i,
   /\b(?:[Rr]ua|[Aa]venida|[Aa]v\.|[Tt]ravessa|[Aa]lameda|[Ee]strada|[Rr]odovia)\s+[A-ZÀ-Ú0-9]/,
   /\b\d{5}-?\d{3}\b/, // CEP
+  /endere[cç]o\s+(completo\s+)?([eé]|fica)\s*:?\s*(na|no|em)?\s*[A-ZÀ-Ú0-9]/,
 ];
 
 const INTERNAL_LEAKS = [
@@ -97,9 +142,20 @@ const INTERNAL_LEAKS = [
   /\blead\s+(quente|morno|frio)\b/i,
   /\[(ENCAMINHAR|PAUSAR|ENVIAR|ETIQUETAR|NOTIFICAR)[^\]]*\]/i,
   /(system\s+prompt|prompt\s+do\s+sistema|minhas\s+instru[cç][oõ]es)/i,
+  /\bprompt\b/i,
+  /DADOS\s+DO\s+SISTEMA|REGRAS\s+DE\s+EXECU[CÇ][AÃ]O|HIERARQUIA\s+DE\s+REGRAS|CHECKLIST\s+INTERNO/i,
+  /\b(request_handoff|update_lead_data|STATUS_CONVERSA|modo\s+sombra|guardrails?)\b/i,
+  /\{\{|\}\}/,
 ];
 
-const SENSITIVE_REQUESTS = [/\b(cpf|senha|cvv)\b/i, /c[oó]digo\s+de\s+seguran[cç]a/i, /n[uú]mero\s+(completo\s+)?do\s+cart[aã]o/i];
+const SENSITIVE_REQUESTS = [
+  /\b(cpf|senha|cvv)\b/i,
+  /c[oó]digo\s+de\s+seguran[cç]a/i,
+  /n[uú]mero\s+(completo\s+)?do\s+cart[aã]o/i,
+  /\bdados\s+(do\s+)?cart[aã]o\b/i,
+  /chave\s+pix\s*([eé]|:)\s*\S/i,
+  /\bag[eê]ncia\s*:?\s*\d|\bconta\s*(corrente)?\s*:?\s*\d{3,}/i,
+];
 
 const UNREALISTIC_PROMISES = [
   /(ela|a\s+\w+|a\s+equipe)\s+(vai\s+)?responde(r)?\s+(imediatamente|agora\s+mesmo)/i,
@@ -118,12 +174,28 @@ export function checkDraft(text: string, context: AgentContext): GuardrailResult
     ...context.policy.quotableAmountsBrl,
     ...context.promotions.flatMap((promotion) => (promotion.priceBrl !== null ? [promotion.priceBrl] : [])),
   ]);
-  for (const { match, index } of findAll(text, /R\$\s*(\d[\d.]*(?:,\d{1,2})?)/i)) {
-    const amount = parseBrl(match.replace(/R\$\s*/i, ""));
+  const checkAmount = (amount: number, index: number) => {
     if (!allowedAmounts.has(amount)) add("unauthorized_price", "block", index);
+  };
+  // R$ 400 / R$ 1.234,56
+  for (const { match, index } of findAll(text, /R\$\s*(\d[\d.]*(?:,\d{1,2})?)/i)) {
+    checkAmount(parseBrl(match.replace(/R\$\s*/i, "")), index);
   }
-  for (const { index } of findAll(text, /\b\d[\d.,]*\s*(reais|mil)\b/i)) add("unauthorized_price", "block", index);
-  for (const { index } of findAll(text, /\bmil\s+reais\b/i)) add("unauthorized_price", "block", index);
+  // 400 reais / 2 mil / 1,2k
+  for (const { match, index } of findAll(text, /\b(\d[\d.,]*)\s*(reais|real|contos?|mil)\b/i)) {
+    const [, number, unit] = /(\d[\d.,]*)\s*(\S+)/.exec(match) ?? [];
+    checkAmount(parseBrl(number) * (unit.toLowerCase() === "mil" ? 1000 : 1), index);
+  }
+  for (const { match, index } of findAll(text, /\b(\d+(?:[.,]\d+)?)\s?k\b/i)) {
+    checkAmount(Number(match.replace(/\s?k$/i, "").replace(",", ".")) * 1000, index);
+  }
+  // por extenso: "quatrocentos reais", "R$ setecentos", "mil e duzentos reais"
+  for (const { match, index } of findAll(text, new RegExp(`R\\$\\s*(${NUMBER_PHRASE})`, "iu"))) {
+    checkAmount(parseNumberWords(match.replace(/R\$\s*/i, "")), index);
+  }
+  for (const { match, index } of findAll(text, new RegExp(`(${NUMBER_PHRASE})\\s+${CURRENCY_AFTER}(?!\\p{L})`, "iu"))) {
+    checkAmount(parseNumberWords(match.replace(new RegExp(`\\s+${CURRENCY_AFTER}$`, "i"), "")), index);
+  }
 
   // --- desconto e percentuais
   for (const { index } of findAll(text, /desconto\s+de\s+\d|\d+\s?%\s+de\s+desconto|\d+\s?%\s+off/i)) {
@@ -173,7 +245,8 @@ export function checkDraft(text: string, context: AgentContext): GuardrailResult
   // --- estilo (não bloqueia)
   const emojis = findAll(text, /\p{Extended_Pictographic}/u);
   if (emojis.length > 1) add("style_emoji", "warn", emojis[1].index);
-  if (text.length > MAX_LENGTH) add("style_length", "warn", MAX_LENGTH);
+  if (text.length > MAX_CANDIDATE_CHARS) add("response_too_long", "block", MAX_CANDIDATE_CHARS);
+  else if (text.length > MAX_LENGTH) add("style_length", "warn", MAX_LENGTH);
 
   return { ok: !violations.some((violation) => violation.severity === "block"), violations };
 }

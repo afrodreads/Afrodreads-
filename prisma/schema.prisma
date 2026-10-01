@@ -519,6 +519,18 @@ model AgentRun {
   errorCode    String?
   errorMessage String?
 
+  // Fase 4A: uso e custo do modelo (para medir o modo sombra) e agrupamento.
+  inputTokens         Int?
+  outputTokens        Int?
+  cacheReadTokens     Int?
+  cacheWriteTokens    Int?
+  estimatedCostUsd    Decimal? @db.Decimal(12, 6)
+  // Modelo que efetivamente respondeu (pode diferir do configurado em caso de fallback).
+  servedModel         String?
+  stopReason          String?
+  // Quantas mensagens do cliente esta execução respondeu juntas.
+  groupedMessageCount Int?
+
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 

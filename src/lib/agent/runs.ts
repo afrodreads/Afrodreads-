@@ -53,6 +53,16 @@ export type AgentRunResult = {
   errorCode: string | null;
   errorMessage: string | null;
   completedAt: Date;
+  // Uso e custo (Fase 4A). Nulos quando o modelo não foi chamado ou não informou.
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+  estimatedCostUsd: number | null;
+  servedModel: string | null;
+  stopReason: string | null;
+  /** Quantas mensagens do cliente (desde a última resposta) foram respondidas juntas. */
+  groupedMessageCount: number | null;
 };
 
 export type StoredAgentRun = NewAgentRun &

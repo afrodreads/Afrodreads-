@@ -100,7 +100,10 @@ describe("AgentRun: cada execução fica registrada", () => {
     assert.equal(run.errorCode, "Error");
     assert.doesNotMatch(run.errorMessage ?? "", /sk-abc|tok\.en\.value/);
     assert.match(run.errorMessage ?? "", /\[redacted\]/);
-    assert.equal(run.candidateText, null);
+    // Fase 4A: falha do modelo vira fallback seguro + proposta de encaminhamento (nada enviado).
+    assert.match(run.candidateText ?? "", /confirmar com a equipe/);
+    assert.equal(run.proposedHandoff?.reason, "AI_UNCERTAIN");
+    assert.equal(h.db.handoffs.length, 0);
   });
 });
 

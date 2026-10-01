@@ -19,6 +19,7 @@ import type { PromptSource } from "./prompt";
 import { promptSpecFrom, type PromptRegistry, type PromptSpec } from "./promptVersion";
 import type { Promotion } from "./promotions";
 import type { AgentRunResult, AgentRunStore, NewAgentRun, StoredAgentRun } from "./runs";
+import type { GroupingReader } from "./grouping";
 import type {
   NewSystemEvent,
   StoredSystemEvent,
@@ -395,4 +396,19 @@ export function agentHarness(model: ScriptedModel, promptText = PROMPT_V_TEST) {
       now,
     );
   return { db, unit, reader, prompts, runs, live, replayDeps, inbound };
+}
+/** Mensagens do cliente desde a última mensagem enviada (para o agrupamento). */
+export class MemoryGroupingReader implements GroupingReader {
+  constructor(private readonly db: MemoryConversations) {}
+  async pendingCustomerMessages(conversationId: string) {
+    const messages = this.db.messages.filter((m) => m.conversationId === conversationId);
+    let lastOutbound = -1;
+    messages.forEach((m, i) => {
+      if (m.direction === "OUTBOUND") lastOutbound = i;
+    });
+    return messages
+      .slice(lastOutbound + 1)
+      .filter((m) => m.sender === "CUSTOMER")
+      .map((m) => ({ id: m.id, createdAt: m.createdAt }));
+  }
 }

@@ -35,15 +35,17 @@ describe("nenhuma rota pública nova", () => {
     const offenders = routes.filter((file) =>
       /(customer|conversation|message|handoff|unit|agent)/i.test(rel(file)),
     );
-    assert.deepEqual(offenders.map(rel), []);
+    // Fase 4A: a única rota do agente é a entrada AUTENTICADA (segredo) em modo sombra.
+    assert.deepEqual(offenders.map(rel), ["src/app/api/agent/inbound/route.ts"]);
   });
 
-  it("o único ponto do app que usa a fundação é o vínculo best-effort da rota de orçamento", () => {
+  it("só a rota de orçamento (vínculo best-effort) e a entrada autenticada do agente usam a fundação", () => {
     const users = walk(path.join(root, "src", "app"))
       .filter((file) => /\.(ts|tsx)$/.test(file))
       .filter((file) => readFileSync(file, "utf8").includes("lib/conversations"))
-      .map(rel);
-    assert.deepEqual(users, ["src/app/api/quotes/[token]/complete/route.ts"]);
+      .map(rel)
+      .sort();
+    assert.deepEqual(users, ["src/app/api/agent/inbound/route.ts", "src/app/api/quotes/[token]/complete/route.ts"]);
 
     const source = readFileSync(path.join(root, "src/app/api/quotes/[token]/complete/route.ts"), "utf8");
     assert.match(source, /@\/lib\/conversations\/wiring/);
@@ -76,12 +78,13 @@ describe("nenhuma integração externa ativada", () => {
     }
   });
 
-  it("o pacote não ganhou dependência de IA ou de provedor de mensagens", () => {
+  it("o pacote só ganhou o SDK oficial da Anthropic (Fase 4A); nenhum provedor de mensagens", () => {
     const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
       dependencies: Record<string, string>;
     };
-    const names = Object.keys(pkg.dependencies).join(" ");
-    assert.doesNotMatch(names, /anthropic|openai|manychat|twilio|whatsapp/i);
+    const names = Object.keys(pkg.dependencies);
+    assert.deepEqual(names.filter((name) => /anthropic|openai/i.test(name)), ["@anthropic-ai/sdk"]);
+    assert.doesNotMatch(names.join(" "), /openai|manychat|twilio|whatsapp/i);
   });
 });
 

@@ -20,7 +20,7 @@ async function withOriginalRun() {
 describe("replay em sombra", () => {
   it("reexecuta a partir de um AgentRun e grava um novo AgentRun REPLAY ligado ao original", async () => {
     const { h, first, original } = await withOriginalRun();
-    const model = replyWith("Resposta com o prompt novo. 💛", [], "modelo-roteirizado-v2");
+    const model = replyWith("Resposta da versão nova. 💛", [], "modelo-roteirizado-v2");
 
     const replay = await replayAgentRun(h.replayDeps({ model, prompt: fixedPromptSource(V3) }), {
       sourceRunId: original.runId!,
@@ -35,7 +35,7 @@ describe("replay em sombra", () => {
     assert.equal(run.triggerMessageId, first.messageId);
     assert.equal(run.modelId, "modelo-roteirizado-v2");
     assert.equal(run.promptVersion?.name, "V8");
-    assert.match(run.candidateText ?? "", /prompt novo/);
+    assert.match(run.candidateText ?? "", /versão nova/);
   });
 
   it("NÃO envia, NÃO altera conversa, booking, pagamento nem cria handoff real", async () => {

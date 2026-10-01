@@ -62,17 +62,70 @@ export type ProposedAction =
   | { tool: "request_handoff"; reason: (typeof HANDOFF_REASONS)[number]; summary: z.infer<typeof handoffSummarySchema> }
   | { tool: "update_lead_data"; data: LeadData };
 
-export type ToolDefinition = { name: ToolName; description: string };
+/** JSON Schema de entrada (o que o provedor do modelo recebe). A validação real é o zod acima. */
+export type ToolDefinition = { name: ToolName; description: string; inputSchema: Record<string, unknown> };
+
+const shortString = { type: "string", maxLength: 200 } as const;
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "request_handoff",
     description:
-      "Propõe passar a conversa para a atendente humana, com motivo e resumo estruturado. Use nos casos da seção de encaminhamento.",
+      "Propõe passar a conversa para a atendente humana, com motivo e resumo estruturado. Use nos casos da seção de encaminhamento. É só uma proposta: a equipe decide.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["reason", "summary"],
+      properties: {
+        reason: { type: "string", enum: [...HANDOFF_REASONS] },
+        summary: {
+          type: "object",
+          additionalProperties: false,
+          required: ["headline"],
+          properties: {
+            headline: { type: "string", maxLength: 200, description: "Uma linha: o que o cliente quer." },
+            customerNeed: { type: "string", maxLength: 1000 },
+            collected: {
+              type: "object",
+              description: "Dados coletados (até 20 itens, textos curtos). Nada de CPF, cartão ou senha.",
+              additionalProperties: { type: "string", maxLength: 300 },
+            },
+            openQuestions: { type: "array", maxItems: 10, items: { type: "string", maxLength: 300 } },
+            suggestedNextStep: { type: "string", maxLength: 300 },
+          },
+        },
+      },
+    },
   },
   {
     name: "update_lead_data",
-    description: "Propõe anotar dados do projeto do cliente (intenção, material, método, etc.). Só dados que o cliente informou.",
+    description:
+      "Propõe anotar dados do projeto do cliente (intenção, temperatura, material, método, etc.). Só o que o cliente informou; nunca dados pessoais sensíveis.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        intent: {
+          type: "string",
+          enum: ["INFORMACAO", "APLICACAO", "MANUTENCAO", "PROMOCAO", "ORCAMENTO", "AGENDAMENTO", "POS_ATENDIMENTO", "RECLAMACAO", "OUTRO"],
+        },
+        temperature: { type: "string", enum: ["QUENTE", "MORNO", "FRIO"] },
+        origin: shortString,
+        appointmentType: { type: "string", enum: ["aplicacao_do_zero", "manutencao"] },
+        material: { type: "string", enum: ["proprio", "sintetico", "humano"] },
+        method: shortString,
+        currentLength: shortString,
+        desiredLength: shortString,
+        thickness: { type: "string", enum: ["P", "M", "G"] },
+        color: shortString,
+        headArea: { type: "string", enum: ["topo", "cabeca_toda"] },
+        haircut: { type: "string", enum: ["alto", "americano"] },
+        hasCurrentPhoto: { type: "boolean" },
+        hasReferencePhoto: { type: "boolean" },
+        desiredPeriod: shortString,
+        urgencyOrEvent: shortString,
+      },
+    },
   },
 ];
 

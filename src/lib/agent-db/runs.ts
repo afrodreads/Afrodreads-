@@ -57,6 +57,14 @@ function toStored(row: RunRow): StoredAgentRun {
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,
     completedAt: row.completedAt ?? undefined,
+    inputTokens: row.inputTokens,
+    outputTokens: row.outputTokens,
+    cacheReadTokens: row.cacheReadTokens,
+    cacheWriteTokens: row.cacheWriteTokens,
+    estimatedCostUsd: row.estimatedCostUsd === null ? null : Number(row.estimatedCostUsd),
+    servedModel: row.servedModel,
+    stopReason: row.stopReason,
+    groupedMessageCount: row.groupedMessageCount,
   };
 }
 
@@ -98,6 +106,14 @@ export const prismaAgentRunStore: AgentRunStore = {
         errorCode: result.errorCode,
         errorMessage: result.errorMessage,
         completedAt: result.completedAt,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        cacheReadTokens: result.cacheReadTokens,
+        cacheWriteTokens: result.cacheWriteTokens,
+        estimatedCostUsd: result.estimatedCostUsd,
+        servedModel: result.servedModel,
+        stopReason: result.stopReason,
+        groupedMessageCount: result.groupedMessageCount,
       },
     });
   },

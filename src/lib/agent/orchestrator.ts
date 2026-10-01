@@ -3,10 +3,11 @@ import { InvalidInputError } from "../conversations/errors";
 import type { ConversationsStore } from "../conversations/repo";
 import { assertShadowMode } from "./config";
 import { buildAgentContext, contextSnapshot, type AgentContext, type AgentContextReader } from "./context";
-import { checkDraft } from "./guardrails";
-import type { ModelClient } from "./model";
+import { checkDraft, type GuardrailResult } from "./guardrails";
+import type { ModelClient, ModelResponse } from "./model";
 import { buildSystemPrompt, type PromptSource } from "./prompt";
 import type { PromptRegistry } from "./promptVersion";
+import { redactForModel } from "./redact";
 import {
   inboundRunKey,
   replayRunKey,
@@ -49,6 +50,14 @@ function fallbackText(context: AgentContext): string {
   return `Essa informação eu prefiro confirmar com a equipe para não te passar nada errado. Vou encaminhar para ${who}. 💛`;
 }
 
+function fallbackHandoff(headline: string, detail?: string): ProposedAction {
+  return {
+    tool: "request_handoff",
+    reason: "AI_UNCERTAIN",
+    summary: { headline, ...(detail ? { collected: { detalhe: detail.slice(0, 300) } } : {}) },
+  };
+}
+
 function emptyResult(outcome: AgentRunOutcome, durationMs: number, now: Date): AgentRunResult {
   return {
     outcome,
@@ -69,7 +78,34 @@ function emptyResult(outcome: AgentRunOutcome, durationMs: number, now: Date): A
     errorCode: null,
     errorMessage: null,
     completedAt: now,
+    inputTokens: null,
+    outputTokens: null,
+    cacheReadTokens: null,
+    cacheWriteTokens: null,
+    estimatedCostUsd: null,
+    servedModel: null,
+    stopReason: null,
+    groupedMessageCount: null,
   };
+}
+
+function usageFields(response: ModelResponse) {
+  return {
+    inputTokens: response.usage?.inputTokens ?? null,
+    outputTokens: response.usage?.outputTokens ?? null,
+    cacheReadTokens: response.usage?.cacheReadTokens ?? null,
+    cacheWriteTokens: response.usage?.cacheWriteTokens ?? null,
+    estimatedCostUsd: response.usage?.estimatedCostUsd ?? null,
+    servedModel: response.servedModel ?? null,
+    stopReason: response.stopReason ?? null,
+  };
+}
+
+/** Mensagens do cliente desde a última resposta (o que esta execução responde junto). */
+function trailingCustomerMessages(context: AgentContext): number {
+  let count = 0;
+  for (let i = context.messages.length - 1; i >= 0 && context.messages[i].role === "user"; i--) count += 1;
+  return count;
 }
 
 type ExecuteArgs = {
@@ -122,11 +158,20 @@ async function execute(deps: CoreDeps, args: ExecuteArgs): Promise<RunResult> {
   const elapsed = () => Math.max(0, Math.round(clock() - started));
 
   try {
-    const base = {
+    // O modelo recebe o texto do cliente SEM dados sensíveis (CPF, cartão, conta, senha, tokens).
+    let redactedFragments = 0;
+    const modelMessages = context.messages.map((message) => {
+      const { text, redactions } = redactForModel(message.text);
+      redactedFragments += redactions;
+      return { role: message.role, content: text };
+    });
+
+    const base: AgentRunResult = {
       ...emptyResult("NOTHING_TO_ANSWER", 0, args.now),
       agentStatus: context.status,
       mode: context.mode,
-      contextSnapshot: contextSnapshot(context),
+      contextSnapshot: { ...contextSnapshot(context), redactedFragments },
+      groupedMessageCount: trailingCustomerMessages(context),
     };
 
     const last = context.messages[context.messages.length - 1];
@@ -135,20 +180,33 @@ async function execute(deps: CoreDeps, args: ExecuteArgs): Promise<RunResult> {
     }
 
     // MODEL
-    let response;
+    const prompt = buildSystemPrompt(spec, context);
+    let response: ModelResponse;
     try {
       response = await deps.model.generate({
-        system: buildSystemPrompt(spec, context),
-        messages: context.messages.map((message) => ({ role: message.role, content: message.text })),
+        system: prompt.system,
+        systemCacheablePrefix: prompt.cacheablePrefix,
+        messages: modelMessages,
         tools: TOOL_DEFINITIONS,
       });
     } catch (error) {
+      // Falha do modelo: fallback seguro + proposta de encaminhamento (nada é enviado).
       const safe = sanitizeError(error);
-      return finish({ ...base, outcome: "MODEL_ERROR", durationMs: elapsed(), errorCode: safe.code, errorMessage: safe.message });
+      const handoff = fallbackHandoff("Falha ao gerar resposta automática", safe.code);
+      return finish({
+        ...base,
+        outcome: "MODEL_ERROR",
+        candidateText: fallbackText(context),
+        proposedHandoff: handoff.tool === "request_handoff" ? { reason: handoff.reason, summary: handoff.summary } : null,
+        proposedActions: [handoff],
+        durationMs: elapsed(),
+        errorCode: safe.code,
+        errorMessage: safe.message,
+      });
     }
 
     if (args.stillAllowed && !(await args.stillAllowed())) {
-      return finish({ ...base, outcome: "DISCARDED_MODE_CHANGED", durationMs: elapsed() });
+      return finish({ ...base, ...usageFields(response), outcome: "DISCARDED_MODE_CHANGED", durationMs: elapsed() });
     }
 
     // TOOLS (só propostas)
@@ -165,23 +223,32 @@ async function execute(deps: CoreDeps, args: ExecuteArgs): Promise<RunResult> {
       if (action.tool === "update_lead_data") qualification = { ...(qualification ?? {}), ...action.data };
     }
 
-    // GUARDRAILS
+    // GUARDRAILS (inclui recusa e resposta cortada do provedor)
     const originalText = response.text?.trim() ? response.text.trim() : null;
-    const verdict = originalText ? checkDraft(originalText, context) : { ok: true, violations: [] };
+    let verdict: GuardrailResult = originalText ? checkDraft(originalText, context) : { ok: true, violations: [] };
+    if (response.stopReason === "refusal") {
+      verdict = { ok: false, violations: [...verdict.violations, { code: "model_refusal", severity: "block", excerpt: "" }] };
+    } else if (response.stopReason === "max_tokens") {
+      verdict = { ok: false, violations: [...verdict.violations, { code: "truncated_response", severity: "block", excerpt: "" }] };
+    }
 
     let candidateText = originalText;
     let blockedOriginalText: string | null = null;
     if (!verdict.ok) {
       blockedOriginalText = originalText;
       candidateText = fallbackText(context);
-      proposedActions.push({
-        tool: "request_handoff",
-        reason: "AI_UNCERTAIN",
-        summary: {
-          headline: "Rascunho da IA bloqueado pelos guardrails",
-          collected: { violacoes: [...new Set(verdict.violations.map((v) => v.code))].join(", ").slice(0, 300) },
-        },
-      });
+      proposedActions.push(
+        fallbackHandoff(
+          "Rascunho da IA bloqueado pelos guardrails",
+          [...new Set(verdict.violations.map((v) => v.code))].join(", "),
+        ),
+      );
+    } else if (!originalText) {
+      // Só ferramentas, sem texto: o cliente receberia a mensagem de encaminhamento.
+      candidateText = fallbackText(context);
+      if (!proposedActions.some((action) => action.tool === "request_handoff")) {
+        proposedActions.push(fallbackHandoff("A IA não produziu texto de resposta"));
+      }
     }
 
     const handoff = proposedActions.find((action) => action.tool === "request_handoff");
@@ -189,6 +256,7 @@ async function execute(deps: CoreDeps, args: ExecuteArgs): Promise<RunResult> {
     // SHADOW RESULT → AgentRun
     return finish({
       ...base,
+      ...usageFields(response),
       outcome: verdict.ok ? "DRAFT_SAVED" : "DRAFT_BLOCKED",
       intent: qualification?.intent ?? null,
       temperature: qualification?.temperature ?? null,
