@@ -152,7 +152,12 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
       return fail(400, "invalid_payload");
     }
     const parsed = inboundPayloadSchema.safeParse(json);
-    if (!parsed.success) return fail(400, "invalid_payload");
+    if (!parsed.success) {
+      // Só os NOMES dos campos recusados (nunca valores): sem isso um 400 do ManyChat não tem pista.
+      const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join(".") || "(corpo)"))].join(",");
+      deps.log("agent_inbound_invalid_payload", { fields });
+      return fail(400, "invalid_payload");
+    }
     const payload = parsed.data;
 
     const text = payload.text.trim();
@@ -160,7 +165,10 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
     // Variável do ManyChat que não foi substituída (ex.: contato sem texto recente): não é uma mensagem de cliente.
     if (/^\{\{[^{}]*\}\}$/.test(text)) return fail(400, "invalid_payload");
     // O telefone serve para achar/criar o cliente; a conversa é identificada pelo contactId do canal.
-    if (!normalizePhone(payload.phone)) return fail(400, "invalid_payload");
+    if (!normalizePhone(payload.phone)) {
+      deps.log("agent_inbound_invalid_payload", { fields: "phone(formato)" });
+      return fail(400, "invalid_payload");
+    }
 
     const now = deps.now();
     const sentAt = payload.timestamp === undefined ? now : parseTimestamp(payload.timestamp);
