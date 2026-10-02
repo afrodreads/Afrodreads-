@@ -4,7 +4,7 @@ import { finishConversation, handoffToHuman } from "../conversations/conversatio
 import { findOrCreateCustomer } from "../conversations/customer";
 import { processAfterQuietPeriod } from "../agent/pipeline";
 import { agentHarness, MemoryGroupingReader, replyWith, ScriptedModel } from "../agent/testSupport";
-import { createInboundHandler, MAX_TEXT_CHARS, type InboundConfig } from "./inbound";
+import { createInboundHandler, derivedMessageId, MAX_TEXT_CHARS, type InboundConfig } from "./inbound";
 import { FixedWindowLimiter } from "./security";
 
 // Simula o ManyChat chamando POST /api/agent/inbound (modo sombra).
@@ -141,6 +141,14 @@ describe("entrada válida (modo sombra)", () => {
     assert.equal(response.status, 202);
   });
 
+  it("sem messageId nem timestamp (o ManyChat não os oferece): aceita, usa o horário do servidor e deriva o id", async () => {
+    const s = setup();
+    const response = await s.post(payload({ messageId: undefined, timestamp: undefined }));
+    assert.equal(response.status, 202);
+    assert.equal(s.db.messages.length, 1);
+    assert.match(String(s.db.messages[0].externalId), /^derived:[0-9a-f]{40}$/);
+  });
+
   it("sem chave do modelo: registra a mensagem, mas não agenda execução", async () => {
     const s = setup({ withModel: false });
     const response = await s.post(payload());
@@ -187,6 +195,44 @@ describe("idempotência e concorrência", () => {
   });
 });
 
+describe("sem id único por mensagem (derivado)", () => {
+  const bare = (overrides: Record<string, unknown> = {}) => payload({ messageId: undefined, timestamp: undefined, ...overrides });
+
+  it("mesmo contato, mesmo texto, mesmo minuto (reenvio): 200 'duplicate', 1 mensagem e 1 execução", async () => {
+    const s = setup();
+    await s.post(bare());
+    await s.drain();
+    const again = await s.post(bare());
+    assert.equal(again.status, 200);
+    assert.deepEqual(again.body, { ok: true, status: "duplicate" });
+    assert.equal(s.db.messages.length, 1);
+    assert.equal(s.runs.runs.length, 1);
+  });
+
+  it("textos diferentes no mesmo minuto: duas mensagens", async () => {
+    const s = setup();
+    await s.post(bare({ text: "Oi" }));
+    await s.post(bare({ text: "Quero fazer microlocs" }));
+    assert.equal(s.db.messages.length, 2);
+  });
+
+  it("messageId em branco continua inválido (só a ausência é aceita)", async () => {
+    const s = setup();
+    const response = await s.post(bare({ messageId: "   " }));
+    assert.equal(response.status, 400);
+    assert.equal(s.db.messages.length, 0);
+  });
+
+  it("derivedMessageId: estável no mesmo minuto e diferente no minuto seguinte, no contato ou no texto", () => {
+    const t = new Date("2026-10-01T15:30:10-03:00");
+    const base = derivedMessageId("mc-1", "oi", t);
+    assert.equal(base, derivedMessageId("mc-1", "oi", new Date(t.getTime() + 30_000)));
+    assert.notEqual(base, derivedMessageId("mc-1", "oi", new Date(t.getTime() + 60_000)));
+    assert.notEqual(base, derivedMessageId("mc-2", "oi", t));
+    assert.notEqual(base, derivedMessageId("mc-1", "olá", t));
+  });
+});
+
 describe("autenticação e limites", () => {
   it("desligada ou sem segredo configurado: 404 (a rota parece não existir)", async () => {
     assert.equal((await setup({ config: { enabled: false } }).post(payload())).status, 404);
@@ -229,7 +275,6 @@ describe("autenticação e limites", () => {
 describe("validação rigorosa do payload", () => {
   const cases: [string, unknown, number][] = [
     ["JSON inválido", "{oi", 400],
-    ["sem messageId", payload({ messageId: undefined }), 400],
     ["messageId vazio", payload({ messageId: "  " }), 400],
     ["sem contactId", payload({ contactId: undefined }), 400],
     ["sem telefone", payload({ phone: undefined }), 400],
@@ -238,7 +283,6 @@ describe("validação rigorosa do payload", () => {
     ["campo desconhecido", payload({ preco: 400 }), 400],
     ["texto vazio", payload({ text: "    " }), 400],
     ["texto muito grande", payload({ text: "a".repeat(MAX_TEXT_CHARS + 1) }), 400],
-    ["sem timestamp", payload({ timestamp: undefined }), 400],
     ["timestamp inválido", payload({ timestamp: "ontem" }), 400],
     ["tipo desconhecido", payload({ type: "send_reply" }), 400],
   ];

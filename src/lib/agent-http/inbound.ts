@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { DomainError } from "../conversations/errors";
 import { recordOutboundMessage } from "../conversations/message";
@@ -64,12 +65,14 @@ export const inboundPayloadSchema = z
   .object({
     channel: z.literal("whatsapp"),
     type: z.enum(["message", "human_reply"]).default("message"),
-    messageId: z.string().trim().min(1).max(200),
+    /** Opcional: o ManyChat não oferece um id único por mensagem. Sem ele, o id é derivado (ver `derivedMessageId`). */
+    messageId: z.string().trim().min(1).max(200).optional(),
     contactId: z.string().trim().min(1).max(200),
     phone: z.string().trim().min(8).max(40),
     name: z.string().trim().max(120).nullish(),
     text: z.string().max(MAX_TEXT_CHARS * 2),
-    timestamp: z.union([z.string().trim().min(1).max(40), z.number().finite()]),
+    /** Opcional: sem ele, vale o horário em que o servidor recebeu a mensagem. */
+    timestamp: z.union([z.string().trim().min(1).max(40), z.number().finite()]).optional(),
     /** Atendente (só em human_reply). */
     agent: z.string().trim().min(1).max(80).nullish(),
   })
@@ -86,6 +89,17 @@ export function parseTimestamp(value: string | number): Date | null {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Id estável para quando o canal não manda um id único por mensagem: o mesmo
+ * contato enviando o mesmo texto no mesmo minuto vira a mesma mensagem (cobre
+ * reenvios do ManyChat). Proteção mais fraca que um id real; aceitável em modo sombra.
+ */
+export function derivedMessageId(contactId: string, text: string, now: Date): string {
+  const minute = Math.floor(now.getTime() / 60_000);
+  const digest = createHash("sha256").update(`${contactId}\n${text}\n${minute}`).digest("hex");
+  return `derived:${digest.slice(0, 40)}`;
 }
 
 export type ProcessJob = { conversationId: string; triggerMessageId: string };
@@ -147,8 +161,9 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
     if (!normalizePhone(payload.phone)) return fail(400, "invalid_payload");
 
     const now = deps.now();
-    const sentAt = parseTimestamp(payload.timestamp);
+    const sentAt = payload.timestamp === undefined ? now : parseTimestamp(payload.timestamp);
     if (!sentAt) return fail(400, "invalid_payload");
+    const messageId = payload.messageId ?? derivedMessageId(payload.contactId, text, now);
     // Proteção contra reenvio de payload antigo (replay) e relógio adiantado.
     if (now.getTime() - sentAt.getTime() > config.maxAgeMs || sentAt.getTime() - now.getTime() > config.maxFutureMs) {
       return fail(400, "stale_message");
@@ -173,7 +188,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
             conversationId: conversation.id,
             sender: "HUMAN",
             senderRef: payload.agent ?? "equipe",
-            externalMessageId: payload.messageId,
+            externalMessageId: messageId,
             content: text,
           },
           sentAt,
@@ -188,7 +203,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
           phone: payload.phone,
           customerName: payload.name ?? null,
           externalConversationId: payload.contactId,
-          externalMessageId: payload.messageId,
+          externalMessageId: messageId,
           content: text,
           sentAt,
         },
