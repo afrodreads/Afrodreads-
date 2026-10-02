@@ -171,7 +171,10 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
 
     try {
       const unitId = await deps.resolveUnitId();
-      if (!unitId) return fail(503, "unavailable");
+      if (!unitId) {
+        deps.log("agent_inbound_unit_unavailable", {});
+        return fail(503, "unavailable");
+      }
 
       const recent = await deps.countRecentForContact(unitId, payload.contactId, new Date(now.getTime() - 60_000));
       if (recent >= config.contactLimitPerMinute) return fail(429, "rate_limited");
