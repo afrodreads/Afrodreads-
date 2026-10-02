@@ -157,6 +157,8 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
 
     const text = payload.text.trim();
     if (!text || text.length > MAX_TEXT_CHARS) return fail(400, "invalid_payload");
+    // Variável do ManyChat que não foi substituída (ex.: contato sem texto recente): não é uma mensagem de cliente.
+    if (/^\{\{[^{}]*\}\}$/.test(text)) return fail(400, "invalid_payload");
     // O telefone serve para achar/criar o cliente; a conversa é identificada pelo contactId do canal.
     if (!normalizePhone(payload.phone)) return fail(400, "invalid_payload");
 

@@ -282,6 +282,7 @@ describe("validação rigorosa do payload", () => {
     ["canal errado", payload({ channel: "sms" }), 400],
     ["campo desconhecido", payload({ preco: 400 }), 400],
     ["texto vazio", payload({ text: "    " }), 400],
+    ["variável do ManyChat sem substituir (texto igual a {{last_input_text}})", payload({ text: "{{last_input_text}}" }), 400],
     ["texto muito grande", payload({ text: "a".repeat(MAX_TEXT_CHARS + 1) }), 400],
     ["timestamp inválido", payload({ timestamp: "ontem" }), 400],
     ["tipo desconhecido", payload({ type: "send_reply" }), 400],
