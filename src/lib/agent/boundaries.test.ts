@@ -87,7 +87,18 @@ describe("nenhuma mensagem real pode ser enviada", () => {
     }
     const http = agentHttpSources.map(read).join("\n");
     const senders = [...http.matchAll(/sender:\s*"(\w+)"/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(senders)], ["HUMAN"]);
+    // Exceção deliberada (resposta de teste): a camada HTTP também grava a mensagem "AI" que o
+    // ManyChat vai enviar, e SÓ dentro de replyForTestContact. Mais nenhum remetente.
+    assert.deepEqual([...new Set(senders)].sort(), ["AI", "HUMAN"]);
+    assert.equal(senders.filter((sender) => sender === "AI").length, 1);
+    const testReplyBody = http.match(/async function replyForTestContact[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
+    assert.match(testReplyBody, /sender:\s*"AI"/);
+    // Essa função só é chamada atrás da lista de contatos de teste (definida por configuração).
+    assert.equal((http.match(/replyForTestContact\(/g) ?? []).length, 2, "definição + uma única chamada");
+    assert.match(
+      http,
+      /if \(shouldProcess && deps\.processJobInline && config\.testReplyContactIds\?\.has\(payload\.contactId\)\) \{[\s\S]{0,300}replyForTestContact\(/,
+    );
   });
 
   it("só existe modo 'shadow' e todas as entradas conferem o modo", () => {
@@ -130,8 +141,14 @@ describe("rotas: uma única entrada, autenticada", () => {
 
   it("a entrada responde só com status: nunca devolve texto da IA", () => {
     const handler = read(dir("agent-http", "inbound.ts"));
-    assert.doesNotMatch(handler, /candidateText|result\.text|draft/);
-    for (const body of handler.match(/reply\(\d+,\s*\{[^}]*\}/g) ?? []) {
+    // Exceção deliberada (resposta de teste): o texto aprovado só circula nestas duas funções.
+    const approvedDraft = handler.match(/function approvedDraftText[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
+    const testReply = handler.match(/async function replyForTestContact[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
+    assert.ok(approvedDraft && testReply, "funções da resposta de teste não encontradas");
+    const rest = handler.replace(approvedDraft, "").replace(testReply, "");
+    assert.doesNotMatch(rest, /candidateText|result\.text|draft/);
+    assert.doesNotMatch(rest, /reply:\s/, "só replyForTestContact devolve texto");
+    for (const body of rest.match(/reply\(\d+,\s*\{[^}]*\}/g) ?? []) {
       assert.match(body, /\{\s*ok:\s*true,\s*status:/, body);
     }
   });

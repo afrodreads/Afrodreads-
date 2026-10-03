@@ -33,6 +33,12 @@ export type InboundConfig = {
   /** Máximo de requisições por IP por minuto (por instância). */
   ipLimitPerMinute: number;
   grouping: GroupingPolicy;
+  /**
+   * Contatos de TESTE (ids do canal, da configuração, nunca do payload) para os quais a
+   * resposta HTTP devolve o texto do rascunho. Quem envia é o ManyChat; este servidor
+   * continua sem enviar nada. Vazio/ausente: ninguém recebe texto (modo sombra puro).
+   */
+  testReplyContactIds?: ReadonlySet<string>;
 };
 
 export const MAX_BODY_BYTES = 16 * 1024;
@@ -57,6 +63,14 @@ export function inboundConfigFromEnv(env: Record<string, string | undefined> = p
       quietMs: int(env.AGENT_GROUPING_QUIET_MS, 4000),
       maxWaitMs: int(env.AGENT_GROUPING_MAX_WAIT_MS, 20000),
     }),
+    // No máximo 5 contatos de teste, para a lista nunca virar "todo mundo" por engano.
+    testReplyContactIds: new Set(
+      (env.AGENT_TEST_REPLY_CONTACT_IDS ?? "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+        .slice(0, 5),
+    ),
   };
 }
 
@@ -113,6 +127,8 @@ export type InboundHandlerDeps = {
   countRecentForContact(unitId: string, contactId: string, since: Date): Promise<number>;
   /** Execução do agente em sombra para depois da resposta. null = modelo indisponível (só registra). */
   processJob: ((job: ProcessJob) => Promise<unknown>) | null;
+  /** Execução imediata (sem espera de agrupamento), só para contatos de teste. */
+  processJobInline?: ((job: ProcessJob) => Promise<unknown>) | null;
   /** Agenda trabalho para depois da resposta (na rota: `after` do Next). */
   schedule(task: () => Promise<void>): void;
   now(): Date;
@@ -127,6 +143,46 @@ function reply(status: number, body: Record<string, string | boolean>): Response
 }
 
 const fail = (status: number, error: string) => reply(status, { ok: false, error });
+
+/** Texto do rascunho SÓ se o agente terminou com DRAFT_SAVED (passou nas travas). */
+function approvedDraftText(result: unknown): string | null {
+  const run = (result as { result?: { outcome?: unknown; candidateText?: unknown } | null } | null)?.result;
+  if (run?.outcome !== "DRAFT_SAVED" || typeof run.candidateText !== "string") return null;
+  const text = run.candidateText.trim();
+  return text ? text : null;
+}
+
+/**
+ * Contato de teste: executa o agente e devolve o texto aprovado na resposta HTTP. O texto
+ * também é gravado como mensagem da IA, para a conversa não parecer sem resposta nas
+ * próximas rodadas. Este servidor NÃO envia nada ao WhatsApp: quem envia é o ManyChat.
+ */
+async function replyForTestContact(
+  deps: InboundHandlerDeps,
+  run: (job: ProcessJob) => Promise<unknown>,
+  job: ProcessJob,
+): Promise<Response> {
+  let text: string | null = null;
+  try {
+    text = approvedDraftText(await run(job));
+  } catch (error) {
+    deps.log("agent_test_reply_failed", { error: error instanceof Error ? error.name : "Error" });
+  }
+  if (text) {
+    try {
+      await recordOutboundMessage(
+        deps.conversations,
+        { conversationId: job.conversationId, sender: "AI", senderRef: "teste-manychat", content: text },
+        deps.now(),
+      );
+    } catch {
+      // Conversa passou para a equipe enquanto a IA respondia: não devolve o texto.
+      deps.log("agent_test_reply_discarded", {});
+      text = null;
+    }
+  }
+  return reply(200, { ok: true, status: text ? "replied" : "no_reply", reply: text ?? "" });
+}
 
 export function createInboundHandler(deps: InboundHandlerDeps): (request: Request) => Promise<Response> {
   const ipLimiter = deps.ipLimiter ?? new FixedWindowLimiter(deps.config.ipLimitPerMinute, 60_000);
@@ -224,6 +280,13 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
       );
 
       if (inbound.duplicate) return reply(200, { ok: true, status: "duplicate" });
+
+      // Contato de TESTE: roda o agente agora e devolve o rascunho (se passou nas travas)
+      // para o ManyChat enviar. Qualquer outro contato segue o caminho de sombra abaixo.
+      if (shouldProcess && deps.processJobInline && config.testReplyContactIds?.has(payload.contactId)) {
+        const job = { conversationId: inbound.conversationId, triggerMessageId: inbound.messageId };
+        return await replyForTestContact(deps, deps.processJobInline, job);
+      }
 
       if (shouldProcess && deps.processJob) {
         const processJob = deps.processJob;

@@ -72,6 +72,10 @@ function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>
       options.withModel === false
         ? null
         : (job) => processAfterQuietPeriod({ agent: h.live, grouping }, job, { policy: config.grouping, sleep: async () => {}, now: () => clock }),
+    processJobInline:
+      options.withModel === false
+        ? null
+        : (job) => processAfterQuietPeriod({ agent: h.live, grouping }, job, { policy: { quietMs: 0, maxWaitMs: 0 }, sleep: async () => {}, now: () => clock }),
     schedule: (task) => tasks.push(task),
     now: () => clock,
     log: (event, data) => logs.push(JSON.stringify({ event, ...data })),
@@ -230,6 +234,47 @@ describe("sem id único por mensagem (derivado)", () => {
     assert.notEqual(base, derivedMessageId("mc-1", "oi", new Date(t.getTime() + 60_000)));
     assert.notEqual(base, derivedMessageId("mc-2", "oi", t));
     assert.notEqual(base, derivedMessageId("mc-1", "olá", t));
+  });
+});
+
+describe("contato de teste (resposta devolvida ao ManyChat)", () => {
+  const TEST_IDS = new Set(["mc-123456"]);
+
+  it("contato da lista: roda na hora, devolve o texto aprovado e grava a mensagem da IA", async () => {
+    const s = setup({ model: replyWith("Oi! Seu cabelo tem pelo menos 4 dedos de comprimento? 💛"), config: { testReplyContactIds: TEST_IDS } });
+    const response = await s.post(payload());
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { ok: true, status: "replied", reply: "Oi! Seu cabelo tem pelo menos 4 dedos de comprimento? 💛" });
+    assert.equal(s.tasks.length, 0); // rodou no mesmo pedido, nada agendado
+    assert.equal(s.runs.runs.length, 1);
+    const outbound = s.db.messages.filter((m) => m.direction === "OUTBOUND");
+    assert.equal(outbound.length, 1);
+    assert.equal(outbound[0].content, "Oi! Seu cabelo tem pelo menos 4 dedos de comprimento? 💛");
+    assert.equal(networkCalls, 0); // este servidor não envia nada para fora
+  });
+
+  it("contato que NÃO está na lista nunca recebe o texto", async () => {
+    const s = setup({ model: replyWith("TEXTO SECRETO DA IA"), config: { testReplyContactIds: new Set(["outro-contato"]) } });
+    const response = await s.post(payload());
+    await s.drain();
+    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "status"]);
+    assert.equal(JSON.stringify(response.body).includes("TEXTO SECRETO"), false);
+    assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
+  });
+
+  it("rascunho barrado pelas travas (preço): contato de teste recebe resposta vazia", async () => {
+    const s = setup({ model: replyWith("Fica R$ 1.000 certinho! 💛"), config: { testReplyContactIds: TEST_IDS } });
+    const response = await s.post(payload());
+    assert.deepEqual(response.body, { ok: true, status: "no_reply", reply: "" });
+    assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
+  });
+
+  it("sem lista configurada (padrão): comportamento de sombra, 202 sem texto", async () => {
+    const s = setup({ model: replyWith("TEXTO SECRETO DA IA") });
+    const response = await s.post(payload());
+    assert.equal(response.status, 202);
+    assert.deepEqual(response.body, { ok: true, status: "accepted" });
   });
 });
 

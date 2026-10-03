@@ -38,6 +38,13 @@ export async function POST(request: Request): Promise<Response> {
     processJob: deps
       ? (job) => processAfterQuietPeriod({ agent: deps.live, grouping: prismaGroupingReader }, job, { policy: config.grouping })
       : null,
+    // Só para contatos de teste (AGENT_TEST_REPLY_CONTACT_IDS): sem espera de agrupamento.
+    processJobInline: deps
+      ? (job) =>
+          processAfterQuietPeriod({ agent: deps.live, grouping: prismaGroupingReader }, job, {
+            policy: { quietMs: 0, maxWaitMs: 0 },
+          })
+      : null,
     schedule: (task) => after(task),
     now: () => new Date(),
     // Logs sem conteúdo de mensagem, telefone ou nome.
