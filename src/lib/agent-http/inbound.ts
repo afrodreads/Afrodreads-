@@ -139,7 +139,10 @@ export type InboundHandlerDeps = {
 const JSON_HEADERS = { "Content-Type": "application/json", "Cache-Control": "no-store" };
 
 function reply(status: number, body: Record<string, string | boolean>): Response {
-  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+  // Toda resposta de sucesso traz `reply` (vazio por padrão): o mapeamento do
+  // ManyChat falha com "Json mapping errors" quando o campo não existe.
+  const payload = body.ok === true ? { reply: "", ...body } : body;
+  return new Response(JSON.stringify(payload), { status, headers: JSON_HEADERS });
 }
 
 const fail = (status: number, error: string) => reply(status, { ok: false, error });
