@@ -41,7 +41,13 @@ export async function resolveInboundUnitId(slug: string | null): Promise<string 
   try {
     const unit = await prismaConversationsStore.transaction((repo) => resolveUnit(repo, { slug }));
     return unit.id;
-  } catch {
+  } catch (error) {
+    // Só o tipo do erro (nunca a mensagem, que pode trazer dados de conexão): sem isso o 503 não tem pista.
+    const code = (error as { errorCode?: unknown; code?: unknown } | null)?.errorCode ?? (error as { code?: unknown } | null)?.code;
+    console.error("agent_inbound_unit_lookup_failed", {
+      name: error instanceof Error ? error.name : "Error",
+      code: typeof code === "string" ? code : null,
+    });
     return null;
   }
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { DomainError } from "../conversations/errors";
 import { recordOutboundMessage } from "../conversations/message";
@@ -32,6 +33,12 @@ export type InboundConfig = {
   /** Máximo de requisições por IP por minuto (por instância). */
   ipLimitPerMinute: number;
   grouping: GroupingPolicy;
+  /**
+   * Contatos de TESTE (ids do canal, da configuração, nunca do payload) para os quais a
+   * resposta HTTP devolve o texto do rascunho. Quem envia é o ManyChat; este servidor
+   * continua sem enviar nada. Vazio/ausente: ninguém recebe texto (modo sombra puro).
+   */
+  testReplyContactIds?: ReadonlySet<string>;
 };
 
 export const MAX_BODY_BYTES = 16 * 1024;
@@ -56,6 +63,14 @@ export function inboundConfigFromEnv(env: Record<string, string | undefined> = p
       quietMs: int(env.AGENT_GROUPING_QUIET_MS, 4000),
       maxWaitMs: int(env.AGENT_GROUPING_MAX_WAIT_MS, 20000),
     }),
+    // No máximo 5 contatos de teste, para a lista nunca virar "todo mundo" por engano.
+    testReplyContactIds: new Set(
+      (env.AGENT_TEST_REPLY_CONTACT_IDS ?? "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+        .slice(0, 5),
+    ),
   };
 }
 
@@ -64,12 +79,14 @@ export const inboundPayloadSchema = z
   .object({
     channel: z.literal("whatsapp"),
     type: z.enum(["message", "human_reply"]).default("message"),
-    messageId: z.string().trim().min(1).max(200),
+    /** Opcional: o ManyChat não oferece um id único por mensagem. Sem ele, o id é derivado (ver `derivedMessageId`). */
+    messageId: z.string().trim().min(1).max(200).optional(),
     contactId: z.string().trim().min(1).max(200),
     phone: z.string().trim().min(8).max(40),
     name: z.string().trim().max(120).nullish(),
     text: z.string().max(MAX_TEXT_CHARS * 2),
-    timestamp: z.union([z.string().trim().min(1).max(40), z.number().finite()]),
+    /** Opcional: sem ele, vale o horário em que o servidor recebeu a mensagem. */
+    timestamp: z.union([z.string().trim().min(1).max(40), z.number().finite()]).optional(),
     /** Atendente (só em human_reply). */
     agent: z.string().trim().min(1).max(80).nullish(),
   })
@@ -88,6 +105,17 @@ export function parseTimestamp(value: string | number): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/**
+ * Id estável para quando o canal não manda um id único por mensagem: o mesmo
+ * contato enviando o mesmo texto no mesmo minuto vira a mesma mensagem (cobre
+ * reenvios do ManyChat). Proteção mais fraca que um id real; aceitável em modo sombra.
+ */
+export function derivedMessageId(contactId: string, text: string, now: Date): string {
+  const minute = Math.floor(now.getTime() / 60_000);
+  const digest = createHash("sha256").update(`${contactId}\n${text}\n${minute}`).digest("hex");
+  return `derived:${digest.slice(0, 40)}`;
+}
+
 export type ProcessJob = { conversationId: string; triggerMessageId: string };
 
 export type InboundHandlerDeps = {
@@ -99,6 +127,8 @@ export type InboundHandlerDeps = {
   countRecentForContact(unitId: string, contactId: string, since: Date): Promise<number>;
   /** Execução do agente em sombra para depois da resposta. null = modelo indisponível (só registra). */
   processJob: ((job: ProcessJob) => Promise<unknown>) | null;
+  /** Execução imediata (sem espera de agrupamento), só para contatos de teste. */
+  processJobInline?: ((job: ProcessJob) => Promise<unknown>) | null;
   /** Agenda trabalho para depois da resposta (na rota: `after` do Next). */
   schedule(task: () => Promise<void>): void;
   now(): Date;
@@ -109,10 +139,53 @@ export type InboundHandlerDeps = {
 const JSON_HEADERS = { "Content-Type": "application/json", "Cache-Control": "no-store" };
 
 function reply(status: number, body: Record<string, string | boolean>): Response {
-  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+  // Toda resposta de sucesso traz `reply` (vazio por padrão): o mapeamento do
+  // ManyChat falha com "Json mapping errors" quando o campo não existe.
+  const payload = body.ok === true ? { reply: "", ...body } : body;
+  return new Response(JSON.stringify(payload), { status, headers: JSON_HEADERS });
 }
 
 const fail = (status: number, error: string) => reply(status, { ok: false, error });
+
+/** Texto do rascunho SÓ se o agente terminou com DRAFT_SAVED (passou nas travas). */
+function approvedDraftText(result: unknown): string | null {
+  const run = (result as { result?: { outcome?: unknown; candidateText?: unknown } | null } | null)?.result;
+  if (run?.outcome !== "DRAFT_SAVED" || typeof run.candidateText !== "string") return null;
+  const text = run.candidateText.trim();
+  return text ? text : null;
+}
+
+/**
+ * Contato de teste: executa o agente e devolve o texto aprovado na resposta HTTP. O texto
+ * também é gravado como mensagem da IA, para a conversa não parecer sem resposta nas
+ * próximas rodadas. Este servidor NÃO envia nada ao WhatsApp: quem envia é o ManyChat.
+ */
+async function replyForTestContact(
+  deps: InboundHandlerDeps,
+  run: (job: ProcessJob) => Promise<unknown>,
+  job: ProcessJob,
+): Promise<Response> {
+  let text: string | null = null;
+  try {
+    text = approvedDraftText(await run(job));
+  } catch (error) {
+    deps.log("agent_test_reply_failed", { error: error instanceof Error ? error.name : "Error" });
+  }
+  if (text) {
+    try {
+      await recordOutboundMessage(
+        deps.conversations,
+        { conversationId: job.conversationId, sender: "AI", senderRef: "teste-manychat", content: text },
+        deps.now(),
+      );
+    } catch {
+      // Conversa passou para a equipe enquanto a IA respondia: não devolve o texto.
+      deps.log("agent_test_reply_discarded", {});
+      text = null;
+    }
+  }
+  return reply(200, { ok: true, status: text ? "replied" : "no_reply", reply: text ?? "" });
+}
 
 export function createInboundHandler(deps: InboundHandlerDeps): (request: Request) => Promise<Response> {
   const ipLimiter = deps.ipLimiter ?? new FixedWindowLimiter(deps.config.ipLimitPerMinute, 60_000);
@@ -138,17 +211,28 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
       return fail(400, "invalid_payload");
     }
     const parsed = inboundPayloadSchema.safeParse(json);
-    if (!parsed.success) return fail(400, "invalid_payload");
+    if (!parsed.success) {
+      // Só os NOMES dos campos recusados (nunca valores): sem isso um 400 do ManyChat não tem pista.
+      const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join(".") || "(corpo)"))].join(",");
+      deps.log("agent_inbound_invalid_payload", { fields });
+      return fail(400, "invalid_payload");
+    }
     const payload = parsed.data;
 
     const text = payload.text.trim();
     if (!text || text.length > MAX_TEXT_CHARS) return fail(400, "invalid_payload");
+    // Variável do ManyChat que não foi substituída (ex.: contato sem texto recente): não é uma mensagem de cliente.
+    if (/^\{\{[^{}]*\}\}$/.test(text)) return fail(400, "invalid_payload");
     // O telefone serve para achar/criar o cliente; a conversa é identificada pelo contactId do canal.
-    if (!normalizePhone(payload.phone)) return fail(400, "invalid_payload");
+    if (!normalizePhone(payload.phone)) {
+      deps.log("agent_inbound_invalid_payload", { fields: "phone(formato)" });
+      return fail(400, "invalid_payload");
+    }
 
     const now = deps.now();
-    const sentAt = parseTimestamp(payload.timestamp);
+    const sentAt = payload.timestamp === undefined ? now : parseTimestamp(payload.timestamp);
     if (!sentAt) return fail(400, "invalid_payload");
+    const messageId = payload.messageId ?? derivedMessageId(payload.contactId, text, now);
     // Proteção contra reenvio de payload antigo (replay) e relógio adiantado.
     if (now.getTime() - sentAt.getTime() > config.maxAgeMs || sentAt.getTime() - now.getTime() > config.maxFutureMs) {
       return fail(400, "stale_message");
@@ -156,7 +240,10 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
 
     try {
       const unitId = await deps.resolveUnitId();
-      if (!unitId) return fail(503, "unavailable");
+      if (!unitId) {
+        deps.log("agent_inbound_unit_unavailable", {});
+        return fail(503, "unavailable");
+      }
 
       const recent = await deps.countRecentForContact(unitId, payload.contactId, new Date(now.getTime() - 60_000));
       if (recent >= config.contactLimitPerMinute) return fail(429, "rate_limited");
@@ -173,7 +260,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
             conversationId: conversation.id,
             sender: "HUMAN",
             senderRef: payload.agent ?? "equipe",
-            externalMessageId: payload.messageId,
+            externalMessageId: messageId,
             content: text,
           },
           sentAt,
@@ -188,7 +275,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
           phone: payload.phone,
           customerName: payload.name ?? null,
           externalConversationId: payload.contactId,
-          externalMessageId: payload.messageId,
+          externalMessageId: messageId,
           content: text,
           sentAt,
         },
@@ -196,6 +283,13 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
       );
 
       if (inbound.duplicate) return reply(200, { ok: true, status: "duplicate" });
+
+      // Contato de TESTE: roda o agente agora e devolve o rascunho (se passou nas travas)
+      // para o ManyChat enviar. Qualquer outro contato segue o caminho de sombra abaixo.
+      if (shouldProcess && deps.processJobInline && config.testReplyContactIds?.has(payload.contactId)) {
+        const job = { conversationId: inbound.conversationId, triggerMessageId: inbound.messageId };
+        return await replyForTestContact(deps, deps.processJobInline, job);
+      }
 
       if (shouldProcess && deps.processJob) {
         const processJob = deps.processJob;
