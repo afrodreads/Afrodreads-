@@ -36,6 +36,25 @@ export function countRecentInboundForContact(unitId: string, contactId: string, 
   });
 }
 
+/** Última mensagem do cliente (deste contato) e se já existe resposta enviada depois dela. */
+export async function lastInboundForContact(
+  unitId: string,
+  contactId: string,
+): Promise<{ text: string; answered: boolean } | null> {
+  const conversation = { unitId, channel: "WHATSAPP" as const, externalId: contactId };
+  const last = await prisma.message.findFirst({
+    where: { direction: "INBOUND", conversation },
+    orderBy: { createdAt: "desc" },
+    select: { content: true, createdAt: true, conversationId: true },
+  });
+  if (!last) return null;
+  const replyAfter = await prisma.message.findFirst({
+    where: { conversationId: last.conversationId, direction: "OUTBOUND", createdAt: { gte: last.createdAt } },
+    select: { id: true },
+  });
+  return { text: last.content, answered: replyAfter !== null };
+}
+
 /** Unidade pela configuração (slug) ou a única ativa. Nunca pelo payload. */
 export async function resolveInboundUnitId(slug: string | null): Promise<string | null> {
   try {

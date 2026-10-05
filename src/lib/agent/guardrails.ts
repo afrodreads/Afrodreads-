@@ -29,7 +29,8 @@ export type ViolationCode =
   | "model_refusal"
   | "truncated_response"
   | "style_emoji"
-  | "style_length";
+  | "style_length"
+  | "repeated_reply";
 
 export type Severity = "block" | "warn";
 
@@ -164,6 +165,8 @@ const UNREALISTIC_PROMISES = [
 
 const PROMOTION_ENDED = /(terminou|encerrad|n[aã]o\s+(est[aá]\s+mais|h[aá])|acabou|finalizou|expirou|n[aã]o\s+temos\s+promo)/i;
 
+const normalizeForRepeat = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim();
+
 export function checkDraft(text: string, context: AgentContext): GuardrailResult {
   const violations: Violation[] = [];
   const add = (code: ViolationCode, severity: Severity, index: number) =>
@@ -247,6 +250,10 @@ export function checkDraft(text: string, context: AgentContext): GuardrailResult
   if (emojis.length > 1) add("style_emoji", "warn", emojis[1].index);
   if (text.length > MAX_CANDIDATE_CHARS) add("response_too_long", "block", MAX_CANDIDATE_CHARS);
   else if (text.length > MAX_LENGTH) add("style_length", "warn", MAX_LENGTH);
+
+  // --- repetição: a mesma mensagem que já foi enviada por último não sai de novo
+  const lastSent = [...context.messages].reverse().find((message) => message.role === "assistant");
+  if (lastSent && normalizeForRepeat(lastSent.text) === normalizeForRepeat(text)) add("repeated_reply", "block", 0);
 
   return { ok: !violations.some((violation) => violation.severity === "block"), violations };
 }

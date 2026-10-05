@@ -125,6 +125,8 @@ export type InboundHandlerDeps = {
   resolveUnitId(): Promise<string | null>;
   /** Mensagens recebidas deste contato (nesta unidade) desde `since`. */
   countRecentForContact(unitId: string, contactId: string, since: Date): Promise<number>;
+  /** Última mensagem recebida do contato e se já houve resposta depois dela (detecta mídia). */
+  lastInboundForContact?(unitId: string, contactId: string): Promise<{ text: string; answered: boolean } | null>;
   /** Execução do agente em sombra para depois da resposta. null = modelo indisponível (só registra). */
   processJob: ((job: ProcessJob) => Promise<unknown>) | null;
   /** Execução imediata (sem espera de agrupamento), só para contatos de teste. */
@@ -149,6 +151,29 @@ function reply(status: number, body: Record<string, string | boolean>): Response
 }
 
 const fail = (status: number, error: string) => reply(status, { ok: false, error });
+
+/**
+ * Texto gravado no lugar de uma mídia (foto, vídeo, áudio, figurinha, arquivo). O ManyChat só
+ * entrega o último TEXTO do contato: quando o cliente manda mídia, chega um link do arquivo ou
+ * o mesmo texto anterior repetido. Sem isto o agente responderia de novo ao texto antigo.
+ */
+export const MEDIA_PLACEHOLDER =
+  "[O cliente enviou uma mídia (foto, vídeo, áudio ou arquivo) sem texto. Ela chegou para a equipe; você não consegue ver nem ouvir o conteúdo.]";
+
+const BARE_URL = /^https?:\/\/\S+$/i;
+
+async function customerContent(
+  deps: InboundHandlerDeps,
+  unitId: string,
+  contactId: string,
+  text: string,
+): Promise<string> {
+  if (BARE_URL.test(text)) return MEDIA_PLACEHOLDER;
+  const last = deps.lastInboundForContact ? await deps.lastInboundForContact(unitId, contactId) : null;
+  // Mesmo texto do cliente de novo, depois de já termos respondido: foi uma mídia.
+  if (last && last.answered && last.text.trim() === text) return MEDIA_PLACEHOLDER;
+  return text;
+}
 
 /** Texto do rascunho SÓ se o agente terminou com DRAFT_SAVED (passou nas travas). */
 function approvedDraftText(result: unknown): string | null {
@@ -271,6 +296,9 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
         return reply(recorded.duplicate ? 200 : 202, { ok: true, status: recorded.duplicate ? "duplicate" : "recorded" });
       }
 
+      const content = await customerContent(deps, unitId, payload.contactId, text);
+      if (content !== text) deps.log("agent_inbound_media_assumed", {});
+
       const { inbound, shouldProcess } = await ingestInbound(
         deps.conversations,
         {
@@ -279,7 +307,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
           customerName: payload.name ?? null,
           externalConversationId: payload.contactId,
           externalMessageId: messageId,
-          content: text,
+          content,
           sentAt,
         },
         now,

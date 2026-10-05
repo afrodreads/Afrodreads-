@@ -1,7 +1,12 @@
 import path from "node:path";
 import { after } from "next/server";
 import { createShadowDeps } from "@/lib/agent-db";
-import { countRecentInboundForContact, prismaGroupingReader, resolveInboundUnitId } from "@/lib/agent-db/inbound";
+import {
+  countRecentInboundForContact,
+  lastInboundForContact,
+  prismaGroupingReader,
+  resolveInboundUnitId,
+} from "@/lib/agent-db/inbound";
 import { createInboundHandler, inboundConfigFromEnv } from "@/lib/agent-http/inbound";
 import { FixedWindowLimiter } from "@/lib/agent-http/security";
 import { createClaudeModelFromEnv } from "@/lib/agent-model/claude";
@@ -35,6 +40,7 @@ export async function POST(request: Request): Promise<Response> {
     conversations: prismaConversationsStore,
     resolveUnitId: () => resolveInboundUnitId(config.unitSlug),
     countRecentForContact: countRecentInboundForContact,
+    lastInboundForContact,
     processJob: deps
       ? (job) => processAfterQuietPeriod({ agent: deps.live, grouping: prismaGroupingReader }, job, { policy: config.grouping })
       : null,

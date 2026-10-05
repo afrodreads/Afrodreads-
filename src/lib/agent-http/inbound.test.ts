@@ -4,7 +4,7 @@ import { finishConversation, handoffToHuman } from "../conversations/conversatio
 import { findOrCreateCustomer } from "../conversations/customer";
 import { processAfterQuietPeriod } from "../agent/pipeline";
 import { agentHarness, MemoryGroupingReader, replyWith, ScriptedModel } from "../agent/testSupport";
-import { createInboundHandler, derivedMessageId, MAX_TEXT_CHARS, type InboundConfig } from "./inbound";
+import { createInboundHandler, derivedMessageId, MAX_TEXT_CHARS, MEDIA_PLACEHOLDER, type InboundConfig } from "./inbound";
 import { FixedWindowLimiter } from "./security";
 
 // Simula o ManyChat chamando POST /api/agent/inbound (modo sombra).
@@ -68,6 +68,14 @@ function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>
         const conversation = h.db.conversations.find((c) => c.id === m.conversationId);
         return m.direction === "INBOUND" && conversation?.unitId === unitId && conversation.externalId === contactId && m.createdAt >= since;
       }).length,
+    lastInboundForContact: async (unitId, contactId) => {
+      const conversation = h.db.conversations.find((c) => c.unitId === unitId && c.externalId === contactId);
+      const inbound = h.db.messages.filter((m) => m.conversationId === conversation?.id && m.direction === "INBOUND");
+      const last = inbound[inbound.length - 1];
+      if (!last) return null;
+      const answered = h.db.messages.some((m) => m.conversationId === last.conversationId && m.direction === "OUTBOUND" && m.createdAt >= last.createdAt);
+      return { text: last.content, answered };
+    },
     processJob:
       options.withModel === false
         ? null
@@ -277,6 +285,33 @@ describe("contato de teste (resposta devolvida ao ManyChat)", () => {
     const response = await s.post(payload());
     assert.equal(response.status, 202);
     assert.deepEqual(response.body, { ok: true, status: "accepted", reply: "-" });
+  });
+});
+
+describe("mídia (o ManyChat só entrega o último texto)", () => {
+  const TEST_IDS = new Set(["mc-123456"]);
+  const inboundContents = (s: ReturnType<typeof setup>) => s.db.messages.filter((m) => m.direction === "INBOUND").map((m) => m.content);
+
+  it("link de arquivo no lugar do texto vira aviso de mídia", async () => {
+    const s = setup({ config: { testReplyContactIds: TEST_IDS } });
+    await s.post(payload({ text: "https://manybot-files.s3.amazonaws.com/foto.jpg" }));
+    assert.deepEqual(inboundContents(s), [MEDIA_PLACEHOLDER]);
+  });
+
+  it("mesmo texto repetido depois de uma resposta vira aviso de mídia (não responde de novo ao texto antigo)", async () => {
+    const s = setup({ config: { testReplyContactIds: TEST_IDS } });
+    await s.post(payload({ text: "Eu já mandei", messageId: "m-1" }));
+    s.setClock(new Date(NOW.getTime() + 3 * 60_000));
+    await s.post(payload({ text: "Eu já mandei", messageId: "m-2" }));
+    assert.deepEqual(inboundContents(s), ["Eu já mandei", MEDIA_PLACEHOLDER]);
+  });
+
+  it("texto repetido SEM resposta no meio continua sendo texto", async () => {
+    const s = setup({ withModel: false });
+    await s.post(payload({ text: "Oi", messageId: "m-1" }));
+    s.setClock(new Date(NOW.getTime() + 3 * 60_000));
+    await s.post(payload({ text: "Oi", messageId: "m-2" }));
+    assert.deepEqual(inboundContents(s), ["Oi", "Oi"]);
   });
 });
 
