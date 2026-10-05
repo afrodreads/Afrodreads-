@@ -70,9 +70,10 @@ Cliente manda áudio → ManyChat envia o LINK (campo mediaUrl, ou o próprio te
 Variáveis (Preview primeiro):
 | Variável | Valor |
 |---|---|
-| `OPENAI_API_KEY` | chave da OpenAI (só servidor) |
+| `GROQ_API_KEY` | chave da Groq (padrão; plano gratuito, aceita ogg) |
+| `AGENT_TRANSCRIBE_PROVIDER` | opcional; `groq` (padrão) ou `openai` (usa `OPENAI_API_KEY`) |
 | `AGENT_TRANSCRIBE_ENABLED` | `true` para ligar |
-| `AGENT_TRANSCRIBE_MODEL` | opcional; padrão `gpt-transcribe` (plano B automático: `whisper-1`) |
+| `AGENT_TRANSCRIBE_MODEL` | opcional; padrão `whisper-large-v3` (Groq) ou `gpt-transcribe` (OpenAI, com plano B `whisper-1`) |
 | `AGENT_MEDIA_HOSTS` | opcional; hosts extras de arquivo, separados por vírgula |
 
 ManyChat: no corpo da Solicitação externa, adicionar `"mediaUrl": <campo com o link da última mídia>`.

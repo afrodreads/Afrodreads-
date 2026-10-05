@@ -1,9 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { audioExtension, createTranscriber, isAllowedMediaUrl, type TranscriberConfig } from "./transcribe";
+import { audioExtension, createTranscriber, isAllowedMediaUrl, transcriberConfigFromEnv, type TranscriberConfig } from "./transcribe";
 
 const CONFIG: TranscriberConfig = {
   enabled: true,
+  provider: "openai",
   apiKey: "test-key",
   model: "gpt-transcribe",
   extraHosts: [],
@@ -20,7 +21,7 @@ function fakeFetch(download: Response | (() => Response), transcription: Respons
   const impl = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
     calls.push({ url, init });
-    if (url.startsWith("https://api.openai.com/")) return transcription;
+    if (url.startsWith("https://api.openai.com/") || url.startsWith("https://api.groq.com/")) return transcription;
     return typeof download === "function" ? download() : download;
   }) as typeof fetch;
   return { impl, calls };
@@ -129,5 +130,39 @@ describe("transcrição: fluxo", () => {
 
     const empty = fakeFetch(audio(), Response.json({ text: "   " }));
     assert.deepEqual(await createTranscriber(CONFIG, empty.impl)(AUDIO_URL), { kind: "failed", reason: "empty" });
+  });
+});
+
+describe("transcrição: Groq (padrão, plano gratuito)", () => {
+  it("escolhe o serviço e a chave pela configuração; sem chave fica desligada", () => {
+    const groq = transcriberConfigFromEnv({ AGENT_TRANSCRIBE_ENABLED: "true", GROQ_API_KEY: "gsk_x" });
+    assert.equal(groq.provider, "groq");
+    assert.equal(groq.model, "whisper-large-v3");
+    assert.equal(groq.enabled, true);
+    // a chave da OpenAI não liga a Groq (e vice-versa)
+    assert.equal(transcriberConfigFromEnv({ AGENT_TRANSCRIBE_ENABLED: "true", OPENAI_API_KEY: "sk-x" }).enabled, false);
+    const openai = transcriberConfigFromEnv({ AGENT_TRANSCRIBE_ENABLED: "true", AGENT_TRANSCRIBE_PROVIDER: "openai", OPENAI_API_KEY: "sk-x" });
+    assert.deepEqual([openai.provider, openai.model, openai.enabled], ["openai", "gpt-transcribe", true]);
+    assert.equal(transcriberConfigFromEnv({ GROQ_API_KEY: "gsk_x" }).enabled, false); // precisa ligar explicitamente
+  });
+
+  it("manda o ogg para a Groq com whisper-large-v3, português e o vocabulário no prompt", async () => {
+    const { impl, calls } = fakeFetch(audio());
+    const result = await createTranscriber({ ...CONFIG, provider: "groq", model: "whisper-large-v3" }, impl)(AUDIO_URL);
+    assert.deepEqual(result, { kind: "audio", text: "quero fazer dreads" });
+    assert.equal(calls[1].url, "https://api.groq.com/openai/v1/audio/transcriptions");
+    const form = calls[1].init?.body as FormData;
+    assert.equal(form.get("model"), "whisper-large-v3");
+    assert.equal(form.get("language"), "pt");
+    assert.equal(form.get("languages[]"), null);
+    assert.match(String(form.get("prompt")), /Pirituba/);
+    assert.equal((form.get("file") as File).name, "audio.ogg");
+  });
+
+  it("Groq recusando (400) não tenta outro modelo", async () => {
+    const { impl, calls } = fakeFetch(audio(), new Response("erro", { status: 400 }));
+    const result = await createTranscriber({ ...CONFIG, provider: "groq", model: "whisper-large-v3" }, impl)(AUDIO_URL);
+    assert.deepEqual(result, { kind: "failed", reason: "transcription" });
+    assert.equal(calls.length, 2);
   });
 });

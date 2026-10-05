@@ -80,9 +80,13 @@ describe("nenhuma mensagem real pode ser enviada", () => {
       for (const pattern of [...MESSAGING_PROVIDERS, /console\./, /recordOutboundMessage/, /@prisma\/client/, /from ["']\.\.\/prisma["']/]) {
         assert.doesNotMatch(source, pattern, `${rel(file)} contém ${pattern}`);
       }
-      // Único endereço fixo: a API de transcrição. O resto passa por isAllowedMediaUrl.
+      // Únicos endereços fixos: as APIs de transcrição. O resto passa por isAllowedMediaUrl.
       const urls = [...source.matchAll(/https:\/\/[^\s"'`]+/g)].map((m) => m[0]);
-      assert.deepEqual([...new Set(urls)], ["https://api.openai.com/v1/audio/transcriptions"], rel(file));
+      assert.deepEqual(
+        [...new Set(urls)].sort(),
+        ["https://api.groq.com/openai/v1/audio/transcriptions", "https://api.openai.com/v1/audio/transcriptions"],
+        rel(file),
+      );
       assert.match(source, /redirect:\s*"error"/, "download sem seguir redirecionamento");
     }
   });

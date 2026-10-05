@@ -10,8 +10,11 @@ export type MediaResult =
   | { kind: "other" }
   | { kind: "failed"; reason: "disabled" | "host_not_allowed" | "too_large" | "download" | "transcription" | "empty" };
 
+export type TranscriptionProvider = "groq" | "openai";
+
 export type TranscriberConfig = {
   enabled: boolean;
+  provider: TranscriptionProvider;
   apiKey: string | null;
   model: string;
   /** Hosts extras permitidos (exatos), além dos arquivos do ManyChat. */
@@ -21,7 +24,13 @@ export type TranscriberConfig = {
   transcribeTimeoutMs: number;
 };
 
-const TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions";
+/** Endpoints fixos (compatíveis entre si). Nenhum outro endereço recebe o áudio. */
+const PROVIDERS: Record<TranscriptionProvider, { url: string; keyEnv: string; model: string; fallbackModel: string | null }> = {
+  // Groq: plano gratuito, aceita ogg (voz do WhatsApp); whisper-large-v3 é o mais preciso dela.
+  groq: { url: "https://api.groq.com/openai/v1/audio/transcriptions", keyEnv: "GROQ_API_KEY", model: "whisper-large-v3", fallbackModel: null },
+  // OpenAI: gpt-transcribe não lista ogg; se recusar o arquivo (400), tenta whisper-1.
+  openai: { url: "https://api.openai.com/v1/audio/transcriptions", keyEnv: "OPENAI_API_KEY", model: "gpt-transcribe", fallbackModel: "whisper-1" },
+};
 
 /** Palavras do salão: ajudam a transcrição a acertar termos que ela não conhece. */
 export const KEYWORDS = [
@@ -45,15 +54,15 @@ export const KEYWORDS = [
 export const CONTEXT_PROMPT =
   "Mensagem de voz de um cliente no WhatsApp de um estúdio de dreads em São Paulo, falando do próprio cabelo, " +
   "de dreads, manutenção, orçamento ou agendamento.";
-/** Plano B quando o modelo principal recusa o formato (ex.: voz do WhatsApp em ogg). */
-const FALLBACK_MODEL = "whisper-1";
 
 export function transcriberConfigFromEnv(env: Record<string, string | undefined> = process.env): TranscriberConfig {
-  const apiKey = env.OPENAI_API_KEY?.trim() || null;
+  const provider: TranscriptionProvider = env.AGENT_TRANSCRIBE_PROVIDER?.trim().toLowerCase() === "openai" ? "openai" : "groq";
+  const apiKey = env[PROVIDERS[provider].keyEnv]?.trim() || null;
   return {
     enabled: env.AGENT_TRANSCRIBE_ENABLED === "true" && apiKey !== null,
+    provider,
     apiKey,
-    model: env.AGENT_TRANSCRIBE_MODEL?.trim() || "gpt-transcribe",
+    model: env.AGENT_TRANSCRIBE_MODEL?.trim() || PROVIDERS[provider].model,
     extraHosts: (env.AGENT_MEDIA_HOSTS ?? "")
       .split(",")
       .map((host) => host.trim().toLowerCase())
@@ -135,8 +144,9 @@ export function createTranscriber(config: TranscriberConfig, fetchImpl: Fetch = 
     // 2) Transcreve (português, com o vocabulário do salão). Se o modelo principal recusar o
     //    arquivo (400, ex.: formato), tenta uma vez com o modelo de plano B.
     const deadline = Date.now() + config.transcribeTimeoutMs;
+    const { url: endpoint, fallbackModel } = PROVIDERS[config.provider];
     const attempt = async (model: string): Promise<Response> =>
-      fetchImpl(TRANSCRIPTION_URL, {
+      fetchImpl(endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${config.apiKey}` },
         body: transcriptionForm(model, bytes, ext),
@@ -144,7 +154,7 @@ export function createTranscriber(config: TranscriberConfig, fetchImpl: Fetch = 
       });
     try {
       let response = await attempt(config.model);
-      if (response.status === 400 && config.model !== FALLBACK_MODEL) response = await attempt(FALLBACK_MODEL);
+      if (response.status === 400 && fallbackModel && config.model !== fallbackModel) response = await attempt(fallbackModel);
       if (!response.ok) return { kind: "failed", reason: "transcription" };
       const json = (await response.json()) as { text?: unknown };
       const text = typeof json.text === "string" ? json.text.replace(/\s+/g, " ").trim() : "";
