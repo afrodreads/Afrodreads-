@@ -4,8 +4,9 @@ import { finishConversation, handoffToHuman } from "../conversations/conversatio
 import { findOrCreateCustomer } from "../conversations/customer";
 import { processAfterQuietPeriod } from "../agent/pipeline";
 import { agentHarness, MemoryGroupingReader, replyWith, ScriptedModel } from "../agent/testSupport";
-import { createInboundHandler, derivedMessageId, MAX_TEXT_CHARS, MEDIA_PLACEHOLDER, type InboundConfig } from "./inbound";
+import { AUDIO_PREFIX, createInboundHandler, derivedMessageId, MAX_TEXT_CHARS, MEDIA_PLACEHOLDER, type InboundConfig } from "./inbound";
 import { FixedWindowLimiter } from "./security";
+import type { MediaResult } from "../agent-media/transcribe";
 
 // Simula o ManyChat chamando POST /api/agent/inbound (modo sombra).
 
@@ -38,7 +39,7 @@ const payload = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>; withModel?: boolean; ipLimiter?: FixedWindowLimiter; noUnit?: boolean } = {}) {
+function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>; withModel?: boolean; ipLimiter?: FixedWindowLimiter; noUnit?: boolean; transcribe?: (url: string) => Promise<MediaResult> } = {}) {
   const model = options.model ?? replyWith("Oi! Me conta o que você está procurando. 💛", [
     { name: "update_lead_data", arguments: { intent: "INFORMACAO", temperature: "FRIO" } },
   ]);
@@ -75,6 +76,11 @@ function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>
       if (!last) return null;
       const answered = h.db.messages.some((m) => m.conversationId === last.conversationId && m.direction === "OUTBOUND" && m.createdAt >= last.createdAt);
       return { text: last.content, answered };
+    },
+    transcribeMedia: options.transcribe,
+    mediaMessageExists: async (unitId, contactId, externalMessageId) => {
+      const conversation = h.db.conversations.find((c) => c.unitId === unitId && c.externalId === contactId);
+      return h.db.messages.some((m) => m.conversationId === conversation?.id && m.externalId === externalMessageId);
     },
     processJob:
       options.withModel === false
@@ -304,6 +310,51 @@ describe("mídia (o ManyChat só entrega o último texto)", () => {
     s.setClock(new Date(NOW.getTime() + 3 * 60_000));
     await s.post(payload({ text: "Eu já mandei", messageId: "m-2" }));
     assert.deepEqual(inboundContents(s), ["Eu já mandei", MEDIA_PLACEHOLDER]);
+  });
+
+  it("áudio no campo mediaUrl: vira a transcrição e o agente responde a ela", async () => {
+    const urls: string[] = [];
+    const s = setup({
+      model: replyWith("Perfeito, anotei! Seu cabelo tem pelo menos 4 dedos? 💛"),
+      config: { testReplyContactIds: TEST_IDS },
+      transcribe: async (url) => {
+        urls.push(url);
+        return { kind: "audio", text: "quero fazer dreads do zero, nunca fiz" };
+      },
+    });
+    const response = await s.post(payload({ text: "{{last_input_text}}", messageId: undefined, mediaUrl: "https://manybot-files.s3.amazonaws.com/a.ogg" }));
+    assert.equal(response.body.status, "replied");
+    assert.deepEqual(urls, ["https://manybot-files.s3.amazonaws.com/a.ogg"]);
+    assert.deepEqual(inboundContents(s), [AUDIO_PREFIX + "quero fazer dreads do zero, nunca fiz"]);
+  });
+
+  it("mesma mídia de novo (campo que ficou preenchido) com texto novo: vale o texto, sem transcrever de novo", async () => {
+    let calls = 0;
+    const s = setup({
+      config: { testReplyContactIds: TEST_IDS },
+      transcribe: async () => {
+        calls += 1;
+        return { kind: "audio", text: "oi" };
+      },
+    });
+    const mediaUrl = "https://manybot-files.s3.amazonaws.com/a.ogg";
+    await s.post(payload({ text: "{{last_input_text}}", messageId: "m-1", mediaUrl }));
+    s.setClock(new Date(NOW.getTime() + 60_000));
+    await s.post(payload({ text: "Tenho 10 cm", messageId: "m-2", mediaUrl }));
+    assert.equal(calls, 1);
+    assert.deepEqual(inboundContents(s), [AUDIO_PREFIX + "oi", "Tenho 10 cm"]);
+  });
+
+  it("foto ou falha na transcrição: aviso de mídia", async () => {
+    const s = setup({ withModel: false, transcribe: async () => ({ kind: "other" }) });
+    await s.post(payload({ text: "", messageId: "m-1", mediaUrl: "https://manybot-files.s3.amazonaws.com/f.jpg" }));
+    assert.deepEqual(inboundContents(s), [MEDIA_PLACEHOLDER]);
+  });
+
+  it("sem texto e sem mídia: recusa", async () => {
+    const s = setup({ withModel: false });
+    const response = await s.post(payload({ text: "{{last_input_text}}", mediaUrl: "{{ultima_midia}}" }));
+    assert.equal(response.status, 400);
   });
 
   it("texto repetido SEM resposta no meio continua sendo texto", async () => {

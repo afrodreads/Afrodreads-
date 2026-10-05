@@ -4,11 +4,13 @@ import { createShadowDeps } from "@/lib/agent-db";
 import {
   countRecentInboundForContact,
   lastInboundForContact,
+  mediaMessageExists,
   prismaGroupingReader,
   resolveInboundUnitId,
 } from "@/lib/agent-db/inbound";
 import { createInboundHandler, inboundConfigFromEnv } from "@/lib/agent-http/inbound";
 import { FixedWindowLimiter } from "@/lib/agent-http/security";
+import { createTranscriber, transcriberConfigFromEnv } from "@/lib/agent-media/transcribe";
 import { createClaudeModelFromEnv } from "@/lib/agent-model/claude";
 import { processAfterQuietPeriod } from "@/lib/agent/pipeline";
 import { prismaConversationsStore } from "@/lib/conversations/prismaRepo";
@@ -41,6 +43,9 @@ export async function POST(request: Request): Promise<Response> {
     resolveUnitId: () => resolveInboundUnitId(config.unitSlug),
     countRecentForContact: countRecentInboundForContact,
     lastInboundForContact,
+    // Áudio: baixa o arquivo do ManyChat e transcreve (desligado sem OPENAI_API_KEY e AGENT_TRANSCRIBE_ENABLED=true).
+    transcribeMedia: createTranscriber(transcriberConfigFromEnv()),
+    mediaMessageExists,
     processJob: deps
       ? (job) => processAfterQuietPeriod({ agent: deps.live, grouping: prismaGroupingReader }, job, { policy: config.grouping })
       : null,

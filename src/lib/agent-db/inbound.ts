@@ -55,6 +55,15 @@ export async function lastInboundForContact(
   return { text: last.content, answered: replyAfter !== null };
 }
 
+/** Se a mídia (id `media:...`) já foi registrada para este contato. */
+export async function mediaMessageExists(unitId: string, contactId: string, externalMessageId: string): Promise<boolean> {
+  const found = await prisma.message.findFirst({
+    where: { externalId: externalMessageId, conversation: { unitId, channel: "WHATSAPP", externalId: contactId } },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
 /** Unidade pela configuração (slug) ou a única ativa. Nunca pelo payload. */
 export async function resolveInboundUnitId(slug: string | null): Promise<string | null> {
   try {

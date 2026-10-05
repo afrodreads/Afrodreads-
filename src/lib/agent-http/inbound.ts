@@ -6,6 +6,7 @@ import { normalizePhone } from "../conversations/phone";
 import type { ConversationsStore } from "../conversations/repo";
 import { normalizeGroupingPolicy, type GroupingPolicy } from "../agent/grouping";
 import { ingestInbound } from "../agent/pipeline";
+import type { MediaResult } from "../agent-media/transcribe";
 import { clientIp, FixedWindowLimiter, secretFromHeaders, secretsMatch } from "./security";
 
 // Entrada autenticada do agente (POST /api/agent/inbound), em MODO SOMBRA.
@@ -89,6 +90,8 @@ export const inboundPayloadSchema = z
     timestamp: z.union([z.string().trim().min(1).max(40), z.number().finite()]).optional(),
     /** Atendente (só em human_reply). */
     agent: z.string().trim().min(1).max(80).nullish(),
+    /** Link do arquivo da última mídia do contato (campo do ManyChat). Vazio = sem mídia. */
+    mediaUrl: z.string().trim().max(2000).nullish().transform((value) => value || null),
   })
   .strict();
 
@@ -125,6 +128,10 @@ export type InboundHandlerDeps = {
   resolveUnitId(): Promise<string | null>;
   /** Mensagens recebidas deste contato (nesta unidade) desde `since`. */
   countRecentForContact(unitId: string, contactId: string, since: Date): Promise<number>;
+  /** Baixa e transcreve uma mídia (adaptador `agent-media`). Ausente = mídia vira aviso. */
+  transcribeMedia?(url: string): Promise<MediaResult>;
+  /** Se esta mídia (id `media:...`) já foi registrada para o contato. */
+  mediaMessageExists?(unitId: string, contactId: string, externalMessageId: string): Promise<boolean>;
   /** Última mensagem recebida do contato e se já houve resposta depois dela (detecta mídia). */
   lastInboundForContact?(unitId: string, contactId: string): Promise<{ text: string; answered: boolean } | null>;
   /** Execução do agente em sombra para depois da resposta. null = modelo indisponível (só registra). */
@@ -160,19 +167,49 @@ const fail = (status: number, error: string) => reply(status, { ok: false, error
 export const MEDIA_PLACEHOLDER =
   "[O cliente enviou uma mídia (foto, vídeo, áudio ou arquivo) sem texto. Ela chegou para a equipe; você não consegue ver nem ouvir o conteúdo.]";
 
+/** Áudio transcrito: o agente lê como mensagem do cliente (a transcrição pode ter pequenos erros). */
+export const AUDIO_PREFIX = "[Áudio do cliente, transcrito automaticamente]: ";
+
 const BARE_URL = /^https?:\/\/\S+$/i;
+/** Variável do ManyChat que não foi substituída (ex.: "{{last_input_text}}"). */
+const UNFILLED_VARIABLE = /^\{\{[^{}]*\}\}$/;
+
+/** Id estável da mídia: o mesmo arquivo nunca é transcrito nem respondido duas vezes. */
+export function mediaMessageId(contactId: string, url: string): string {
+  return `media:${createHash("sha256").update(`${contactId}\n${url}`).digest("hex").slice(0, 40)}`;
+}
+
+type CustomerContent = { content: string; messageId: string | null };
 
 async function customerContent(
   deps: InboundHandlerDeps,
   unitId: string,
   contactId: string,
   text: string,
-): Promise<string> {
-  if (BARE_URL.test(text)) return MEDIA_PLACEHOLDER;
+  mediaUrl: string | null,
+): Promise<CustomerContent> {
+  // Link de mídia: no campo próprio ou no lugar do texto. Um link que já foi tratado é o
+  // campo "último arquivo" que ficou preenchido no ManyChat: aí vale o texto.
+  const url = mediaUrl ?? (BARE_URL.test(text) ? text : null);
+  if (url) {
+    const id = mediaMessageId(contactId, url);
+    const seen = deps.mediaMessageExists ? await deps.mediaMessageExists(unitId, contactId, id) : false;
+    if (!seen) {
+      const media = deps.transcribeMedia ? await deps.transcribeMedia(url) : null;
+      deps.log("agent_inbound_media", { kind: media?.kind ?? "unsupported", reason: media?.kind === "failed" ? media.reason : null });
+      const content = media?.kind === "audio" ? AUDIO_PREFIX + media.text.slice(0, MAX_TEXT_CHARS) : MEDIA_PLACEHOLDER;
+      return { content, messageId: id };
+    }
+    // Mesma mídia de novo e nenhum texto novo: é reenvio; o id repetido faz virar duplicata.
+    if (url === text || !text) return { content: MEDIA_PLACEHOLDER, messageId: id };
+  }
   const last = deps.lastInboundForContact ? await deps.lastInboundForContact(unitId, contactId) : null;
-  // Mesmo texto do cliente de novo, depois de já termos respondido: foi uma mídia.
-  if (last && last.answered && last.text.trim() === text) return MEDIA_PLACEHOLDER;
-  return text;
+  // Mesmo texto do cliente de novo, depois de já termos respondido: foi uma mídia sem link.
+  if (last && last.answered && last.text.trim() === text) {
+    deps.log("agent_inbound_media", { kind: "repeated_text", reason: null });
+    return { content: MEDIA_PLACEHOLDER, messageId: null };
+  }
+  return { content: text, messageId: null };
 }
 
 /** Texto do rascunho SÓ se o agente terminou com DRAFT_SAVED (passou nas travas). */
@@ -247,10 +284,13 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
     }
     const payload = parsed.data;
 
-    const text = payload.text.trim();
-    if (!text || text.length > MAX_TEXT_CHARS) return fail(400, "invalid_payload");
-    // Variável do ManyChat que não foi substituída (ex.: contato sem texto recente): não é uma mensagem de cliente.
-    if (/^\{\{[^{}]*\}\}$/.test(text)) return fail(400, "invalid_payload");
+    const mediaUrl =
+      payload.type === "message" && payload.mediaUrl && !UNFILLED_VARIABLE.test(payload.mediaUrl) ? payload.mediaUrl : null;
+    // Variável do ManyChat que não foi substituída (ex.: contato sem texto recente): não é texto de cliente.
+    const text = UNFILLED_VARIABLE.test(payload.text.trim()) ? "" : payload.text.trim();
+    if (text.length > MAX_TEXT_CHARS) return fail(400, "invalid_payload");
+    // Sem texto só é aceito quando veio uma mídia.
+    if (!text && !mediaUrl) return fail(400, "invalid_payload");
     // O telefone serve para achar/criar o cliente; a conversa é identificada pelo contactId do canal.
     if (!normalizePhone(payload.phone)) {
       deps.log("agent_inbound_invalid_payload", { fields: "phone(formato)" });
@@ -296,8 +336,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
         return reply(recorded.duplicate ? 200 : 202, { ok: true, status: recorded.duplicate ? "duplicate" : "recorded" });
       }
 
-      const content = await customerContent(deps, unitId, payload.contactId, text);
-      if (content !== text) deps.log("agent_inbound_media_assumed", {});
+      const { content, messageId: mediaId } = await customerContent(deps, unitId, payload.contactId, text, mediaUrl);
 
       const { inbound, shouldProcess } = await ingestInbound(
         deps.conversations,
@@ -306,7 +345,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
           phone: payload.phone,
           customerName: payload.name ?? null,
           externalConversationId: payload.contactId,
-          externalMessageId: messageId,
+          externalMessageId: mediaId ?? messageId,
           content,
           sentAt,
         },

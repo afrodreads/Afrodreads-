@@ -51,3 +51,29 @@ Se o ManyChat enviar os campos, eles são validados como antes. `messageId` em b
 - Em conversas que pedem orçamento ou horário, o agente passa para a Thay com as informações coletadas.
 - A Thay enviaria a maioria dos rascunhos sem mexer.
 - Custo medido por conversa (tokens gravados em cada AgentRun) compatível com a estimativa.
+
+## Transcrição de áudio (05/10/2026)
+
+Clientes mandam muito áudio (cerca de metade das conversas, 30 s a 1 min, descrevendo o cabelo e
+tirando dúvidas). O Claude não ouve áudio: um passo antes baixa o arquivo e transcreve.
+
+```
+Cliente manda áudio → ManyChat envia o LINK (campo mediaUrl, ou o próprio texto quando é um link)
+→ src/lib/agent-media/transcribe.ts baixa (só manybot-files.*.amazonaws.com ou AGENT_MEDIA_HOSTS,
+  sem redirecionamento, até 3 MB) → API de transcrição (português + vocabulário do salão)
+→ mensagem gravada como "[Áudio do cliente, transcrito automaticamente]: ..." → agente responde
+```
+- Foto, vídeo, arquivo ou falha: vira o aviso de mídia (o agente agradece e segue; nunca diz que não viu).
+- O áudio não é guardado; só o texto transcrito (mesma regra das mensagens, ver `lgpd-agente.md`).
+- A mesma mídia nunca é transcrita duas vezes (id `media:<hash>`).
+
+Variáveis (Preview primeiro):
+| Variável | Valor |
+|---|---|
+| `OPENAI_API_KEY` | chave da OpenAI (só servidor) |
+| `AGENT_TRANSCRIBE_ENABLED` | `true` para ligar |
+| `AGENT_TRANSCRIBE_MODEL` | opcional; padrão `gpt-4o-mini-transcribe` |
+| `AGENT_MEDIA_HOSTS` | opcional; hosts extras de arquivo, separados por vírgula |
+
+ManyChat: no corpo da Solicitação externa, adicionar `"mediaUrl": <campo com o link da última mídia>`.
+Sem esse campo, o servidor ainda trata o caso em que o "último texto" do contato é o link do arquivo.

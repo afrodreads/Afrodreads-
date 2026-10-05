@@ -72,6 +72,21 @@ describe("nenhuma mensagem real pode ser enviada", () => {
     }
   });
 
+  it("transcrição de áudio: rede só para a API de transcrição e arquivos permitidos; não envia nem registra conteúdo", () => {
+    const mediaSources = walk(dir("agent-media")).filter(isSource);
+    assert.ok(mediaSources.length > 0);
+    for (const file of mediaSources) {
+      const source = read(file);
+      for (const pattern of [...MESSAGING_PROVIDERS, /console\./, /recordOutboundMessage/, /@prisma\/client/, /from ["']\.\.\/prisma["']/]) {
+        assert.doesNotMatch(source, pattern, `${rel(file)} contém ${pattern}`);
+      }
+      // Único endereço fixo: a API de transcrição. O resto passa por isAllowedMediaUrl.
+      const urls = [...source.matchAll(/https:\/\/[^\s"'`]+/g)].map((m) => m[0]);
+      assert.deepEqual([...new Set(urls)], ["https://api.openai.com/v1/audio/transcriptions"], rel(file));
+      assert.match(source, /redirect:\s*"error"/, "download sem seguir redirecionamento");
+    }
+  });
+
   it("adaptadores de banco e camada HTTP: sem rede e sem provedores de mensagem", () => {
     for (const file of [...agentDbSources, ...agentHttpSources]) {
       const source = read(file);
@@ -131,7 +146,7 @@ describe("rotas: uma única entrada, autenticada", () => {
     const users = walk(path.join(root, "src", "app"))
       .concat(walk(path.join(root, "src", "components")))
       .filter((file) => /\.(ts|tsx)$/.test(file))
-      .filter((file) => /lib\/agent(-db|-http|-model)?\//.test(read(file)))
+      .filter((file) => /lib\/agent(-db|-http|-model|-media)?\//.test(read(file)))
       .map(rel)
       .sort();
     assert.deepEqual(users, ["src/app/admin/agente/page.tsx", "src/app/api/agent/inbound/route.ts"]);
