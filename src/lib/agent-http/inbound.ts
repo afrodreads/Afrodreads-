@@ -203,11 +203,18 @@ async function customerContent(
     // Mesma mídia de novo e nenhum texto novo: é reenvio; o id repetido faz virar duplicata.
     if (url === text || !text) return { content: MEDIA_PLACEHOLDER, messageId: id };
   }
+  // Sem texto e sem link: o ManyChat não tinha texto novo para mandar, então foi uma mídia.
+  // Id próprio (por minuto): não colide com o texto anterior e absorve reenvios do ManyChat.
+  if (!text) {
+    deps.log("agent_inbound_media", { kind: "no_text", reason: null });
+    return { content: MEDIA_PLACEHOLDER, messageId: derivedMessageId(contactId, "\u0000midia", deps.now()) };
+  }
   const last = deps.lastInboundForContact ? await deps.lastInboundForContact(unitId, contactId) : null;
   // Mesmo texto do cliente de novo, depois de já termos respondido: foi uma mídia sem link.
+  // Id próprio: com o id do texto, uma mídia no mesmo minuto do texto virava "duplicata".
   if (last && last.answered && last.text.trim() === text) {
     deps.log("agent_inbound_media", { kind: "repeated_text", reason: null });
-    return { content: MEDIA_PLACEHOLDER, messageId: null };
+    return { content: MEDIA_PLACEHOLDER, messageId: derivedMessageId(contactId, `\u0000midia\n${text}`, deps.now()) };
   }
   return { content: text, messageId: null };
 }
@@ -289,8 +296,8 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
     // Variável do ManyChat que não foi substituída (ex.: contato sem texto recente): não é texto de cliente.
     const text = UNFILLED_VARIABLE.test(payload.text.trim()) ? "" : payload.text.trim();
     if (text.length > MAX_TEXT_CHARS) return fail(400, "invalid_payload");
-    // Sem texto só é aceito quando veio uma mídia.
-    if (!text && !mediaUrl) return fail(400, "invalid_payload");
+    // Sem texto: só vale como mídia de cliente (nunca como resposta da equipe).
+    if (!text && payload.type !== "message") return fail(400, "invalid_payload");
     // O telefone serve para achar/criar o cliente; a conversa é identificada pelo contactId do canal.
     if (!normalizePhone(payload.phone)) {
       deps.log("agent_inbound_invalid_payload", { fields: "phone(formato)" });

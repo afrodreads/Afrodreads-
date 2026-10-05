@@ -351,9 +351,25 @@ describe("mídia (o ManyChat só entrega o último texto)", () => {
     assert.deepEqual(inboundContents(s), [MEDIA_PLACEHOLDER]);
   });
 
-  it("sem texto e sem mídia: recusa", async () => {
+  it("sem texto e sem link (ManyChat sem texto novo): vira aviso de mídia, não erro", async () => {
     const s = setup({ withModel: false });
-    const response = await s.post(payload({ text: "{{last_input_text}}", mediaUrl: "{{ultima_midia}}" }));
+    const response = await s.post(payload({ text: "{{last_input_text}}", messageId: undefined, mediaUrl: "{{ultima_midia}}" }));
+    assert.equal(response.status, 202);
+    assert.deepEqual(inboundContents(s), [MEDIA_PLACEHOLDER]);
+  });
+
+  it("foto no MESMO minuto do texto anterior (ManyChat repete o texto): vira mídia, não duplicata", async () => {
+    const s = setup({ model: replyWith("Recebi, obrigada! 💛"), config: { testReplyContactIds: TEST_IDS } });
+    await s.post(payload({ text: "Sim", messageId: undefined }));
+    s.setClock(new Date(NOW.getTime() + 20_000));
+    const response = await s.post(payload({ text: "Sim", messageId: undefined }));
+    assert.notEqual(response.body.status, "duplicate");
+    assert.deepEqual(inboundContents(s), ["Sim", MEDIA_PLACEHOLDER]);
+  });
+
+  it("resposta da equipe sem texto continua recusada", async () => {
+    const s = setup({ withModel: false });
+    const response = await s.post(payload({ type: "human_reply", text: "", messageId: undefined }));
     assert.equal(response.status, 400);
   });
 
@@ -414,8 +430,6 @@ describe("validação rigorosa do payload", () => {
     ["telefone inválido", payload({ phone: "não é telefone" }), 400],
     ["canal errado", payload({ channel: "sms" }), 400],
     ["campo desconhecido", payload({ preco: 400 }), 400],
-    ["texto vazio", payload({ text: "    " }), 400],
-    ["variável do ManyChat sem substituir (texto igual a {{last_input_text}})", payload({ text: "{{last_input_text}}" }), 400],
     ["texto muito grande", payload({ text: "a".repeat(MAX_TEXT_CHARS + 1) }), 400],
     ["timestamp inválido", payload({ timestamp: "ontem" }), 400],
     ["tipo desconhecido", payload({ type: "send_reply" }), 400],
