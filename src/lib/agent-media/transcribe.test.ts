@@ -5,7 +5,7 @@ import { audioExtension, createTranscriber, isAllowedMediaUrl, type TranscriberC
 const CONFIG: TranscriberConfig = {
   enabled: true,
   apiKey: "test-key",
-  model: "gpt-4o-mini-transcribe",
+  model: "gpt-transcribe",
   extraHosts: [],
   maxBytes: 1024,
   downloadTimeoutMs: 1000,
@@ -76,11 +76,32 @@ describe("transcrição: fluxo", () => {
     assert.equal(calls.length, 2);
     assert.equal(calls[0].init?.redirect, "error");
     const form = calls[1].init?.body as FormData;
-    assert.equal(form.get("language"), "pt");
-    assert.equal(form.get("model"), "gpt-4o-mini-transcribe");
+    assert.equal(form.get("model"), "gpt-transcribe");
+    assert.deepEqual(form.getAll("languages[]"), ["pt"]);
+    assert.equal(form.get("language"), null); // gpt-transcribe: nunca os dois campos
+    assert.ok(form.getAll("keywords[]").includes("dreads"));
+    for (const keyword of form.getAll("keywords[]")) assert.doesNotMatch(String(keyword), /[<>\r\n]/);
     assert.match(String(form.get("prompt")), /dreads/);
     assert.equal((form.get("file") as File).name, "audio.ogg");
     assert.equal((calls[1].init?.headers as Record<string, string>).Authorization, "Bearer test-key");
+  });
+
+  it("modelo principal recusa o arquivo (400): tenta uma vez com whisper-1", async () => {
+    const calls: Call[] = [];
+    let transcriptions = 0;
+    const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (!url.startsWith("https://api.openai.com/")) return audio();
+      transcriptions += 1;
+      return transcriptions === 1 ? new Response("formato", { status: 400 }) : Response.json({ text: "tenho dez centímetros" });
+    }) as typeof fetch;
+    const result = await createTranscriber({ ...CONFIG, model: "gpt-transcribe" }, impl)(AUDIO_URL);
+    assert.deepEqual(result, { kind: "audio", text: "tenho dez centímetros" });
+    const fallback = calls[2].init?.body as FormData;
+    assert.equal(fallback.get("model"), "whisper-1");
+    assert.equal(fallback.get("language"), "pt");
+    assert.equal(fallback.get("languages[]"), null);
   });
 
   it("foto: não chama a transcrição", async () => {

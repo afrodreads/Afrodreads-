@@ -24,16 +24,36 @@ export type TranscriberConfig = {
 const TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions";
 
 /** Palavras do salão: ajudam a transcrição a acertar termos que ela não conhece. */
-export const VOCABULARY =
-  "Afro Dreads, Thay, dreads, locs, twist, micro twist, tranças, crochê, entrelace, cabelo humano, sintético, " +
-  "manutenção, retoque, raiz, mecha, quatro dedos, sinal, Pix, Pirituba, agendamento, orçamento.";
+export const KEYWORDS = [
+  "Afro Dreads",
+  "Thay",
+  "dreads",
+  "locs",
+  "twist",
+  "micro twist",
+  "tranças",
+  "crochê",
+  "entrelace",
+  "cabelo humano",
+  "sintético",
+  "manutenção",
+  "retoque",
+  "quatro dedos",
+  "Pix",
+  "Pirituba",
+];
+export const CONTEXT_PROMPT =
+  "Mensagem de voz de um cliente no WhatsApp de um estúdio de dreads em São Paulo, falando do próprio cabelo, " +
+  "de dreads, manutenção, orçamento ou agendamento.";
+/** Plano B quando o modelo principal recusa o formato (ex.: voz do WhatsApp em ogg). */
+const FALLBACK_MODEL = "whisper-1";
 
 export function transcriberConfigFromEnv(env: Record<string, string | undefined> = process.env): TranscriberConfig {
   const apiKey = env.OPENAI_API_KEY?.trim() || null;
   return {
     enabled: env.AGENT_TRANSCRIBE_ENABLED === "true" && apiKey !== null,
     apiKey,
-    model: env.AGENT_TRANSCRIBE_MODEL?.trim() || "gpt-4o-mini-transcribe",
+    model: env.AGENT_TRANSCRIBE_MODEL?.trim() || "gpt-transcribe",
     extraHosts: (env.AGENT_MEDIA_HOSTS ?? "")
       .split(",")
       .map((host) => host.trim().toLowerCase())
@@ -112,20 +132,19 @@ export function createTranscriber(config: TranscriberConfig, fetchImpl: Fetch = 
       return { kind: "failed", reason: "download" };
     }
 
-    // 2) Transcreve (português, com o vocabulário do salão).
-    try {
-      const form = new FormData();
-      form.append("file", new Blob([bytes]), `audio.${ext}`);
-      form.append("model", config.model);
-      form.append("language", "pt");
-      form.append("prompt", VOCABULARY);
-      form.append("response_format", "json");
-      const response = await fetchImpl(TRANSCRIPTION_URL, {
+    // 2) Transcreve (português, com o vocabulário do salão). Se o modelo principal recusar o
+    //    arquivo (400, ex.: formato), tenta uma vez com o modelo de plano B.
+    const deadline = Date.now() + config.transcribeTimeoutMs;
+    const attempt = async (model: string): Promise<Response> =>
+      fetchImpl(TRANSCRIPTION_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${config.apiKey}` },
-        body: form,
-        signal: AbortSignal.timeout(config.transcribeTimeoutMs),
+        body: transcriptionForm(model, bytes, ext),
+        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
       });
+    try {
+      let response = await attempt(config.model);
+      if (response.status === 400 && config.model !== FALLBACK_MODEL) response = await attempt(FALLBACK_MODEL);
       if (!response.ok) return { kind: "failed", reason: "transcription" };
       const json = (await response.json()) as { text?: unknown };
       const text = typeof json.text === "string" ? json.text.replace(/\s+/g, " ").trim() : "";
@@ -134,4 +153,22 @@ export function createTranscriber(config: TranscriberConfig, fetchImpl: Fetch = 
       return { kind: "failed", reason: "transcription" };
     }
   };
+}
+
+/** Corpo da chamada. `gpt-transcribe` usa `languages[]`/`keywords[]`; os modelos antigos usam `language`. */
+export function transcriptionForm(model: string, bytes: ArrayBuffer, ext: string): FormData {
+  const form = new FormData();
+  form.append("file", new Blob([bytes]), `audio.${ext}`);
+  form.append("model", model);
+  form.append("response_format", "json");
+  if (model.startsWith("gpt-transcribe")) {
+    form.append("languages[]", "pt");
+    for (const keyword of KEYWORDS) form.append("keywords[]", keyword);
+    form.append("prompt", CONTEXT_PROMPT);
+  } else {
+    form.append("language", "pt");
+    // whisper-1 aceita só ~224 tokens de prompt: contexto + palavras cabem com folga.
+    form.append("prompt", `${CONTEXT_PROMPT} Palavras: ${KEYWORDS.join(", ")}.`);
+  }
+  return form;
 }

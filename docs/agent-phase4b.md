@@ -72,7 +72,7 @@ Variáveis (Preview primeiro):
 |---|---|
 | `OPENAI_API_KEY` | chave da OpenAI (só servidor) |
 | `AGENT_TRANSCRIBE_ENABLED` | `true` para ligar |
-| `AGENT_TRANSCRIBE_MODEL` | opcional; padrão `gpt-4o-mini-transcribe` |
+| `AGENT_TRANSCRIBE_MODEL` | opcional; padrão `gpt-transcribe` (plano B automático: `whisper-1`) |
 | `AGENT_MEDIA_HOSTS` | opcional; hosts extras de arquivo, separados por vírgula |
 
 ManyChat: no corpo da Solicitação externa, adicionar `"mediaUrl": <campo com o link da última mídia>`.
