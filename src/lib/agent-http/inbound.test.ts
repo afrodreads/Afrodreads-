@@ -105,7 +105,7 @@ describe("entrada válida (modo sombra)", () => {
     const response = await s.post(payload());
 
     assert.equal(response.status, 202);
-    assert.deepEqual(response.body, { ok: true, status: "accepted" });
+    assert.deepEqual(response.body, { ok: true, status: "accepted", reply: "-" });
     assert.equal(s.db.customers.length, 1);
     assert.equal(s.db.customers[0].phone, "+5511987654321");
     assert.equal(s.db.conversations[0].externalId, "mc-123456");
@@ -125,7 +125,8 @@ describe("entrada válida (modo sombra)", () => {
     const s = setup({ model: replyWith("TEXTO SECRETO DA IA") });
     const response = await s.post(payload());
     await s.drain();
-    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "status"]);
+    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "reply", "status"]);
+    assert.equal((response.body as { reply: string }).reply, "-");
     assert.equal(JSON.stringify(response.body).includes("TEXTO SECRETO"), false);
   });
 
@@ -169,7 +170,7 @@ describe("idempotência e concorrência", () => {
     await s.drain();
     const again = await s.post(payload());
     assert.equal(again.status, 200);
-    assert.deepEqual(again.body, { ok: true, status: "duplicate" });
+    assert.deepEqual(again.body, { ok: true, status: "duplicate", reply: "-" });
     assert.equal(s.tasks.length, 0);
     assert.equal(s.db.messages.length, 1);
     assert.equal(s.runs.runs.length, 1);
@@ -208,7 +209,7 @@ describe("sem id único por mensagem (derivado)", () => {
     await s.drain();
     const again = await s.post(bare());
     assert.equal(again.status, 200);
-    assert.deepEqual(again.body, { ok: true, status: "duplicate" });
+    assert.deepEqual(again.body, { ok: true, status: "duplicate", reply: "-" });
     assert.equal(s.db.messages.length, 1);
     assert.equal(s.runs.runs.length, 1);
   });
@@ -258,7 +259,8 @@ describe("contato de teste (resposta devolvida ao ManyChat)", () => {
     const s = setup({ model: replyWith("TEXTO SECRETO DA IA"), config: { testReplyContactIds: new Set(["outro-contato"]) } });
     const response = await s.post(payload());
     await s.drain();
-    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "status"]);
+    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "reply", "status"]);
+    assert.equal((response.body as { reply: string }).reply, "-");
     assert.equal(JSON.stringify(response.body).includes("TEXTO SECRETO"), false);
     assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
   });
@@ -266,7 +268,7 @@ describe("contato de teste (resposta devolvida ao ManyChat)", () => {
   it("rascunho barrado pelas travas (preço): contato de teste recebe resposta vazia", async () => {
     const s = setup({ model: replyWith("Fica R$ 1.000 certinho! 💛"), config: { testReplyContactIds: TEST_IDS } });
     const response = await s.post(payload());
-    assert.deepEqual(response.body, { ok: true, status: "no_reply", reply: "" });
+    assert.deepEqual(response.body, { ok: true, status: "no_reply", reply: "-" });
     assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
   });
 
@@ -274,7 +276,7 @@ describe("contato de teste (resposta devolvida ao ManyChat)", () => {
     const s = setup({ model: replyWith("TEXTO SECRETO DA IA") });
     const response = await s.post(payload());
     assert.equal(response.status, 202);
-    assert.deepEqual(response.body, { ok: true, status: "accepted" });
+    assert.deepEqual(response.body, { ok: true, status: "accepted", reply: "-" });
   });
 });
 
@@ -451,7 +453,7 @@ describe("resposta da equipe (human_reply) para comparar com a IA", () => {
       payload({ type: "human_reply", messageId: "wamid.EQUIPE1", text: "Oi Maria! Me manda uma foto?", agent: "atendente-1" }),
     );
     assert.equal(response.status, 202);
-    assert.deepEqual(response.body, { ok: true, status: "recorded" });
+    assert.deepEqual(response.body, { ok: true, status: "recorded", reply: "-" });
     const human = s.db.messages.find((m) => m.sender === "HUMAN");
     assert.equal(human?.direction, "OUTBOUND");
     assert.equal(human?.senderRef, "atendente-1");
@@ -459,13 +461,13 @@ describe("resposta da equipe (human_reply) para comparar com a IA", () => {
     assert.equal(s.db.conversations[0].mode, "BOT");
 
     const again = await s.post(payload({ type: "human_reply", messageId: "wamid.EQUIPE1", text: "Oi Maria! Me manda uma foto?" }));
-    assert.deepEqual(again.body, { ok: true, status: "duplicate" });
+    assert.deepEqual(again.body, { ok: true, status: "duplicate", reply: "-" });
   });
 
   it("resposta para contato desconhecido é ignorada", async () => {
     const s = setup();
     const response = await s.post(payload({ type: "human_reply", contactId: "nao-existe", text: "oi" }));
-    assert.deepEqual(response.body, { ok: true, status: "ignored" });
+    assert.deepEqual(response.body, { ok: true, status: "ignored", reply: "-" });
     assert.equal(s.db.messages.length, 0);
   });
 });

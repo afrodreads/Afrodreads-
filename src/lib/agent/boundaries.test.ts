@@ -145,7 +145,10 @@ describe("rotas: uma única entrada, autenticada", () => {
     const approvedDraft = handler.match(/function approvedDraftText[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
     const testReply = handler.match(/async function replyForTestContact[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
     assert.ok(approvedDraft && testReply, "funções da resposta de teste não encontradas");
-    const rest = handler.replace(approvedDraft, "").replace(testReply, "");
+    // O helper `reply()` só preenche `reply` com a constante NO_REPLY (nunca com texto da IA).
+    const helper = handler.match(/function reply\(status[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
+    assert.match(helper, /reply:\s*NO_REPLY,\s*\.\.\.body/, "o helper deve usar só NO_REPLY");
+    const rest = handler.replace(approvedDraft, "").replace(testReply, "").replace(helper, "");
     assert.doesNotMatch(rest, /candidateText|result\.text|draft/);
     assert.doesNotMatch(rest, /reply:\s/, "só replyForTestContact devolve texto");
     for (const body of rest.match(/reply\(\d+,\s*\{[^}]*\}/g) ?? []) {

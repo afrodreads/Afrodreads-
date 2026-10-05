@@ -138,10 +138,13 @@ export type InboundHandlerDeps = {
 
 const JSON_HEADERS = { "Content-Type": "application/json", "Cache-Control": "no-store" };
 
+/** Valor de `reply` quando não há texto a enviar. Não é texto da IA; o fluxo do ManyChat deve ignorá-lo. */
+export const NO_REPLY = "-";
+
 function reply(status: number, body: Record<string, string | boolean>): Response {
-  // Toda resposta de sucesso traz `reply` (vazio por padrão): o mapeamento do
-  // ManyChat falha com "Json mapping errors" quando o campo não existe.
-  const payload = body.ok === true ? { reply: "", ...body } : body;
+  // Toda resposta de sucesso traz `reply`, nunca vazio: o mapeamento do ManyChat falha
+  // ("Json mapping errors") quando o campo não existe e, ao que tudo indica, quando vem vazio.
+  const payload = body.ok === true ? { reply: NO_REPLY, ...body } : body;
   return new Response(JSON.stringify(payload), { status, headers: JSON_HEADERS });
 }
 
@@ -178,13 +181,13 @@ async function replyForTestContact(
         { conversationId: job.conversationId, sender: "AI", senderRef: "teste-manychat", content: text },
         deps.now(),
       );
-    } catch {
-      // Conversa passou para a equipe enquanto a IA respondia: não devolve o texto.
-      deps.log("agent_test_reply_discarded", {});
+    } catch (error) {
+      // Conversa passou para a equipe enquanto a IA respondia (ou falha ao gravar): não devolve o texto.
+      deps.log("agent_test_reply_discarded", { error: error instanceof Error ? error.name : "Error" });
       text = null;
     }
   }
-  return reply(200, { ok: true, status: text ? "replied" : "no_reply", reply: text ?? "" });
+  return reply(200, { ok: true, status: text ? "replied" : "no_reply", reply: text ?? NO_REPLY });
 }
 
 export function createInboundHandler(deps: InboundHandlerDeps): (request: Request) => Promise<Response> {
