@@ -164,7 +164,7 @@ async function execute(deps: CoreDeps, args: ExecuteArgs): Promise<RunResult> {
     const modelMessages = context.messages.map((message) => {
       const { text, redactions } = redactForModel(message.text);
       redactedFragments += redactions;
-      return { role: message.role, content: text };
+      return { role: message.role, content: text, ...(message.imageUrl ? { imageUrl: message.imageUrl } : {}) };
     });
 
     const base: AgentRunResult = {

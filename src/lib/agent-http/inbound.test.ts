@@ -4,7 +4,7 @@ import { finishConversation, handoffToHuman } from "../conversations/conversatio
 import { findOrCreateCustomer } from "../conversations/customer";
 import { processAfterQuietPeriod } from "../agent/pipeline";
 import { agentHarness, MemoryGroupingReader, replyWith, ScriptedModel } from "../agent/testSupport";
-import { AUDIO_PREFIX, createInboundHandler, derivedMessageId, MAX_TEXT_CHARS, MEDIA_PLACEHOLDER, type InboundConfig } from "./inbound";
+import { AUDIO_PREFIX, IMAGE_PLACEHOLDER, createInboundHandler, derivedMessageId, MAX_TEXT_CHARS, MEDIA_PLACEHOLDER, type InboundConfig } from "./inbound";
 import { FixedWindowLimiter } from "./security";
 import type { MediaResult } from "../agent-media/transcribe";
 
@@ -343,6 +343,23 @@ describe("mídia (o ManyChat só entrega o último texto)", () => {
     await s.post(payload({ text: "Tenho 10 cm", messageId: "m-2", mediaUrl }));
     assert.equal(calls, 1);
     assert.deepEqual(inboundContents(s), [AUDIO_PREFIX + "oi", "Tenho 10 cm"]);
+  });
+
+  it("foto: grava o aviso de foto com o link em metadata (para o modelo ver a imagem)", async () => {
+    const s = setup({ withModel: false, transcribe: async () => ({ kind: "image" }) });
+    const url = "https://manybot-files.s3.amazonaws.com/ref.jpg";
+    await s.post(payload({ text: "{{last_input_text}}", messageId: undefined, mediaUrl: url }));
+    const inbound = s.db.messages.filter((m) => m.direction === "INBOUND");
+    assert.deepEqual(inbound.map((m) => m.content), [IMAGE_PLACEHOLDER]);
+    assert.deepEqual(inbound[0].metadata, { media: "image", imageUrl: url });
+  });
+
+  it("foto com link longo demais para guardar: só o aviso de mídia, sem metadata", async () => {
+    const s = setup({ withModel: false, transcribe: async () => ({ kind: "image" }) });
+    await s.post(payload({ text: "", messageId: undefined, mediaUrl: "https://manybot-files.s3.amazonaws.com/" + "a".repeat(250) + ".jpg" }));
+    const inbound = s.db.messages.filter((m) => m.direction === "INBOUND");
+    assert.deepEqual(inbound.map((m) => m.content), [MEDIA_PLACEHOLDER]);
+    assert.equal(inbound[0].metadata ?? null, null);
   });
 
   it("foto ou falha na transcrição: aviso de mídia", async () => {

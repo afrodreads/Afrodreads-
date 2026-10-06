@@ -7,6 +7,7 @@
 
 export type MediaResult =
   | { kind: "audio"; text: string }
+  | { kind: "image" }
   | { kind: "other" }
   | { kind: "failed"; reason: "disabled" | "host_not_allowed" | "too_large" | "download" | "transcription" | "empty" };
 
@@ -117,6 +118,16 @@ export function audioExtension(contentType: string | null, pathname: string): st
   return null;
 }
 
+/** Formatos de imagem que o modelo aceita. */
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const IMAGE_PATH = /.(jpe?g|png|webp|gif)$/i;
+
+export function isImage(contentType: string | null, pathname: string): boolean {
+  const type = (contentType ?? "").split(";")[0].trim().toLowerCase();
+  if (IMAGE_TYPES.has(type)) return true;
+  return (type === "" || type === "application/octet-stream" || type === "binary/octet-stream") && IMAGE_PATH.test(pathname);
+}
+
 type Fetch = typeof fetch;
 
 export function createTranscriber(config: TranscriberConfig, fetchImpl: Fetch = fetch): (url: string) => Promise<MediaResult> {
@@ -131,7 +142,10 @@ export function createTranscriber(config: TranscriberConfig, fetchImpl: Fetch = 
     try {
       const response = await fetchImpl(url, { redirect: "error", signal: AbortSignal.timeout(config.downloadTimeoutMs) });
       if (!response.ok) return { kind: "failed", reason: "download" };
-      ext = audioExtension(response.headers.get("content-type"), url.pathname);
+      const contentType = response.headers.get("content-type");
+      // Foto: não precisa dos bytes aqui; o link vai para o modelo, que baixa a imagem.
+      if (isImage(contentType, url.pathname)) return { kind: "image" };
+      ext = audioExtension(contentType, url.pathname);
       if (!ext) return { kind: "other" };
       const declared = Number(response.headers.get("content-length") ?? "0");
       if (declared > config.maxBytes) return { kind: "failed", reason: "too_large" };

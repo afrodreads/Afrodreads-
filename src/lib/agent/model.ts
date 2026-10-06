@@ -5,7 +5,12 @@ import type { ToolCallRequest, ToolDefinition } from "./tools";
 // testes usam um modelo roteirizado. Em qualquer caso o agente só GERA rascunho:
 // nada aqui envia mensagem a cliente.
 
-export type ModelMessage = { role: "user" | "assistant"; content: string };
+export type ModelMessage = {
+  role: "user" | "assistant";
+  content: string;
+  /** Foto enviada pelo cliente (link do canal), anexada como imagem quando o adaptador suporta. */
+  imageUrl?: string;
+};
 
 export type ModelRequest = {
   /** Prompt de sistema completo (parte fixa + parte dinâmica). */

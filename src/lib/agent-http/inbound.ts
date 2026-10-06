@@ -167,6 +167,11 @@ const fail = (status: number, error: string) => reply(status, { ok: false, error
 export const MEDIA_PLACEHOLDER =
   "[O cliente enviou uma mídia (foto, vídeo, áudio ou arquivo) sem texto. Ela chegou para a equipe; você não consegue ver nem ouvir o conteúdo.]";
 
+/** Foto: o texto gravado; a imagem vai anexada ao modelo pelo link em metadata.imageUrl. */
+export const IMAGE_PLACEHOLDER = "[O cliente enviou uma foto. Ela está anexada a esta mensagem.]";
+/** Tamanho máximo de texto aceito em metadata (ver conversations/message.ts). */
+const MAX_METADATA_TEXT = 200;
+
 /** Áudio transcrito: o agente lê como mensagem do cliente (a transcrição pode ter pequenos erros). */
 export const AUDIO_PREFIX = "[Áudio do cliente, transcrito automaticamente]: ";
 
@@ -179,7 +184,7 @@ export function mediaMessageId(contactId: string, url: string): string {
   return `media:${createHash("sha256").update(`${contactId}\n${url}`).digest("hex").slice(0, 40)}`;
 }
 
-type CustomerContent = { content: string; messageId: string | null };
+type CustomerContent = { content: string; messageId: string | null; metadata?: Record<string, string> };
 
 async function customerContent(
   deps: InboundHandlerDeps,
@@ -197,8 +202,12 @@ async function customerContent(
     if (!seen) {
       const media = deps.transcribeMedia ? await deps.transcribeMedia(url) : null;
       deps.log("agent_inbound_media", { kind: media?.kind ?? "unsupported", reason: media?.kind === "failed" ? media.reason : null });
-      const content = media?.kind === "audio" ? AUDIO_PREFIX + media.text.slice(0, MAX_TEXT_CHARS) : MEDIA_PLACEHOLDER;
-      return { content, messageId: id };
+      if (media?.kind === "audio") return { content: AUDIO_PREFIX + media.text.slice(0, MAX_TEXT_CHARS), messageId: id };
+      // Foto com link curto o bastante para guardar: o modelo vê a imagem. Senão, só o aviso.
+      if (media?.kind === "image" && url.length <= MAX_METADATA_TEXT) {
+        return { content: IMAGE_PLACEHOLDER, messageId: id, metadata: { media: "image", imageUrl: url } };
+      }
+      return { content: MEDIA_PLACEHOLDER, messageId: id };
     }
     // Mesma mídia de novo e nenhum texto novo: é reenvio; o id repetido faz virar duplicata.
     if (url === text || !text) return { content: MEDIA_PLACEHOLDER, messageId: id };
@@ -343,7 +352,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
         return reply(recorded.duplicate ? 200 : 202, { ok: true, status: recorded.duplicate ? "duplicate" : "recorded" });
       }
 
-      const { content, messageId: mediaId } = await customerContent(deps, unitId, payload.contactId, text, mediaUrl);
+      const { content, messageId: mediaId, metadata } = await customerContent(deps, unitId, payload.contactId, text, mediaUrl);
 
       const { inbound, shouldProcess } = await ingestInbound(
         deps.conversations,
@@ -354,6 +363,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
           externalConversationId: payload.contactId,
           externalMessageId: mediaId ?? messageId,
           content,
+          ...(metadata ? { metadata } : {}),
           sentAt,
         },
         now,

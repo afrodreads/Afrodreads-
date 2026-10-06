@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type Anthropic from "@anthropic-ai/sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import { TOOL_DEFINITIONS } from "../agent/tools";
 import {
   ClaudeModelClient,
@@ -185,5 +185,72 @@ describe("configuração pelo ambiente", () => {
     assert.equal(config.effort, "medium"); // valor fora da lista volta ao padrão
     assert.equal(config.useFallbacks, true);
     assert.equal(JSON.stringify(config).includes("chave-de-teste"), false); // a chave não fica na configuração
+  });
+});
+
+describe("adaptador Claude: fotos do cliente", () => {
+  const IMG = "https://manybot-files.s3.amazonaws.com/ref.jpg";
+  const withPhoto = {
+    ...request,
+    messages: [
+      { role: "user" as const, content: "Quero dreads" },
+      { role: "assistant" as const, content: "Me manda uma referência?" },
+      { role: "user" as const, content: "[O cliente enviou uma foto.]", imageUrl: IMG },
+    ],
+  };
+
+  it("anexa a foto como imagem (link) antes do texto da mensagem", async () => {
+    const client = new FakeClient([message({ content: [{ type: "text", text: "Vejo microlocs!", citations: null }] as never })]);
+    await new ClaudeModelClient({ model: "claude-sonnet-5-5" }, client).generate(withPhoto);
+    const last = client.calls[0].params.messages[2];
+    assert.deepEqual(last.content, [
+      { type: "image", source: { type: "url", url: IMG } },
+      { type: "text", text: "[O cliente enviou uma foto.]" },
+    ]);
+    assert.equal(typeof client.calls[0].params.messages[0].content, "string");
+  });
+
+  it("anexa no máximo as 4 fotos mais recentes", async () => {
+    const many = {
+      ...request,
+      messages: Array.from({ length: 6 }, (_, i) => ({ role: "user" as const, content: "foto " + i, imageUrl: IMG + "?" + i })),
+    };
+    const client = new FakeClient([message({ content: [{ type: "text", text: "ok", citations: null }] as never })]);
+    await new ClaudeModelClient({ model: "claude-sonnet-5-5" }, client).generate(many);
+    const withImage = client.calls[0].params.messages.filter((m) => Array.isArray(m.content));
+    assert.equal(withImage.length, 4);
+    assert.equal(typeof client.calls[0].params.messages[0].content, "string");
+  });
+
+  it("se a API recusar a imagem (400), responde de novo sem as fotos", async () => {
+    const calls: Params[] = [];
+    const client: MessagesClient = {
+      beta: {
+        messages: {
+          create: async (params: Params) => {
+            calls.push(params);
+            if (calls.length === 1) throw new Anthropic.BadRequestError(400, { error: { message: "image" } }, "image", new Headers());
+            return message({ content: [{ type: "text", text: "Recebi, obrigada!", citations: null }] as never });
+          },
+        },
+      },
+    };
+    const response = await new ClaudeModelClient({ model: "claude-sonnet-5-5" }, client).generate(withPhoto);
+    assert.equal(response.text, "Recebi, obrigada!");
+    assert.equal(calls.length, 2);
+    assert.equal(typeof calls[1].messages[2].content, "string");
+  });
+
+  it("erro 400 sem fotos na conversa não é engolido", async () => {
+    const client: MessagesClient = {
+      beta: {
+        messages: {
+          create: async () => {
+            throw new Anthropic.BadRequestError(400, { error: { message: "x" } }, "x", new Headers());
+          },
+        },
+      },
+    };
+    await assert.rejects(new ClaudeModelClient({ model: "claude-sonnet-5-5" }, client).generate(request));
   });
 });

@@ -105,11 +105,16 @@ describe("transcrição: fluxo", () => {
     assert.equal(fallback.get("languages[]"), null);
   });
 
-  it("foto: não chama a transcrição", async () => {
+  it("foto: reconhece como imagem e não chama a transcrição", async () => {
     const { impl, calls } = fakeFetch(new Response(new Uint8Array(10), { headers: { "content-type": "image/jpeg" } }));
     const result = await createTranscriber(CONFIG, impl)("https://manybot-files.s3.amazonaws.com/foto.jpg");
-    assert.deepEqual(result, { kind: "other" });
+    assert.deepEqual(result, { kind: "image" });
     assert.equal(calls.length, 1);
+  });
+
+  it("vídeo ou documento: não é áudio nem imagem", async () => {
+    const { impl } = fakeFetch(new Response(new Uint8Array(10), { headers: { "content-type": "video/mp4" } }));
+    assert.deepEqual(await createTranscriber(CONFIG, impl)("https://manybot-files.s3.amazonaws.com/v.mp4"), { kind: "other" });
   });
 
   it("arquivo grande demais: não transcreve", async () => {

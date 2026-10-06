@@ -77,6 +77,9 @@ export type MessagesClient = {
   };
 };
 
+/** Máximo de fotos anexadas por chamada (as mais recentes da conversa). */
+export const MAX_IMAGES = 4;
+
 const SHADOW_TOOL_RESULT = "Registrado como proposta (modo sombra). Escreva agora a resposta ao cliente.";
 
 export class ClaudeModelClient implements ModelClient {
@@ -113,10 +116,28 @@ export class ClaudeModelClient implements ModelClient {
 
     // A conversa enviada precisa começar pelo cliente.
     const firstUser = request.messages.findIndex((message) => message.role === "user");
-    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = request.messages
-      .slice(firstUser === -1 ? request.messages.length : firstUser)
-      .map((message) => ({ role: message.role, content: message.content }));
-    if (messages.length === 0) throw new InputTooLargeError();
+    const conversation = request.messages.slice(firstUser === -1 ? request.messages.length : firstUser);
+    if (conversation.length === 0) throw new InputTooLargeError();
+    // Fotos do cliente vão como imagem (link) antes do texto da mensagem; só as mais recentes.
+    const withImages = new Set(
+      conversation
+        .map((message, index) => (message.role === "user" && message.imageUrl ? index : -1))
+        .filter((index) => index >= 0)
+        .slice(-MAX_IMAGES),
+    );
+    const toParams = (includeImages: boolean): Anthropic.Beta.Messages.BetaMessageParam[] =>
+      conversation.map((message, index) =>
+        includeImages && withImages.has(index) && message.imageUrl
+          ? {
+              role: message.role,
+              content: [
+                { type: "image", source: { type: "url", url: message.imageUrl } },
+                { type: "text", text: message.content },
+              ],
+            }
+          : { role: message.role, content: message.content },
+      );
+    let messages = toParams(true);
 
     const base = {
       model: this.config.model,
@@ -129,7 +150,15 @@ export class ClaudeModelClient implements ModelClient {
     };
     const options = { timeout: this.config.timeoutMs, maxRetries: this.config.maxRetries };
 
-    const first = await this.client.beta.messages.create({ ...base, messages }, options);
+    let first: Anthropic.Beta.Messages.BetaMessage;
+    try {
+      first = await this.client.beta.messages.create({ ...base, messages }, options);
+    } catch (error) {
+      // Foto que a API não conseguiu usar (link expirado, formato): responde sem as imagens.
+      if (withImages.size === 0 || !(error instanceof Anthropic.BadRequestError)) throw error;
+      messages = toParams(false);
+      first = await this.client.beta.messages.create({ ...base, messages }, options);
+    }
     const responses = [first];
 
     let text = textOf(first);
