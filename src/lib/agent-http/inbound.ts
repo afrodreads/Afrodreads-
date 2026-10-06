@@ -201,7 +201,11 @@ async function customerContent(
     const seen = deps.mediaMessageExists ? await deps.mediaMessageExists(unitId, contactId, id) : false;
     if (!seen) {
       const media = deps.transcribeMedia ? await deps.transcribeMedia(url) : null;
-      deps.log("agent_inbound_media", { kind: media?.kind ?? "unsupported", reason: media?.kind === "failed" ? media.reason : null });
+      deps.log("agent_inbound_media", {
+        kind: media?.kind ?? "unsupported",
+        reason: media?.kind === "failed" ? media.reason : null,
+        contentType: media?.kind === "other" ? (media.contentType ?? null) : null,
+      });
       if (media?.kind === "audio") return { content: AUDIO_PREFIX + media.text.slice(0, MAX_TEXT_CHARS), messageId: id };
       // Foto com link curto o bastante para guardar: o modelo vê a imagem. Senão, só o aviso.
       if (media?.kind === "image" && url.length <= MAX_METADATA_TEXT) {

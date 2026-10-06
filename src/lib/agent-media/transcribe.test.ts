@@ -114,7 +114,7 @@ describe("transcrição: fluxo", () => {
 
   it("vídeo ou documento: não é áudio nem imagem", async () => {
     const { impl } = fakeFetch(new Response(new Uint8Array(10), { headers: { "content-type": "video/mp4" } }));
-    assert.deepEqual(await createTranscriber(CONFIG, impl)("https://manybot-files.s3.amazonaws.com/v.mp4"), { kind: "other" });
+    assert.deepEqual(await createTranscriber(CONFIG, impl)("https://manybot-files.s3.amazonaws.com/v.mp4"), { kind: "other", contentType: "video/mp4" });
   });
 
   it("arquivo grande demais: não transcreve", async () => {

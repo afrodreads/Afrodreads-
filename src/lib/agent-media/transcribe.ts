@@ -8,7 +8,7 @@
 export type MediaResult =
   | { kind: "audio"; text: string }
   | { kind: "image" }
-  | { kind: "other" }
+  | { kind: "other"; contentType?: string }
   | { kind: "failed"; reason: "disabled" | "host_not_allowed" | "too_large" | "download" | "transcription" | "empty" };
 
 export type TranscriptionProvider = "groq" | "openai";
@@ -128,6 +128,11 @@ export function isImage(contentType: string | null, pathname: string): boolean {
   return (type === "" || type === "application/octet-stream" || type === "binary/octet-stream") && IMAGE_PATH.test(pathname);
 }
 
+function mediaTypeOf(contentType: string | null): string {
+  const type = (contentType ?? "").split(";")[0].trim().toLowerCase();
+  return /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(type) ? type.slice(0, 60) : "desconhecido";
+}
+
 type Fetch = typeof fetch;
 
 export function createTranscriber(config: TranscriberConfig, fetchImpl: Fetch = fetch): (url: string) => Promise<MediaResult> {
@@ -146,7 +151,8 @@ export function createTranscriber(config: TranscriberConfig, fetchImpl: Fetch = 
       // Foto: não precisa dos bytes aqui; o link vai para o modelo, que baixa a imagem.
       if (isImage(contentType, url.pathname)) return { kind: "image" };
       ext = audioExtension(contentType, url.pathname);
-      if (!ext) return { kind: "other" };
+      // Só o tipo (ex.: image/heic) para diagnóstico; nunca conteúdo nem link.
+      if (!ext) return { kind: "other", contentType: mediaTypeOf(contentType) };
       const declared = Number(response.headers.get("content-length") ?? "0");
       if (declared > config.maxBytes) return { kind: "failed", reason: "too_large" };
       bytes = await response.arrayBuffer();
