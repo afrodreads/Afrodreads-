@@ -14,7 +14,7 @@ São mechas de cabelo que ficam unidas e firmes, como "cordões" de cabelo. Depo
 
 - **Agulhado**: dreads feitos com agulha específica, com resultado instantâneo e permanente. Ideal para quem quer dreads já formados, com acabamento definido desde a aplicação.
 - **Microlocs**: locs bem pequenas e numerosas, feitas com as técnicas de interlock, microtwist ou microtranças. Resultado super delicado e versátil para penteados. Processo mais demorado, mas o visual final é elegante e permite mais opções de penteado.
-- **Retwist/Twist**: técnica de iniciação ou manutenção em que a raiz é retorcida com pomada ou gel para manter a estrutura, e os twists seguram melhor o estilo. Ideal para quem quer iniciar. Mantém o visual definido e limpo. É também o nome do dread que começa com torções (cabelo natural dividido e torcido, mechas P ou M); não confundir com micro twist, que é técnica de microlocs (confirmado pelo Lyon em 06/10/2026).
+- **Retwist/Twist**: técnica de iniciação ou manutenção em que a raiz é retorcida com pomada ou gel para manter a estrutura, e os twists seguram melhor o estilo. Ideal para quem quer iniciar. Mantém o visual definido e limpo. É também o nome do dread que começa com torções (cabelo todo torcido em twists, divisões quadradas, mechas P ou M); não confundir com micro twist, que é técnica de microlocs, nem com Start Locs, em que o comprimento fica solto e só a raiz é enrolada (confirmado pelo Lyon em 06/10/2026).
 - **Starter Locs**: o cabelo é enrolado com um pente para criar espirais definidas. Resultado mais uniforme e estruturado desde o início.
 
 ## Com extensão ou sem extensão

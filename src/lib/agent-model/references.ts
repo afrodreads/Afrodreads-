@@ -10,9 +10,18 @@ export type ReferenceImage = { mediaType: "image/jpeg"; data: string; caption: s
 
 export const REFERENCE_PHOTOS: readonly { file: string; caption: string }[] = [
   {
-    file: "start-locs-retwist.jpg",
+    file: "retwist-twists.jpg",
     caption:
-      "Retwist / Start Locs (o dread que começa com torções). Cabelo natural dividido em quadrados bem marcados e cada mecha TORCIDA (twist), espessura P ou M. NÃO é microlocs.",
+      "RETWIST (método). O cabelo todo TORCIDO em twists, do começo ao fim da mecha, com divisões quadradas bem marcadas, espessura P ou M. NÃO é microlocs.",
+  },
+  {
+    file: "retwist-twists-2.jpg",
+    caption: "RETWIST (método), visto de cima. Cada mecha torcida em twist, divisões quadradas na raiz.",
+  },
+  {
+    file: "start-locs.jpg",
+    caption:
+      "START LOCS. O comprimento fica SOLTO e só a RAIZ é enrolada/torcida, com divisões na raiz. Não é o cabelo todo torcido (isso é retwist).",
   },
   {
     file: "microlocs-inicio.jpg",
