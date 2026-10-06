@@ -5,6 +5,7 @@ import {
   countRecentInboundForContact,
   lastInboundForContact,
   mediaMessageExists,
+  openingStateForConversation,
   prismaGroupingReader,
   resolveInboundUnitId,
 } from "@/lib/agent-db/inbound";
@@ -27,8 +28,8 @@ export const maxDuration = 60;
 // Incluído no pacote da função por `outputFileTracingIncludes` (next.config.mjs).
 const PROMPT_PATH = path.join(process.cwd(), "agente", "00-prompt-do-agente-v2.md");
 
-/** Agrupamento da resposta de teste: 2,5 s de silêncio; responde de qualquer jeito após 8 s. */
-const TEST_REPLY_GROUPING = { quietMs: 2500, maxWaitMs: 8000 };
+/** Agrupamento da resposta de teste: 1,2 s de silêncio; responde de qualquer jeito após 4 s (o ManyChat espera só 10 s). */
+const TEST_REPLY_GROUPING = { quietMs: 1200, maxWaitMs: 4000 };
 
 // Por instância: primeira barreira contra excesso de requisições.
 let ipLimiter: FixedWindowLimiter | null = null;
@@ -49,6 +50,8 @@ export async function POST(request: Request): Promise<Response> {
     // Áudio: baixa o arquivo do ManyChat e transcreve (desligado sem OPENAI_API_KEY e AGENT_TRANSCRIBE_ENABLED=true).
     transcribeMedia: createTranscriber(transcriberConfigFromEnv()),
     mediaMessageExists,
+    // Abertura do cliente novo (só fotos/mídia/link) e silêncio enquanto o nome não chega: sem o modelo.
+    openingState: openingStateForConversation,
     processJob: deps
       ? (job) => processAfterQuietPeriod({ agent: deps.live, grouping: prismaGroupingReader }, job, { policy: config.grouping })
       : null,

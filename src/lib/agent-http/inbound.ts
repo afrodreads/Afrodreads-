@@ -134,6 +134,8 @@ export type InboundHandlerDeps = {
   mediaMessageExists?(unitId: string, contactId: string, externalMessageId: string): Promise<boolean>;
   /** Última mensagem recebida do contato e se já houve resposta depois dela (detecta mídia). */
   lastInboundForContact?(unitId: string, contactId: string): Promise<{ text: string; answered: boolean } | null>;
+  /** Situação da abertura da conversa (só contatos de teste): permite responder sem o modelo. */
+  openingState?(conversationId: string): Promise<OpeningState>;
   /** Execução do agente em sombra para depois da resposta. null = modelo indisponível (só registra). */
   processJob: ((job: ProcessJob) => Promise<unknown>) | null;
   /** Execução imediata (sem espera de agrupamento), só para contatos de teste. */
@@ -255,6 +257,47 @@ export function messageParts(text: string): string[] {
   return parts.length <= 2 ? parts : [parts[0], parts.slice(1).join("\n\n")];
 }
 
+export type OpeningState = {
+  /** Já houve alguma mensagem enviada nesta conversa (IA ou equipe). */
+  anyOutbound: boolean;
+  /** Texto da última mensagem enviada, se foi da IA. */
+  lastAiText: string | null;
+  /** O que o cliente mandou depois da última mensagem enviada (em ordem). */
+  pending: string[];
+};
+
+/** Roteiro fixo do cliente novo que abre a conversa só com fotos, mídia ou link (prompt, Estado A). */
+export const WELCOME_TEXT = "Oi! Que bom ter você aqui 💛 Sou a atendente virtual da Afro Dreads, vem ficar no estilo com a gente!";
+export const NAME_QUESTION = "Pra iniciar seu atendimento, me fala como você se chama?";
+
+const isMediaOnly = (content: string) =>
+  content === IMAGE_PLACEHOLDER || content === MEDIA_PLACEHOLDER || BARE_URL.test(content.trim());
+
+/**
+ * Abertura sem o modelo (instantânea, sem risco de passar do tempo do ManyChat):
+ * - primeira mensagem do cliente novo é só foto/mídia/link → boas-vindas + pergunta do nome;
+ * - a última mensagem foi a pergunta do nome e chegou só mais foto/mídia/link → silêncio.
+ * Texto ou áudio (pode trazer o nome) seguem para o modelo.
+ */
+export function openingReply(state: OpeningState): { parts: string[] } | null {
+  if (state.pending.length === 0 || !state.pending.every(isMediaOnly)) return null;
+  if (!state.anyOutbound) {
+    const images = state.pending.every((content) => content === IMAGE_PLACEHOLDER);
+    const links = state.pending.every((content) => BARE_URL.test(content.trim()));
+    const received = images ? "Já recebi suas fotos." : links ? "Já recebi o link." : "Já recebi o que você me mandou.";
+    return { parts: [`${WELCOME_TEXT} ${received}`, NAME_QUESTION] };
+  }
+  if (state.lastAiText?.trim().endsWith(NAME_QUESTION)) return { parts: [] };
+  return null;
+}
+
+/**
+ * O ManyChat espera a resposta por no máximo 10 s; depois disso ela se perde. Resposta que
+ * fica pronta tarde não é gravada (o cliente não a viu) e volta "sem texto": a próxima
+ * mensagem do cliente é respondida por inteiro.
+ */
+export const TEST_REPLY_DEADLINE_MS = 9_000;
+
 /**
  * Contato de teste: executa o agente e devolve o texto aprovado na resposta HTTP. O texto
  * também é gravado como mensagem da IA, para a conversa não parecer sem resposta nas
@@ -264,12 +307,29 @@ async function replyForTestContact(
   deps: InboundHandlerDeps,
   run: (job: ProcessJob) => Promise<unknown>,
   job: ProcessJob,
+  startedAt: number,
 ): Promise<Response> {
   let text: string | null = null;
+  let opening: { parts: string[] } | null = null;
   try {
-    text = approvedDraftText(await run(job));
+    opening = deps.openingState ? openingReply(await deps.openingState(job.conversationId)) : null;
   } catch (error) {
-    deps.log("agent_test_reply_failed", { error: error instanceof Error ? error.name : "Error" });
+    deps.log("agent_test_opening_failed", { error: error instanceof Error ? error.name : "Error" });
+  }
+  if (opening) {
+    deps.log("agent_test_reply_opening", { parts: opening.parts.length });
+    text = opening.parts.length > 0 ? opening.parts.join(`\n${SPLIT_TOKEN}\n`) : null;
+  } else {
+    try {
+      text = approvedDraftText(await run(job));
+    } catch (error) {
+      deps.log("agent_test_reply_failed", { error: error instanceof Error ? error.name : "Error" });
+    }
+    const elapsedMs = deps.now().getTime() - startedAt;
+    if (text && elapsedMs > TEST_REPLY_DEADLINE_MS) {
+      deps.log("agent_test_reply_late", { elapsedMs });
+      text = null;
+    }
   }
   if (text) {
     try {
@@ -400,7 +460,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
       // para o ManyChat enviar. Qualquer outro contato segue o caminho de sombra abaixo.
       if (shouldProcess && deps.processJobInline && config.testReplyContactIds?.has(payload.contactId)) {
         const job = { conversationId: inbound.conversationId, triggerMessageId: inbound.messageId };
-        return await replyForTestContact(deps, deps.processJobInline, job);
+        return await replyForTestContact(deps, deps.processJobInline, job, now.getTime());
       }
 
       if (shouldProcess && deps.processJob) {
