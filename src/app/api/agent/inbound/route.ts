@@ -27,6 +27,9 @@ export const maxDuration = 60;
 // Incluído no pacote da função por `outputFileTracingIncludes` (next.config.mjs).
 const PROMPT_PATH = path.join(process.cwd(), "agente", "00-prompt-do-agente-v2.md");
 
+/** Agrupamento da resposta de teste: 2,5 s de silêncio; responde de qualquer jeito após 8 s. */
+const TEST_REPLY_GROUPING = { quietMs: 2500, maxWaitMs: 8000 };
+
 // Por instância: primeira barreira contra excesso de requisições.
 let ipLimiter: FixedWindowLimiter | null = null;
 
@@ -49,11 +52,13 @@ export async function POST(request: Request): Promise<Response> {
     processJob: deps
       ? (job) => processAfterQuietPeriod({ agent: deps.live, grouping: prismaGroupingReader }, job, { policy: config.grouping })
       : null,
-    // Só para contatos de teste (AGENT_TEST_REPLY_CONTACT_IDS): sem espera de agrupamento.
+    // Só para contatos de teste (AGENT_TEST_REPLY_CONTACT_IDS): espera curta para juntar
+    // mensagens enviadas juntas (ex.: duas fotos); a mais nova responde por todas e as
+    // outras devolvem "sem texto". Curta para caber no tempo da Solicitação externa do ManyChat.
     processJobInline: deps
       ? (job) =>
           processAfterQuietPeriod({ agent: deps.live, grouping: prismaGroupingReader }, job, {
-            policy: { quietMs: 0, maxWaitMs: 0 },
+            policy: TEST_REPLY_GROUPING,
           })
       : null,
     schedule: (task) => after(task),

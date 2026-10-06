@@ -6,7 +6,7 @@ import { normalizePhone } from "../conversations/phone";
 import type { ConversationsStore } from "../conversations/repo";
 import { normalizeGroupingPolicy, type GroupingPolicy } from "../agent/grouping";
 import { ingestInbound } from "../agent/pipeline";
-import type { MediaResult } from "../agent-media/transcribe";
+import { isAllowedMediaUrl, type MediaResult } from "../agent-media/transcribe";
 import { clientIp, FixedWindowLimiter, secretFromHeaders, secretsMatch } from "./security";
 
 // Entrada autenticada do agente (POST /api/agent/inbound), em MODO SOMBRA.
@@ -195,7 +195,8 @@ async function customerContent(
 ): Promise<CustomerContent> {
   // Link de mídia: no campo próprio ou no lugar do texto. Um link que já foi tratado é o
   // campo "último arquivo" que ficou preenchido no ManyChat: aí vale o texto.
-  const url = mediaUrl ?? (BARE_URL.test(text) ? text : null);
+  // Só link de ARQUIVO do canal vira mídia; link de Instagram/TikTok/YouTube etc. é texto do cliente.
+  const url = mediaUrl ?? (BARE_URL.test(text) && isAllowedMediaUrl(text) ? text : null);
   if (url) {
     const id = mediaMessageId(contactId, url);
     const seen = deps.mediaMessageExists ? await deps.mediaMessageExists(unitId, contactId, id) : false;

@@ -362,6 +362,15 @@ describe("mídia (o ManyChat só entrega o último texto)", () => {
     assert.equal(inbound[0].metadata ?? null, null);
   });
 
+  it("link de rede social (não é arquivo do canal) chega como texto, sem tentar baixar", async () => {
+    let calls = 0;
+    const s = setup({ withModel: false, transcribe: async () => { calls += 1; return { kind: "other" }; } });
+    const link = "https://www.instagram.com/reel/abc123/";
+    await s.post(payload({ text: link, messageId: undefined }));
+    assert.equal(calls, 0);
+    assert.deepEqual(inboundContents(s), [link]);
+  });
+
   it("foto ou falha na transcrição: aviso de mídia", async () => {
     const s = setup({ withModel: false, transcribe: async () => ({ kind: "other" }) });
     await s.post(payload({ text: "", messageId: "m-1", mediaUrl: "https://manybot-files.s3.amazonaws.com/f.jpg" }));
