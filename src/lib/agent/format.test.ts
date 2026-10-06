@@ -40,6 +40,13 @@ describe("formatação para WhatsApp", () => {
     assert.equal(toWhatsappText(text), text);
   });
 
+  it("remove a medida da espessura entre parênteses", () => {
+    assert.equal(
+      toWhatsappText("Prefere P, M (mais ou menos 1 dedo de largura) ou G? 💛"),
+      "Prefere P, M ou G? 💛",
+    );
+  });
+
   it("reduz linhas em branco em excesso", () => {
     assert.equal(toWhatsappText("a\n\n\n\nb"), "a\n\nb");
   });

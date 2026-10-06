@@ -9,6 +9,8 @@ export function toWhatsappText(text: string): string {
     .replace(/__([^_\n]+)__/g, "*$1*")
     // "## Título" no início da linha → "Título"
     .replace(/^[ \t]*#{1,6}[ \t]+/gm, "")
+    // medida da espessura entre parênteses ("(mais ou menos 1 dedo de largura)"): o dono pediu para nunca usar
+    .replace(/[ \t]*\([^()]*\bdedos? de largura[^()]*\)/gi, "")
     // dois-pontos no meio da frase soam robóticos (pedido do dono): "me fala: como"
     // → "me fala, como"; no fim da linha vira ponto. Links (https://) e horas (10:30)
     // não têm espaço depois dos dois-pontos e ficam como estão.
