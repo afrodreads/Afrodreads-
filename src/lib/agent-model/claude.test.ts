@@ -7,8 +7,11 @@ import {
   createClaudeModelFromEnv,
   estimateCostUsd,
   InputTooLargeError,
+  REFERENCE_ACK,
+  REFERENCE_INTRO,
   type MessagesClient,
 } from "./claude";
+import { loadReferenceImages, REFERENCE_PHOTOS } from "./references";
 
 // Adaptador real testado com um cliente FALSO: nenhuma chamada de rede, nenhuma chave.
 
@@ -210,6 +213,29 @@ describe("adaptador Claude: fotos do cliente", () => {
     assert.equal(typeof client.calls[0].params.messages[0].content, "string");
   });
 
+  const REFS = [{ mediaType: "image/jpeg" as const, data: "QUJD", caption: "Retwist / Start Locs" }];
+
+  it("com foto do cliente: as referências do portfólio vão antes da conversa, com legenda", async () => {
+    const client = new FakeClient([message({ content: [{ type: "text", text: "Vejo um retwist!", citations: null }] as never })]);
+    await new ClaudeModelClient({ model: "claude-sonnet-5-5", referenceImages: REFS }, client).generate(withPhoto);
+    const [refs, ack, ...rest] = client.calls[0].params.messages;
+    assert.equal(refs.role, "user");
+    assert.deepEqual(refs.content, [
+      { type: "text", text: REFERENCE_INTRO },
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "QUJD" } },
+      { type: "text", text: "Retwist / Start Locs" },
+    ]);
+    assert.deepEqual(ack, { role: "assistant", content: REFERENCE_ACK });
+    assert.equal(rest.length, 3);
+    assert.equal(rest[0].content, "Quero dreads");
+  });
+
+  it("sem foto do cliente: nenhuma referência é enviada", async () => {
+    const client = new FakeClient([message({ content: [{ type: "text", text: "Oi!", citations: null }] as never })]);
+    await new ClaudeModelClient({ model: "claude-sonnet-5-5", referenceImages: REFS }, client).generate(request);
+    assert.equal(client.calls[0].params.messages.length, 1);
+  });
+
   it("anexa no máximo as 4 fotos mais recentes", async () => {
     const many = {
       ...request,
@@ -220,6 +246,12 @@ describe("adaptador Claude: fotos do cliente", () => {
     const withImage = client.calls[0].params.messages.filter((m) => Array.isArray(m.content));
     assert.equal(withImage.length, 4);
     assert.equal(typeof client.calls[0].params.messages[0].content, "string");
+  });
+
+  it("as fotos de referência existem no repositório e são pequenas", () => {
+    const images = loadReferenceImages("agente/referencias");
+    assert.equal(images.length, REFERENCE_PHOTOS.length);
+    for (const image of images) assert.ok(image.data.length < 120_000, image.caption);
   });
 
   it("se a API recusar a imagem (400), responde de novo sem as fotos", async () => {

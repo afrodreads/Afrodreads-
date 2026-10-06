@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ModelClient, ModelRequest, ModelResponse, ModelUsage } from "../agent/model";
 import type { ToolCallRequest } from "../agent/tools";
+import type { ReferenceImage } from "./references";
 
 // Adaptador REAL do modelo (Claude) atrás da porta ModelClient.
 //
@@ -47,7 +48,14 @@ export type ClaudeConfig = {
   maxInputChars: number;
   /** Fallback do lado da Anthropic quando o modelo recusa por política. */
   useFallbacks: boolean;
+  /** Fotos do portfólio enviadas antes da conversa quando o cliente manda foto (ver references.ts). */
+  referenceImages?: readonly ReferenceImage[];
 };
+
+/** Abre a mensagem das referências; o modelo responde com REFERENCE_ACK antes da conversa real. */
+export const REFERENCE_INTRO =
+  "[Referências internas, NÃO enviadas pelo cliente] Fotos de trabalhos da Afro Dreads (portfólio do site), cada uma com o nome certo do serviço. Use para reconhecer o que aparece nas fotos do cliente. Nunca cite estas fotos ao cliente.";
+export const REFERENCE_ACK = "Entendido. Vou usar essas fotos só como referência para reconhecer os trabalhos.";
 
 export const DEFAULT_CLAUDE_CONFIG: Omit<ClaudeConfig, "model"> = Object.freeze({
   effort: "medium",
@@ -125,8 +133,27 @@ export class ClaudeModelClient implements ModelClient {
         .filter((index) => index >= 0)
         .slice(-MAX_IMAGES),
     );
-    const toParams = (includeImages: boolean): Anthropic.Beta.Messages.BetaMessageParam[] =>
-      conversation.map((message, index) =>
+    // Com foto do cliente: as referências do portfólio vão antes da conversa (troca fixa usuário/assistente).
+    const references = this.config.referenceImages ?? [];
+    const referenceTurns: Anthropic.Beta.Messages.BetaMessageParam[] =
+      references.length > 0
+        ? [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: REFERENCE_INTRO },
+                ...references.flatMap((reference): Anthropic.Beta.Messages.BetaContentBlockParam[] => [
+                  { type: "image", source: { type: "base64", media_type: reference.mediaType, data: reference.data } },
+                  { type: "text", text: reference.caption },
+                ]),
+              ],
+            },
+            { role: "assistant", content: REFERENCE_ACK },
+          ]
+        : [];
+    const toParams = (includeImages: boolean): Anthropic.Beta.Messages.BetaMessageParam[] => [
+      ...(includeImages && withImages.size > 0 ? referenceTurns : []),
+      ...conversation.map((message, index): Anthropic.Beta.Messages.BetaMessageParam =>
         includeImages && withImages.has(index) && message.imageUrl
           ? {
               role: message.role,
@@ -136,7 +163,8 @@ export class ClaudeModelClient implements ModelClient {
               ],
             }
           : { role: message.role, content: message.content },
-      );
+      ),
+    ];
     let messages = toParams(true);
 
     const base = {
@@ -228,7 +256,10 @@ const EFFORTS = new Set(["low", "medium", "high"]);
  * Monta o cliente real a partir do ambiente. Sem ANTHROPIC_API_KEY devolve
  * null (o agente não roda; as mensagens continuam sendo registradas).
  */
-export function createClaudeModelFromEnv(env: Record<string, string | undefined> = process.env): ClaudeModelClient | null {
+export function createClaudeModelFromEnv(
+  env: Record<string, string | undefined> = process.env,
+  extras: Pick<ClaudeConfig, "referenceImages"> = {},
+): ClaudeModelClient | null {
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) return null;
   const intEnv = (value: string | undefined, fallback: number, min: number, max: number) => {
@@ -244,6 +275,7 @@ export function createClaudeModelFromEnv(env: Record<string, string | undefined>
       timeoutMs: intEnv(env.AGENT_TIMEOUT_MS, DEFAULT_CLAUDE_CONFIG.timeoutMs, 5000, 55000),
       maxRetries: intEnv(env.AGENT_MAX_RETRIES, DEFAULT_CLAUDE_CONFIG.maxRetries, 0, 2),
       useFallbacks: env.AGENT_FALLBACKS !== "off",
+      ...extras,
     },
     new Anthropic({ apiKey }),
   );

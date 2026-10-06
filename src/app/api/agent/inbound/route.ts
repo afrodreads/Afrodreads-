@@ -13,6 +13,7 @@ import { createInboundHandler, inboundConfigFromEnv } from "@/lib/agent-http/inb
 import { FixedWindowLimiter } from "@/lib/agent-http/security";
 import { createTranscriber, transcriberConfigFromEnv } from "@/lib/agent-media/transcribe";
 import { createClaudeModelFromEnv } from "@/lib/agent-model/claude";
+import { loadReferenceImages, type ReferenceImage } from "@/lib/agent-model/references";
 import { processAfterQuietPeriod } from "@/lib/agent/pipeline";
 import { prismaConversationsStore } from "@/lib/conversations/prismaRepo";
 
@@ -31,6 +32,10 @@ const PROMPT_PATH = path.join(process.cwd(), "agente", "00-prompt-do-agente-v2.m
 /** Agrupamento da resposta de teste: 1,2 s de silêncio; responde de qualquer jeito após 4 s (o ManyChat espera só 10 s). */
 const TEST_REPLY_GROUPING = { quietMs: 1200, maxWaitMs: 4000 };
 
+// Fotos do portfólio usadas como referência visual (também em `outputFileTracingIncludes`).
+const REFERENCES_DIR = path.join(process.cwd(), "agente", "referencias");
+let referenceImages: ReferenceImage[] | null = null;
+
 // Por instância: primeira barreira contra excesso de requisições.
 let ipLimiter: FixedWindowLimiter | null = null;
 
@@ -38,7 +43,8 @@ export async function POST(request: Request): Promise<Response> {
   const config = inboundConfigFromEnv();
   ipLimiter ??= new FixedWindowLimiter(config.ipLimitPerMinute, 60_000);
   // Sem ANTHROPIC_API_KEY o modelo fica indisponível: as mensagens são só registradas.
-  const model = config.enabled ? createClaudeModelFromEnv() : null;
+  referenceImages ??= loadReferenceImages(REFERENCES_DIR);
+  const model = config.enabled ? createClaudeModelFromEnv(process.env, { referenceImages }) : null;
   const deps = model ? createShadowDeps({ model, promptPath: PROMPT_PATH }) : null;
 
   const handler = createInboundHandler({
