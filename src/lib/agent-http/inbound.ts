@@ -153,7 +153,7 @@ export const NO_REPLY = "-";
 function reply(status: number, body: Record<string, string | boolean>): Response {
   // Toda resposta de sucesso traz `reply`, nunca vazio: o mapeamento do ManyChat falha
   // ("Json mapping errors") quando o campo não existe e, ao que tudo indica, quando vem vazio.
-  const payload = body.ok === true ? { reply: NO_REPLY, ...body } : body;
+  const payload = body.ok === true ? { reply: NO_REPLY, reply2: NO_REPLY, ...body } : body;
   return new Response(JSON.stringify(payload), { status, headers: JSON_HEADERS });
 }
 
@@ -233,12 +233,26 @@ async function customerContent(
   return { content: text, messageId: null };
 }
 
+/** O agente escreve isto (sozinho) quando o certo é não responder nada agora. */
+export const SILENCE_TOKEN = "[[SILENCIO]]";
+/** Separa a resposta em duas mensagens do WhatsApp (no máximo duas). */
+export const SPLIT_TOKEN = "[[NOVA_MENSAGEM]]";
+
 /** Texto do rascunho SÓ se o agente terminou com DRAFT_SAVED (passou nas travas). */
 function approvedDraftText(result: unknown): string | null {
   const run = (result as { result?: { outcome?: unknown; candidateText?: unknown } | null } | null)?.result;
   if (run?.outcome !== "DRAFT_SAVED" || typeof run.candidateText !== "string") return null;
-  const text = run.candidateText.trim();
+  const text = run.candidateText.split(SILENCE_TOKEN).join("").trim();
   return text ? text : null;
+}
+
+/** Partes da resposta (1 ou 2), sem o marcador e sem partes vazias. */
+export function messageParts(text: string): string[] {
+  const parts = text
+    .split(SPLIT_TOKEN)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length <= 2 ? parts : [parts[0], parts.slice(1).join("\n\n")];
 }
 
 /**
@@ -261,7 +275,7 @@ async function replyForTestContact(
     try {
       await recordOutboundMessage(
         deps.conversations,
-        { conversationId: job.conversationId, sender: "AI", senderRef: "teste-manychat", content: text },
+        { conversationId: job.conversationId, sender: "AI", senderRef: "teste-manychat", content: messageParts(text).join("\n\n") },
         deps.now(),
       );
     } catch (error) {
@@ -270,7 +284,13 @@ async function replyForTestContact(
       text = null;
     }
   }
-  return reply(200, { ok: true, status: text ? "replied" : "no_reply", reply: text ?? NO_REPLY });
+  const parts = text ? messageParts(text) : [];
+  return reply(200, {
+    ok: true,
+    status: parts.length > 0 ? "replied" : "no_reply",
+    reply: parts[0] ?? NO_REPLY,
+    reply2: parts[1] ?? NO_REPLY,
+  });
 }
 
 export function createInboundHandler(deps: InboundHandlerDeps): (request: Request) => Promise<Response> {
