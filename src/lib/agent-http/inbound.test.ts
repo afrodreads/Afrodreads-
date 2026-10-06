@@ -603,7 +603,7 @@ describe("resposta de teste: duas mensagens e silêncio", () => {
 
   it("[[NOVA_MENSAGEM]] separa a resposta em reply e reply2", async () => {
     const s = setup({
-      model: replyWith("Oi! Que bom ter você aqui 💛 Já recebi suas fotos.\n[[NOVA_MENSAGEM]]\nPra iniciar seu atendimento, me fala: como você se chama?"),
+      model: replyWith("Oi! Que bom ter você aqui 💛 Já recebi suas fotos.\n[[NOVA_MENSAGEM]]\nPra iniciar seu atendimento, me fala como você se chama?"),
       config: { testReplyContactIds: TEST_IDS },
     });
     const response = await s.post(payload());
@@ -611,7 +611,7 @@ describe("resposta de teste: duas mensagens e silêncio", () => {
       ok: true,
       status: "replied",
       reply: "Oi! Que bom ter você aqui 💛 Já recebi suas fotos.",
-      reply2: "Pra iniciar seu atendimento, me fala: como você se chama?",
+      reply2: "Pra iniciar seu atendimento, me fala como você se chama?",
     });
     const outbound = s.db.messages.filter((m) => m.direction === "OUTBOUND");
     assert.equal(outbound[0].content.includes("[[NOVA_MENSAGEM]]"), false);

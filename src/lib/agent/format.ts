@@ -9,6 +9,11 @@ export function toWhatsappText(text: string): string {
     .replace(/__([^_\n]+)__/g, "*$1*")
     // "## Título" no início da linha → "Título"
     .replace(/^[ \t]*#{1,6}[ \t]+/gm, "")
+    // dois-pontos no meio da frase soam robóticos (pedido do dono): "me fala: como"
+    // → "me fala, como"; no fim da linha vira ponto. Links (https://) e horas (10:30)
+    // não têm espaço depois dos dois-pontos e ficam como estão.
+    .replace(/(\S)[ \t]*:[ \t]*(\n|$)/g, "$1.$2")
+    .replace(/(\S)[ \t]*:[ \t]+/g, "$1, ")
     // sobra de linhas em branco em excesso
     .replace(/\n{3,}/g, "\n\n")
     .trim();

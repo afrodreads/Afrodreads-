@@ -20,6 +20,26 @@ describe("formatação para WhatsApp", () => {
     assert.equal(toWhatsappText("Fica *muito* bonito."), "Fica *muito* bonito.");
   });
 
+  it("troca dois-pontos no meio da frase por vírgula", () => {
+    assert.equal(
+      toWhatsappText("Pra iniciar seu atendimento, me fala: como você se chama?"),
+      "Pra iniciar seu atendimento, me fala, como você se chama?",
+    );
+    assert.equal(
+      toWhatsappText("Prazer, Lyon! 💛 Recebi as três fotos: na primeira eu vejo dreads."),
+      "Prazer, Lyon! 💛 Recebi as três fotos, na primeira eu vejo dreads.",
+    );
+  });
+
+  it("dois-pontos no fim da linha vira ponto", () => {
+    assert.equal(toWhatsappText("Seguem os cuidados:\n- lavar com shampoo"), "Seguem os cuidados.\n- lavar com shampoo");
+  });
+
+  it("não mexe em links nem em horários", () => {
+    const text = "Te espero às 10:30 💛 Avalie aqui https://g.page/r/abc/review";
+    assert.equal(toWhatsappText(text), text);
+  });
+
   it("reduz linhas em branco em excesso", () => {
     assert.equal(toWhatsappText("a\n\n\n\nb"), "a\n\nb");
   });
