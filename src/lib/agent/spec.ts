@@ -15,6 +15,7 @@ export type V2Layer =
   | "business_rules"
   | "flow"
   | "guardrails"
+  | "commercial" // camada comercial (agente/08-camada-comercial.md): como conduzir; nunca vence as regras do V2
   | "unit_config" // vem da configuração da unidade, não do texto
   | "code_enforced"; // garantido pelo código/evento SYSTEM; fora do prompt
 
@@ -53,6 +54,7 @@ export const V2_LAYERS: Record<string, V2Layer> = {
   "25": "code_enforced", // regras temporais: validade checada pelo código
   "26": "guardrails",
   "27": "persona",
+  "28": "commercial", // arquivo separado, carregado depois do V2 (desligável por AGENT_COMMERCIAL_LAYER=off)
   notes: "code_enforced",
 };
 

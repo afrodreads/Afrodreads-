@@ -28,6 +28,8 @@ export const maxDuration = 60;
 
 // Incluído no pacote da função por `outputFileTracingIncludes` (next.config.mjs).
 const PROMPT_PATH = path.join(process.cwd(), "agente", "00-prompt-do-agente-v2.md");
+// Camada comercial: vem depois do V2 e nunca vence as regras dele. AGENT_COMMERCIAL_LAYER=off desliga.
+const COMMERCIAL_LAYER_PATH = path.join(process.cwd(), "agente", "08-camada-comercial.md");
 
 /** Agrupamento da resposta de teste: 1,2 s de silêncio; responde de qualquer jeito após 4 s (o ManyChat espera só 10 s). */
 const TEST_REPLY_GROUPING = { quietMs: 1200, maxWaitMs: 4000 };
@@ -45,7 +47,8 @@ export async function POST(request: Request): Promise<Response> {
   // Sem ANTHROPIC_API_KEY o modelo fica indisponível: as mensagens são só registradas.
   referenceImages ??= loadReferenceImages(REFERENCES_DIR);
   const model = config.enabled ? createClaudeModelFromEnv(process.env, { referenceImages }) : null;
-  const deps = model ? createShadowDeps({ model, promptPath: PROMPT_PATH }) : null;
+  const promptPath = process.env.AGENT_COMMERCIAL_LAYER === "off" ? [PROMPT_PATH] : [PROMPT_PATH, COMMERCIAL_LAYER_PATH];
+  const deps = model ? createShadowDeps({ model, promptPath }) : null;
 
   const handler = createInboundHandler({
     config,

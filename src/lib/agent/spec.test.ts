@@ -10,7 +10,10 @@ import { V2_PATH } from "./testSupport";
 // O V2 vive em agente/ (pasta local, ainda fora do git). Sem o arquivo, estes
 // testes são pulados em vez de falhar.
 const hasV2 = existsSync(V2_PATH);
-const load = () => parseV2(readFileSync(V2_PATH, "utf8"));
+const COMMERCIAL_PATH = path.join(path.dirname(V2_PATH), "08-camada-comercial.md");
+const loadV2Only = () => parseV2(readFileSync(V2_PATH, "utf8"));
+// Como em produção: V2 seguido da camada comercial.
+const load = () => parseV2(`${readFileSync(V2_PATH, "utf8")}\n\n${readFileSync(COMMERCIAL_PATH, "utf8")}`);
 
 describe("separação do V2 em camadas", { skip: !hasV2 && "agente/00-prompt-do-agente-v2.md ausente" }, () => {
   it("encontra o preâmbulo, as seções 0 a 27 e as notas", () => {
@@ -77,6 +80,42 @@ describe("separação do V2 em camadas", { skip: !hasV2 && "agente/00-prompt-do-
       "Só responda usando",
     ]) {
       assert.equal(sources.includes(phrase), false, `texto do V2 copiado no código: ${phrase}`);
+    }
+  });
+});
+
+describe("camada comercial (agente/08-camada-comercial.md)", { skip: !hasV2 && "agente/ ausente" }, () => {
+  const commercial = () => load().find((section) => section.key === 28);
+
+  it("é uma seção própria (28), separada do V2, e vai para o modelo", () => {
+    assert.equal(loadV2Only().some((section) => section.key === 28), false);
+    assert.equal(layerOf(28), "commercial");
+    assert.ok(promptSections(load()).some((section) => section.key === 28));
+  });
+
+  it("desligada, o prompt fica igual ao V2 de antes", () => {
+    assert.deepEqual(
+      promptSections(loadV2Only()).map((section) => section.key),
+      promptSections(load()).map((section) => section.key).filter((key) => key !== 28),
+    );
+  });
+
+  it("declara que as regras do V2 vencem e mantém as decisões do dono", () => {
+    const body = commercial()?.body ?? "";
+    assert.match(body, /vence\*\* esta camada/);
+    assert.match(body, /o valor é da Thay/i); // preço continua com a Thay
+    assert.match(body, /não\*\* marca horário/i); // fechamento = passar para a Thay
+    assert.match(body, /não use avaliações, número de clientes nem depoimentos/i); // sem prova social
+    assert.match(body, /PRONTO_PARA_AGENDAR/);
+  });
+
+  it("os exemplos ao cliente não têm valor em reais, desconto, escassez nem mais de 1 emoji", () => {
+    // Só as frases de exemplo (as curtas entre aspas são a lista do que é proibido dizer).
+    const quotes = [...(commercial()?.body ?? "").matchAll(/“([^”]+)”/g)].map((m) => m[1]).filter((quote) => quote.length > 30);
+    assert.ok(quotes.length >= 10);
+    for (const quote of quotes) {
+      assert.doesNotMatch(quote, /R\$|\d+\s?%|desconto de|últimas vagas|agenda lotada|só hoje/i, quote);
+      assert.ok([...quote.matchAll(/\p{Extended_Pictographic}/gu)].length <= 1, quote);
     }
   });
 });
