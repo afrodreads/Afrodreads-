@@ -30,6 +30,35 @@ Clientes anonimizados (CLIENTE_001…); sem telefone, nome, endereço ou dados d
 2. **Tempo até o humano.** Tudo que chega na sexta à tarde, no sábado e no domingo só recebe resposta na segunda entre 10h07 e 10h24 (até 3 dias). Os 6 orçamentos dessa segunda ficaram sem resposta no dia (hipótese: lead esfriou).
 3. **A Thay vende bem quando entra rápido.** CLIENTE_002 saiu do robô e em 30 min tinha dois orçamentos (sintético e humano) com "Qual dos dois você gostaria?".
 
+## 1b. Segunda rodada (07/10/2026): conversas com última mensagem em 06/10
+
+| Item | Valor |
+|---|---|
+| Conversas abertas | 25 (22 de clientes; 3 ignoradas: contato de teste do Lyon, contato da Thay, aviso de segurança de app de pagamento) |
+| Origem | anúncio Facebook/Instagram: 14; site: 3; clientes antigos: 5 |
+| Converteram ou estão fechando | 3 (uma com data e Pix enviado, uma confirmada, uma "Esperando sinal") |
+| Orçamento enviado, sem resposta no dia | 7 |
+| Pararam no robô (nome, foto, referência) | 8 |
+
+**O que mudou em relação ao dia 05**
+- **Os clientes do site convertem melhor.** Uma 1ª aplicação do site (conversa longa com a Thay, 5 áudios de explicação, 3 reels de exemplo) saiu com orçamento, data e Pix em ~9 h. É o padrão mais forte da amostra: explicação paciente das técnicas + exemplos + orçamento + datas + Pix.
+- **Pedido de humano esperou 3 horas** (cliente escreveu "Humano" às 17:00; Thay às 20:20).
+- **Cliente mandou áudio e ficou sem retorno** no dia (manutenção, 14:02).
+- **A Thay explica bem as técnicas** (agulhado x retwist x starter locs, tempo de maturação de 6 meses a 1 ano, encurtamento de 2 a 3 dedos no agulhado). Isso entrou no agente.
+- **Objeção real de dinheiro** ("agora estou sem o orçamento necessário"): a Thay respondeu com sinal de R$ 50 descontado + resto no dia + simulação de parcelas no crédito. Isso entrou na camada comercial.
+- **Objeção de material por experiência ruim** ("fiz cabelo humano e soltava rápido"): a Thay mandou só fotos de sintético e orçou só sintético.
+- **Follow-up humano existe**, 6 dias depois, retomando a data combinada ("Você ainda gostaria de agendar para o dia 23/10?"). Sem resposta.
+- **Atendimento no dia**: o cliente avisa "estou aqui" e a equipe abre a porta.
+
+**Itens novos para validar com a Thay**
+- [ ] Valores de manutenção completa variam (R$ 300, 350, 390, 450): confirmar a regra (o agente nunca informa valor).
+- [ ] Starter locs: R$ 500 com twists e R$ 550 sem twists no mesmo dia (pode ser por tamanho ou erro).
+- [ ] A Thay manda o endereço completo antes da confirmação quando o cliente pede (a base do agente só diz "Pirituba"): manter o endereço só depois da confirmação, ou liberar?
+- [ ] Lista de agenda ("AGENDA OUTUBRO") é montada à mão; hoje o agente não vê a agenda.
+- [ ] O robô antigo perguntou o nome de novo a quem já tinha dito (vídeo + nome antes do robô).
+
+**Limitações**: áudios (muitos dos dois lados) e imagens não foram analisados; só os cards de agendamento e a lista de agenda foram lidos pela tela.
+
 ## 2. Principais dúvidas e pedidos dos clientes (o que realmente apareceu)
 
 | Tema | Vezes | Exemplo (anonimizado) |

@@ -114,7 +114,8 @@ describe("camada comercial (agente/08-camada-comercial.md)", { skip: !hasV2 && "
     const quotes = [...(commercial()?.body ?? "").matchAll(/“([^”]+)”/g)].map((m) => m[1]).filter((quote) => quote.length > 30);
     assert.ok(quotes.length >= 10);
     for (const quote of quotes) {
-      assert.doesNotMatch(quote, /R\$|\d+\s?%|desconto de|últimas vagas|agenda lotada|só hoje/i, quote);
+      // Único valor permitido: o sinal de R$ 50 (regra oficial, também liberado pela trava de preço).
+      assert.doesNotMatch(quote, /R\$(?!\s*50\b)|\d+\s?%|desconto de|últimas vagas|agenda lotada|só hoje/i, quote);
       assert.ok([...quote.matchAll(/\p{Extended_Pictographic}/gu)].length <= 1, quote);
     }
   });
