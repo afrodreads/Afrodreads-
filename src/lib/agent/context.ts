@@ -56,7 +56,17 @@ export type ContextMessage = {
   role: "user" | "assistant";
   sender: MessageRecord["sender"];
   text: string;
+  /** Foto do cliente (link do canal, guardado em metadata.imageUrl). */
+  imageUrl?: string;
 };
+
+/** Link de foto guardado na mensagem do cliente; só HTTPS. */
+function imageUrlOf(message: MessageRecord): string | undefined {
+  if (message.sender !== "CUSTOMER") return undefined;
+  const metadata = message.metadata as Record<string, unknown> | null | undefined;
+  const url = metadata && typeof metadata.imageUrl === "string" ? metadata.imageUrl : undefined;
+  return url && url.startsWith("https://") ? url : undefined;
+}
 
 export type AgentContext = {
   conversationId: string;
@@ -87,7 +97,14 @@ export function formatSaoPaulo(date: Date): string {
 function toContextMessage(message: MessageRecord): ContextMessage {
   const text =
     message.content.length > MESSAGE_TEXT_LIMIT ? `${message.content.slice(0, MESSAGE_TEXT_LIMIT)}…` : message.content;
-  return { id: message.id, role: message.sender === "CUSTOMER" ? "user" : "assistant", sender: message.sender, text };
+  const imageUrl = imageUrlOf(message);
+  return {
+    id: message.id,
+    role: message.sender === "CUSTOMER" ? "user" : "assistant",
+    sender: message.sender,
+    text,
+    ...(imageUrl ? { imageUrl } : {}),
+  };
 }
 
 export function buildAgentContext(raw: RawAgentData, now: Date, options: { useModeAtTrigger?: boolean } = {}): AgentContext {

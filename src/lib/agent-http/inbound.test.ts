@@ -4,8 +4,20 @@ import { finishConversation, handoffToHuman } from "../conversations/conversatio
 import { findOrCreateCustomer } from "../conversations/customer";
 import { processAfterQuietPeriod } from "../agent/pipeline";
 import { agentHarness, MemoryGroupingReader, replyWith, ScriptedModel } from "../agent/testSupport";
-import { createInboundHandler, MAX_TEXT_CHARS, type InboundConfig } from "./inbound";
+import {
+  AUDIO_PREFIX,
+  IMAGE_PLACEHOLDER,
+  createInboundHandler,
+  derivedMessageId,
+  MAX_TEXT_CHARS,
+  MEDIA_PLACEHOLDER,
+  NAME_QUESTION,
+  TEST_REPLY_DEADLINE_MS,
+  WELCOME_TEXT,
+  type InboundConfig,
+} from "./inbound";
 import { FixedWindowLimiter } from "./security";
+import type { MediaResult } from "../agent-media/transcribe";
 
 // Simula o ManyChat chamando POST /api/agent/inbound (modo sombra).
 
@@ -38,7 +50,7 @@ const payload = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>; withModel?: boolean; ipLimiter?: FixedWindowLimiter; noUnit?: boolean } = {}) {
+function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>; withModel?: boolean; ipLimiter?: FixedWindowLimiter; noUnit?: boolean; transcribe?: (url: string) => Promise<MediaResult> } = {}) {
   const model = options.model ?? replyWith("Oi! Me conta o que você está procurando. 💛", [
     { name: "update_lead_data", arguments: { intent: "INFORMACAO", temperature: "FRIO" } },
   ]);
@@ -68,10 +80,37 @@ function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>
         const conversation = h.db.conversations.find((c) => c.id === m.conversationId);
         return m.direction === "INBOUND" && conversation?.unitId === unitId && conversation.externalId === contactId && m.createdAt >= since;
       }).length,
+    lastInboundForContact: async (unitId, contactId) => {
+      const conversation = h.db.conversations.find((c) => c.unitId === unitId && c.externalId === contactId);
+      const inbound = h.db.messages.filter((m) => m.conversationId === conversation?.id && m.direction === "INBOUND");
+      const last = inbound[inbound.length - 1];
+      if (!last) return null;
+      const answered = h.db.messages.some((m) => m.conversationId === last.conversationId && m.direction === "OUTBOUND" && m.createdAt >= last.createdAt);
+      return { text: last.content, answered };
+    },
+    transcribeMedia: options.transcribe,
+    mediaMessageExists: async (unitId, contactId, externalMessageId) => {
+      const conversation = h.db.conversations.find((c) => c.unitId === unitId && c.externalId === contactId);
+      return h.db.messages.some((m) => m.conversationId === conversation?.id && m.externalId === externalMessageId);
+    },
+    openingState: async (conversationId) => {
+      const messages = h.db.messages.filter((m) => m.conversationId === conversationId);
+      const outbound = messages.filter((m) => m.direction === "OUTBOUND");
+      const last = outbound[outbound.length - 1];
+      return {
+        anyOutbound: last !== undefined,
+        lastAiText: last?.sender === "AI" ? last.content : null,
+        pending: messages.filter((m) => m.sender === "CUSTOMER" && (!last || m.createdAt > last.createdAt)).map((m) => m.content),
+      };
+    },
     processJob:
       options.withModel === false
         ? null
         : (job) => processAfterQuietPeriod({ agent: h.live, grouping }, job, { policy: config.grouping, sleep: async () => {}, now: () => clock }),
+    processJobInline:
+      options.withModel === false
+        ? null
+        : (job) => processAfterQuietPeriod({ agent: h.live, grouping }, job, { policy: { quietMs: 0, maxWaitMs: 0 }, sleep: async () => {}, now: () => clock }),
     schedule: (task) => tasks.push(task),
     now: () => clock,
     log: (event, data) => logs.push(JSON.stringify({ event, ...data })),
@@ -101,7 +140,7 @@ describe("entrada válida (modo sombra)", () => {
     const response = await s.post(payload());
 
     assert.equal(response.status, 202);
-    assert.deepEqual(response.body, { ok: true, status: "accepted" });
+    assert.deepEqual(response.body, { ok: true, status: "accepted", reply: "-", reply2: "-" });
     assert.equal(s.db.customers.length, 1);
     assert.equal(s.db.customers[0].phone, "+5511987654321");
     assert.equal(s.db.conversations[0].externalId, "mc-123456");
@@ -121,7 +160,8 @@ describe("entrada válida (modo sombra)", () => {
     const s = setup({ model: replyWith("TEXTO SECRETO DA IA") });
     const response = await s.post(payload());
     await s.drain();
-    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "status"]);
+    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "reply", "reply2", "status"]);
+    assert.equal((response.body as { reply: string }).reply, "-");
     assert.equal(JSON.stringify(response.body).includes("TEXTO SECRETO"), false);
   });
 
@@ -141,6 +181,14 @@ describe("entrada válida (modo sombra)", () => {
     assert.equal(response.status, 202);
   });
 
+  it("sem messageId nem timestamp (o ManyChat não os oferece): aceita, usa o horário do servidor e deriva o id", async () => {
+    const s = setup();
+    const response = await s.post(payload({ messageId: undefined, timestamp: undefined }));
+    assert.equal(response.status, 202);
+    assert.equal(s.db.messages.length, 1);
+    assert.match(String(s.db.messages[0].externalId), /^derived:[0-9a-f]{40}$/);
+  });
+
   it("sem chave do modelo: registra a mensagem, mas não agenda execução", async () => {
     const s = setup({ withModel: false });
     const response = await s.post(payload());
@@ -157,7 +205,7 @@ describe("idempotência e concorrência", () => {
     await s.drain();
     const again = await s.post(payload());
     assert.equal(again.status, 200);
-    assert.deepEqual(again.body, { ok: true, status: "duplicate" });
+    assert.deepEqual(again.body, { ok: true, status: "duplicate", reply: "-", reply2: "-" });
     assert.equal(s.tasks.length, 0);
     assert.equal(s.db.messages.length, 1);
     assert.equal(s.runs.runs.length, 1);
@@ -184,6 +232,200 @@ describe("idempotência e concorrência", () => {
     const future = await s.post(payload({ messageId: "wamid.FUTURO", timestamp: new Date(NOW.getTime() + 10 * 60_000).toISOString() }));
     assert.equal(future.status, 400);
     assert.equal(s.db.messages.length, 0);
+  });
+});
+
+describe("sem id único por mensagem (derivado)", () => {
+  const bare = (overrides: Record<string, unknown> = {}) => payload({ messageId: undefined, timestamp: undefined, ...overrides });
+
+  it("mesmo contato, mesmo texto, mesmo minuto (reenvio): 200 'duplicate', 1 mensagem e 1 execução", async () => {
+    const s = setup();
+    await s.post(bare());
+    await s.drain();
+    const again = await s.post(bare());
+    assert.equal(again.status, 200);
+    assert.deepEqual(again.body, { ok: true, status: "duplicate", reply: "-", reply2: "-" });
+    assert.equal(s.db.messages.length, 1);
+    assert.equal(s.runs.runs.length, 1);
+  });
+
+  it("textos diferentes no mesmo minuto: duas mensagens", async () => {
+    const s = setup();
+    await s.post(bare({ text: "Oi" }));
+    await s.post(bare({ text: "Quero fazer microlocs" }));
+    assert.equal(s.db.messages.length, 2);
+  });
+
+  it("messageId em branco continua inválido (só a ausência é aceita)", async () => {
+    const s = setup();
+    const response = await s.post(bare({ messageId: "   " }));
+    assert.equal(response.status, 400);
+    assert.equal(s.db.messages.length, 0);
+  });
+
+  it("derivedMessageId: estável no mesmo minuto e diferente no minuto seguinte, no contato ou no texto", () => {
+    const t = new Date("2026-10-01T15:30:10-03:00");
+    const base = derivedMessageId("mc-1", "oi", t);
+    assert.equal(base, derivedMessageId("mc-1", "oi", new Date(t.getTime() + 30_000)));
+    assert.notEqual(base, derivedMessageId("mc-1", "oi", new Date(t.getTime() + 60_000)));
+    assert.notEqual(base, derivedMessageId("mc-2", "oi", t));
+    assert.notEqual(base, derivedMessageId("mc-1", "olá", t));
+  });
+});
+
+describe("contato de teste (resposta devolvida ao ManyChat)", () => {
+  const TEST_IDS = new Set(["mc-123456"]);
+
+  it("contato da lista: roda na hora, devolve o texto aprovado e grava a mensagem da IA", async () => {
+    const s = setup({ model: replyWith("Oi! Seu cabelo tem pelo menos 4 dedos de comprimento? 💛"), config: { testReplyContactIds: TEST_IDS } });
+    const response = await s.post(payload());
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { ok: true, status: "replied", reply: "Oi! Seu cabelo tem pelo menos 4 dedos de comprimento? 💛", reply2: "-" });
+    assert.equal(s.tasks.length, 0); // rodou no mesmo pedido, nada agendado
+    assert.equal(s.runs.runs.length, 1);
+    const outbound = s.db.messages.filter((m) => m.direction === "OUTBOUND");
+    assert.equal(outbound.length, 1);
+    assert.equal(outbound[0].content, "Oi! Seu cabelo tem pelo menos 4 dedos de comprimento? 💛");
+    assert.equal(networkCalls, 0); // este servidor não envia nada para fora
+  });
+
+  it("contato que NÃO está na lista nunca recebe o texto", async () => {
+    const s = setup({ model: replyWith("TEXTO SECRETO DA IA"), config: { testReplyContactIds: new Set(["outro-contato"]) } });
+    const response = await s.post(payload());
+    await s.drain();
+    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "reply", "reply2", "status"]);
+    assert.equal((response.body as { reply: string }).reply, "-");
+    assert.equal(JSON.stringify(response.body).includes("TEXTO SECRETO"), false);
+    assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
+  });
+
+  it("rascunho barrado pelas travas (preço): contato de teste recebe resposta vazia", async () => {
+    const s = setup({ model: replyWith("Fica R$ 1.000 certinho! 💛"), config: { testReplyContactIds: TEST_IDS } });
+    const response = await s.post(payload());
+    assert.deepEqual(response.body, { ok: true, status: "no_reply", reply: "-", reply2: "-" });
+    assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
+  });
+
+  it("sem lista configurada (padrão): comportamento de sombra, 202 sem texto", async () => {
+    const s = setup({ model: replyWith("TEXTO SECRETO DA IA") });
+    const response = await s.post(payload());
+    assert.equal(response.status, 202);
+    assert.deepEqual(response.body, { ok: true, status: "accepted", reply: "-", reply2: "-" });
+  });
+});
+
+describe("mídia (o ManyChat só entrega o último texto)", () => {
+  const TEST_IDS = new Set(["mc-123456"]);
+  const inboundContents = (s: ReturnType<typeof setup>) => s.db.messages.filter((m) => m.direction === "INBOUND").map((m) => m.content);
+
+  it("link de arquivo no lugar do texto vira aviso de mídia", async () => {
+    const s = setup({ config: { testReplyContactIds: TEST_IDS } });
+    await s.post(payload({ text: "https://manybot-files.s3.amazonaws.com/foto.jpg" }));
+    assert.deepEqual(inboundContents(s), [MEDIA_PLACEHOLDER]);
+  });
+
+  it("mesmo texto repetido depois de uma resposta vira aviso de mídia (não responde de novo ao texto antigo)", async () => {
+    const s = setup({ config: { testReplyContactIds: TEST_IDS } });
+    await s.post(payload({ text: "Eu já mandei", messageId: "m-1" }));
+    s.setClock(new Date(NOW.getTime() + 3 * 60_000));
+    await s.post(payload({ text: "Eu já mandei", messageId: "m-2" }));
+    assert.deepEqual(inboundContents(s), ["Eu já mandei", MEDIA_PLACEHOLDER]);
+  });
+
+  it("áudio no campo mediaUrl: vira a transcrição e o agente responde a ela", async () => {
+    const urls: string[] = [];
+    const s = setup({
+      model: replyWith("Perfeito, anotei! Seu cabelo tem pelo menos 4 dedos? 💛"),
+      config: { testReplyContactIds: TEST_IDS },
+      transcribe: async (url) => {
+        urls.push(url);
+        return { kind: "audio", text: "quero fazer dreads do zero, nunca fiz" };
+      },
+    });
+    const response = await s.post(payload({ text: "{{last_input_text}}", messageId: undefined, mediaUrl: "https://manybot-files.s3.amazonaws.com/a.ogg" }));
+    assert.equal(response.body.status, "replied");
+    assert.deepEqual(urls, ["https://manybot-files.s3.amazonaws.com/a.ogg"]);
+    assert.deepEqual(inboundContents(s), [AUDIO_PREFIX + "quero fazer dreads do zero, nunca fiz"]);
+  });
+
+  it("mesma mídia de novo (campo que ficou preenchido) com texto novo: vale o texto, sem transcrever de novo", async () => {
+    let calls = 0;
+    const s = setup({
+      config: { testReplyContactIds: TEST_IDS },
+      transcribe: async () => {
+        calls += 1;
+        return { kind: "audio", text: "oi" };
+      },
+    });
+    const mediaUrl = "https://manybot-files.s3.amazonaws.com/a.ogg";
+    await s.post(payload({ text: "{{last_input_text}}", messageId: "m-1", mediaUrl }));
+    s.setClock(new Date(NOW.getTime() + 60_000));
+    await s.post(payload({ text: "Tenho 10 cm", messageId: "m-2", mediaUrl }));
+    assert.equal(calls, 1);
+    assert.deepEqual(inboundContents(s), [AUDIO_PREFIX + "oi", "Tenho 10 cm"]);
+  });
+
+  it("foto: grava o aviso de foto com o link em metadata (para o modelo ver a imagem)", async () => {
+    const s = setup({ withModel: false, transcribe: async () => ({ kind: "image" }) });
+    const url = "https://manybot-files.s3.amazonaws.com/ref.jpg";
+    await s.post(payload({ text: "{{last_input_text}}", messageId: undefined, mediaUrl: url }));
+    const inbound = s.db.messages.filter((m) => m.direction === "INBOUND");
+    assert.deepEqual(inbound.map((m) => m.content), [IMAGE_PLACEHOLDER]);
+    assert.deepEqual(inbound[0].metadata, { media: "image", imageUrl: url });
+  });
+
+  it("foto com link longo demais para guardar: só o aviso de mídia, sem metadata", async () => {
+    const s = setup({ withModel: false, transcribe: async () => ({ kind: "image" }) });
+    await s.post(payload({ text: "", messageId: undefined, mediaUrl: "https://manybot-files.s3.amazonaws.com/" + "a".repeat(250) + ".jpg" }));
+    const inbound = s.db.messages.filter((m) => m.direction === "INBOUND");
+    assert.deepEqual(inbound.map((m) => m.content), [MEDIA_PLACEHOLDER]);
+    assert.equal(inbound[0].metadata ?? null, null);
+  });
+
+  it("link de rede social (não é arquivo do canal) chega como texto, sem tentar baixar", async () => {
+    let calls = 0;
+    const s = setup({ withModel: false, transcribe: async () => { calls += 1; return { kind: "other" }; } });
+    const link = "https://www.instagram.com/reel/abc123/";
+    await s.post(payload({ text: link, messageId: undefined }));
+    assert.equal(calls, 0);
+    assert.deepEqual(inboundContents(s), [link]);
+  });
+
+  it("foto ou falha na transcrição: aviso de mídia", async () => {
+    const s = setup({ withModel: false, transcribe: async () => ({ kind: "other" }) });
+    await s.post(payload({ text: "", messageId: "m-1", mediaUrl: "https://manybot-files.s3.amazonaws.com/f.jpg" }));
+    assert.deepEqual(inboundContents(s), [MEDIA_PLACEHOLDER]);
+  });
+
+  it("sem texto e sem link (ManyChat sem texto novo): vira aviso de mídia, não erro", async () => {
+    const s = setup({ withModel: false });
+    const response = await s.post(payload({ text: "{{last_input_text}}", messageId: undefined, mediaUrl: "{{ultima_midia}}" }));
+    assert.equal(response.status, 202);
+    assert.deepEqual(inboundContents(s), [MEDIA_PLACEHOLDER]);
+  });
+
+  it("foto no MESMO minuto do texto anterior (ManyChat repete o texto): vira mídia, não duplicata", async () => {
+    const s = setup({ model: replyWith("Recebi, obrigada! 💛"), config: { testReplyContactIds: TEST_IDS } });
+    await s.post(payload({ text: "Sim", messageId: undefined }));
+    s.setClock(new Date(NOW.getTime() + 20_000));
+    const response = await s.post(payload({ text: "Sim", messageId: undefined }));
+    assert.notEqual(response.body.status, "duplicate");
+    assert.deepEqual(inboundContents(s), ["Sim", MEDIA_PLACEHOLDER]);
+  });
+
+  it("resposta da equipe sem texto continua recusada", async () => {
+    const s = setup({ withModel: false });
+    const response = await s.post(payload({ type: "human_reply", text: "", messageId: undefined }));
+    assert.equal(response.status, 400);
+  });
+
+  it("texto repetido SEM resposta no meio continua sendo texto", async () => {
+    const s = setup({ withModel: false });
+    await s.post(payload({ text: "Oi", messageId: "m-1" }));
+    s.setClock(new Date(NOW.getTime() + 3 * 60_000));
+    await s.post(payload({ text: "Oi", messageId: "m-2" }));
+    assert.deepEqual(inboundContents(s), ["Oi", "Oi"]);
   });
 });
 
@@ -229,16 +471,13 @@ describe("autenticação e limites", () => {
 describe("validação rigorosa do payload", () => {
   const cases: [string, unknown, number][] = [
     ["JSON inválido", "{oi", 400],
-    ["sem messageId", payload({ messageId: undefined }), 400],
     ["messageId vazio", payload({ messageId: "  " }), 400],
     ["sem contactId", payload({ contactId: undefined }), 400],
     ["sem telefone", payload({ phone: undefined }), 400],
     ["telefone inválido", payload({ phone: "não é telefone" }), 400],
     ["canal errado", payload({ channel: "sms" }), 400],
     ["campo desconhecido", payload({ preco: 400 }), 400],
-    ["texto vazio", payload({ text: "    " }), 400],
     ["texto muito grande", payload({ text: "a".repeat(MAX_TEXT_CHARS + 1) }), 400],
-    ["sem timestamp", payload({ timestamp: undefined }), 400],
     ["timestamp inválido", payload({ timestamp: "ontem" }), 400],
     ["tipo desconhecido", payload({ type: "send_reply" }), 400],
   ];
@@ -361,7 +600,7 @@ describe("resposta da equipe (human_reply) para comparar com a IA", () => {
       payload({ type: "human_reply", messageId: "wamid.EQUIPE1", text: "Oi Maria! Me manda uma foto?", agent: "atendente-1" }),
     );
     assert.equal(response.status, 202);
-    assert.deepEqual(response.body, { ok: true, status: "recorded" });
+    assert.deepEqual(response.body, { ok: true, status: "recorded", reply: "-", reply2: "-" });
     const human = s.db.messages.find((m) => m.sender === "HUMAN");
     assert.equal(human?.direction, "OUTBOUND");
     assert.equal(human?.senderRef, "atendente-1");
@@ -369,13 +608,106 @@ describe("resposta da equipe (human_reply) para comparar com a IA", () => {
     assert.equal(s.db.conversations[0].mode, "BOT");
 
     const again = await s.post(payload({ type: "human_reply", messageId: "wamid.EQUIPE1", text: "Oi Maria! Me manda uma foto?" }));
-    assert.deepEqual(again.body, { ok: true, status: "duplicate" });
+    assert.deepEqual(again.body, { ok: true, status: "duplicate", reply: "-", reply2: "-" });
   });
 
   it("resposta para contato desconhecido é ignorada", async () => {
     const s = setup();
     const response = await s.post(payload({ type: "human_reply", contactId: "nao-existe", text: "oi" }));
-    assert.deepEqual(response.body, { ok: true, status: "ignored" });
+    assert.deepEqual(response.body, { ok: true, status: "ignored", reply: "-", reply2: "-" });
     assert.equal(s.db.messages.length, 0);
+  });
+});
+
+describe("resposta de teste: duas mensagens e silêncio", () => {
+  const TEST_IDS = new Set(["mc-123456"]);
+
+  it("[[NOVA_MENSAGEM]] separa a resposta em reply e reply2", async () => {
+    const s = setup({
+      model: replyWith("Oi! Que bom ter você aqui 💛 Já recebi suas fotos.\n[[NOVA_MENSAGEM]]\nPra iniciar seu atendimento, me fala como você se chama?"),
+      config: { testReplyContactIds: TEST_IDS },
+    });
+    const response = await s.post(payload());
+    assert.deepEqual(response.body, {
+      ok: true,
+      status: "replied",
+      reply: "Oi! Que bom ter você aqui 💛 Já recebi suas fotos.",
+      reply2: "Pra iniciar seu atendimento, me fala como você se chama?",
+    });
+    const outbound = s.db.messages.filter((m) => m.direction === "OUTBOUND");
+    assert.equal(outbound[0].content.includes("[[NOVA_MENSAGEM]]"), false);
+  });
+
+  const photo = (n: number) =>
+    payload({
+      text: "{{last_input_text}}",
+      messageId: undefined,
+      mediaUrl: `https://manybot-files.s3.amazonaws.com/f${n}.jpg`,
+      timestamp: new Date(NOW.getTime() + n * 1000).toISOString(),
+    });
+
+  it("cliente novo abre com fotos: boas-vindas e pergunta do nome na hora, sem o modelo; fotos seguintes = silêncio", async () => {
+    const s = setup({
+      model: replyWith("Prazer, Lyon! 💛 Recebi as três fotos! Qual delas é o seu cabelo hoje?"),
+      config: { testReplyContactIds: TEST_IDS },
+      transcribe: async () => ({ kind: "image" }),
+    });
+    const first = await s.post(photo(1));
+    assert.deepEqual(first.body, {
+      ok: true,
+      status: "replied",
+      reply: `${WELCOME_TEXT} Já recebi suas fotos.`,
+      reply2: NAME_QUESTION,
+    });
+    for (const n of [2, 3]) {
+      s.setClock(new Date(NOW.getTime() + n * 1000));
+      const next = await s.post(photo(n));
+      assert.deepEqual(next.body, { ok: true, status: "no_reply", reply: "-", reply2: "-" });
+    }
+    assert.equal(s.model.calls.length, 0);
+
+    s.setClock(new Date(NOW.getTime() + 10_000));
+    const named = await s.post(payload({ text: "Lyon", messageId: "m-nome", timestamp: new Date(NOW.getTime() + 10_000).toISOString() }));
+    assert.equal(named.body.reply, "Prazer, Lyon! 💛 Recebi as três fotos! Qual delas é o seu cabelo hoje?");
+    assert.equal(s.model.calls.length, 1);
+    // O modelo vê a abertura gravada e as três fotos.
+    const contents = s.model.calls[0].messages.map((m) => m.content);
+    assert.ok(contents.some((c) => c.includes(NAME_QUESTION)));
+    assert.equal(contents.filter((c) => c === IMAGE_PLACEHOLDER).length, 3);
+  });
+
+  it("cliente novo abre com link: boas-vindas citando o link", async () => {
+    const s = setup({ config: { testReplyContactIds: TEST_IDS } });
+    const response = await s.post(payload({ text: "https://www.instagram.com/p/abc/" }));
+    assert.equal(response.body.reply, `${WELCOME_TEXT} Já recebi o link.`);
+    assert.equal(response.body.reply2, NAME_QUESTION);
+    assert.equal(s.model.calls.length, 0);
+  });
+
+  it("cliente novo abre com texto (pode trazer o nome): quem responde é o modelo", async () => {
+    const s = setup({ model: replyWith("Oi, Maria! Que bom ter você aqui 💛"), config: { testReplyContactIds: TEST_IDS } });
+    const response = await s.post(payload({ text: "Oi, sou a Maria" }));
+    assert.equal(response.body.reply, "Oi, Maria! Que bom ter você aqui 💛");
+    assert.equal(s.model.calls.length, 1);
+  });
+
+  it("resposta pronta depois do tempo do ManyChat: não é devolvida nem gravada", async () => {
+    const holder: { s?: ReturnType<typeof setup> } = {};
+    const model = new ScriptedModel(async () => {
+      holder.s!.setClock(new Date(NOW.getTime() + TEST_REPLY_DEADLINE_MS + 1));
+      return { text: "Resposta atrasada", toolCalls: [] };
+    });
+    holder.s = setup({ model, config: { testReplyContactIds: TEST_IDS } });
+    const response = await holder.s.post(payload());
+    assert.deepEqual(response.body, { ok: true, status: "no_reply", reply: "-", reply2: "-" });
+    assert.equal(holder.s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
+    assert.ok(holder.s.logs.some((line) => line.includes("agent_test_reply_late")));
+  });
+
+  it("[[SILENCIO]] não devolve texto nem grava mensagem da IA", async () => {
+    const s = setup({ model: replyWith("[[SILENCIO]]"), config: { testReplyContactIds: TEST_IDS } });
+    const response = await s.post(payload());
+    assert.deepEqual(response.body, { ok: true, status: "no_reply", reply: "-", reply2: "-" });
+    assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
   });
 });

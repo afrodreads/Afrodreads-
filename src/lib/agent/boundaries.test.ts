@@ -72,6 +72,25 @@ describe("nenhuma mensagem real pode ser enviada", () => {
     }
   });
 
+  it("transcrição de áudio: rede só para a API de transcrição e arquivos permitidos; não envia nem registra conteúdo", () => {
+    const mediaSources = walk(dir("agent-media")).filter(isSource);
+    assert.ok(mediaSources.length > 0);
+    for (const file of mediaSources) {
+      const source = read(file);
+      for (const pattern of [...MESSAGING_PROVIDERS, /console\./, /recordOutboundMessage/, /@prisma\/client/, /from ["']\.\.\/prisma["']/]) {
+        assert.doesNotMatch(source, pattern, `${rel(file)} contém ${pattern}`);
+      }
+      // Únicos endereços fixos: as APIs de transcrição. O resto passa por isAllowedMediaUrl.
+      const urls = [...source.matchAll(/https:\/\/[^\s"'`]+/g)].map((m) => m[0]);
+      assert.deepEqual(
+        [...new Set(urls)].sort(),
+        ["https://api.groq.com/openai/v1/audio/transcriptions", "https://api.openai.com/v1/audio/transcriptions"],
+        rel(file),
+      );
+      assert.match(source, /redirect:\s*"error"/, "download sem seguir redirecionamento");
+    }
+  });
+
   it("adaptadores de banco e camada HTTP: sem rede e sem provedores de mensagem", () => {
     for (const file of [...agentDbSources, ...agentHttpSources]) {
       const source = read(file);
@@ -87,7 +106,18 @@ describe("nenhuma mensagem real pode ser enviada", () => {
     }
     const http = agentHttpSources.map(read).join("\n");
     const senders = [...http.matchAll(/sender:\s*"(\w+)"/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(senders)], ["HUMAN"]);
+    // Exceção deliberada (resposta de teste): a camada HTTP também grava a mensagem "AI" que o
+    // ManyChat vai enviar, e SÓ dentro de replyForTestContact. Mais nenhum remetente.
+    assert.deepEqual([...new Set(senders)].sort(), ["AI", "HUMAN"]);
+    assert.equal(senders.filter((sender) => sender === "AI").length, 1);
+    const testReplyBody = http.match(/async function replyForTestContact[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
+    assert.match(testReplyBody, /sender:\s*"AI"/);
+    // Essa função só é chamada atrás da lista de contatos de teste (definida por configuração).
+    assert.equal((http.match(/replyForTestContact\(/g) ?? []).length, 2, "definição + uma única chamada");
+    assert.match(
+      http,
+      /if \(shouldProcess && deps\.processJobInline && config\.testReplyContactIds\?\.has\(payload\.contactId\)\) \{[\s\S]{0,300}replyForTestContact\(/,
+    );
   });
 
   it("só existe modo 'shadow' e todas as entradas conferem o modo", () => {
@@ -120,7 +150,7 @@ describe("rotas: uma única entrada, autenticada", () => {
     const users = walk(path.join(root, "src", "app"))
       .concat(walk(path.join(root, "src", "components")))
       .filter((file) => /\.(ts|tsx)$/.test(file))
-      .filter((file) => /lib\/agent(-db|-http|-model)?\//.test(read(file)))
+      .filter((file) => /lib\/agent(-db|-http|-model|-media)?\//.test(read(file)))
       .map(rel)
       .sort();
     assert.deepEqual(users, ["src/app/admin/agente/page.tsx", "src/app/api/agent/inbound/route.ts"]);
@@ -130,8 +160,17 @@ describe("rotas: uma única entrada, autenticada", () => {
 
   it("a entrada responde só com status: nunca devolve texto da IA", () => {
     const handler = read(dir("agent-http", "inbound.ts"));
-    assert.doesNotMatch(handler, /candidateText|result\.text|draft/);
-    for (const body of handler.match(/reply\(\d+,\s*\{[^}]*\}/g) ?? []) {
+    // Exceção deliberada (resposta de teste): o texto aprovado só circula nestas duas funções.
+    const approvedDraft = handler.match(/function approvedDraftText[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
+    const testReply = handler.match(/async function replyForTestContact[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
+    assert.ok(approvedDraft && testReply, "funções da resposta de teste não encontradas");
+    // O helper `reply()` só preenche `reply` com a constante NO_REPLY (nunca com texto da IA).
+    const helper = handler.match(/function reply\(status[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
+    assert.match(helper, /reply:\s*NO_REPLY,\s*reply2:\s*NO_REPLY,\s*\.\.\.body/, "o helper deve usar só NO_REPLY");
+    const rest = handler.replace(approvedDraft, "").replace(testReply, "").replace(helper, "");
+    assert.doesNotMatch(rest, /candidateText|result\.text|draft/);
+    assert.doesNotMatch(rest, /reply:\s/, "só replyForTestContact devolve texto");
+    for (const body of rest.match(/reply\(\d+,\s*\{[^}]*\}/g) ?? []) {
       assert.match(body, /\{\s*ok:\s*true,\s*status:/, body);
     }
   });

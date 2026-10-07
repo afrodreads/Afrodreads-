@@ -25,11 +25,13 @@ export type ViolationCode =
   | "internal_leak"
   | "sensitive_request"
   | "unrealistic_promise"
+  | "invented_scarcity"
   | "response_too_long"
   | "model_refusal"
   | "truncated_response"
   | "style_emoji"
-  | "style_length";
+  | "style_length"
+  | "repeated_reply";
 
 export type Severity = "block" | "warn";
 
@@ -162,7 +164,24 @@ const UNREALISTIC_PROMISES = [
   /garant(o|imos|ia)\s+(o\s+)?resultado/i,
 ];
 
+// Camada comercial: o agente não vê a agenda, então escassez e urgência seriam inventadas.
+const INVENTED_SCARCITY = [
+  /[uú]ltimas?\s+vagas?/i,
+  /[uú]ltimos?\s+hor[aá]rios?/i,
+  /vagas?\s+limitad/i,
+  /alta\s+procura|muita\s+procura|procura\s+(est[aá]\s+)?(alta|grande)/i,
+  /agenda\s+(est[aá]\s+|t[aá]\s+|vai\s+|costuma\s+)?(lota|cheia|quase\s+cheia|apertada|concorrida)/i,
+  /\bs[oó]\s+(hoje|at[eé]\s+hoje|amanh[aã])\b/i,
+  /promo[cç][aã]o\s+(est[aá]\s+|t[aá]\s+)?(acabando|terminando|no\s+fim)/i,
+  /\bcorr[ae]\s+(que|pra|para)\b/i,
+  /\bantes\s+que\s+acab/i,
+  /[uú]ltima\s+(chance|oportunidade)/i,
+  /\b(acaba|termina|encerra)\s+(hoje|amanh[aã])\b/i,
+];
+
 const PROMOTION_ENDED = /(terminou|encerrad|n[aã]o\s+(est[aá]\s+mais|h[aá])|acabou|finalizou|expirou|n[aã]o\s+temos\s+promo)/i;
+
+const normalizeForRepeat = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim();
 
 export function checkDraft(text: string, context: AgentContext): GuardrailResult {
   const violations: Violation[] = [];
@@ -241,12 +260,18 @@ export function checkDraft(text: string, context: AgentContext): GuardrailResult
   if (sensitive) add("sensitive_request", "block", sensitive.index);
   const promise = matchesAny(text, UNREALISTIC_PROMISES);
   if (promise) add("unrealistic_promise", "block", promise.index);
+  const scarcity = matchesAny(text, INVENTED_SCARCITY);
+  if (scarcity) add("invented_scarcity", "block", scarcity.index);
 
   // --- estilo (não bloqueia)
   const emojis = findAll(text, /\p{Extended_Pictographic}/u);
   if (emojis.length > 1) add("style_emoji", "warn", emojis[1].index);
   if (text.length > MAX_CANDIDATE_CHARS) add("response_too_long", "block", MAX_CANDIDATE_CHARS);
   else if (text.length > MAX_LENGTH) add("style_length", "warn", MAX_LENGTH);
+
+  // --- repetição: a mesma mensagem que já foi enviada por último não sai de novo
+  const lastSent = [...context.messages].reverse().find((message) => message.role === "assistant");
+  if (lastSent && normalizeForRepeat(lastSent.text) === normalizeForRepeat(text)) add("repeated_reply", "block", 0);
 
   return { ok: !violations.some((violation) => violation.severity === "block"), violations };
 }
