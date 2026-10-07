@@ -12,3 +12,4 @@ captação e apresentação a investidores, e devem manter coerência entre si.
 | 05 | Plano de Validação Comercial | A fazer |
 | 06 | Modelo Financeiro | A fazer |
 | 07 | Estratégia de Captação | A fazer |
+| 08 | [Equipe, Sociedade e Pagamentos](08-equipe-sociedade-pagamentos.md) | Rascunho |
