@@ -1,8 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { refundPayment } from "./mercadopago";
-import { activeBookingWhere } from "./bookingRules";
+import { refundPayment, refundPaymentPartially } from "./mercadopago";
 import { SlotTakenError, type BookingCreationRepo, type BookingCreationStore } from "./bookingCreation";
+import { bookingStillFits, loadDayBookings, loadRuleBook, lockAgendaDay } from "./capacity/store";
 import { cancelBooking, type CancelInitiator, type CancellationStore, type RefundGateway } from "./cancellation";
 import { expireStaleBookings, type ExpiryStore } from "./bookingExpiry";
 import { processApprovedPayment, type PaymentProcessingStore } from "./paymentProcessing";
@@ -10,37 +10,30 @@ import { processApprovedPayment, type PaymentProcessingStore } from "./paymentPr
 // Adaptadores de produção (Prisma + Mercado Pago) para os núcleos de regra de
 // negócio. A lógica em si fica nos módulos puros, que são testados com fakes.
 
-function overlapping(start: Date, end: Date): Prisma.BookingWhereInput {
-  return { scheduledStart: { lt: end }, scheduledEnd: { gt: start } };
-}
-
 function makeCreationRepo(db: Prisma.TransactionClient): BookingCreationRepo {
   return {
-    async findServiceIdBySlug(slug) {
-      const service = await db.service.findUnique({ where: { slug }, select: { id: true } });
-      return service?.id ?? null;
-    },
+    findService: (slug) =>
+      db.service.findUnique({ where: { slug }, select: { id: true, slug: true, maxHours: true, active: true } }),
+    lockDay: (dayKey) => lockAgendaDay(db, dayKey),
     async isFullDayBlocked(day) {
       const blocked = await db.blockedDate.findUnique({ where: { date: day } });
       return Boolean(blocked?.fullDay);
     },
-    countActiveOverlapping(start, end, now) {
-      return db.booking.count({ where: { AND: [activeBookingWhere(now), overlapping(start, end)] } });
-    },
+    loadRuleBook: () => loadRuleBook(db),
+    listActiveDayBookings: (day, now) => loadDayBookings(db, day, now),
     create(data) {
       return db.booking.create({ data });
     },
   };
 }
 
-// Serializable: duas reservas simultâneas para o mesmo horário não passam as
-// duas pela checagem de conflito; o banco recusa uma delas (P2034).
+// A agenda do dia é travada (pg_advisory_xact_lock) dentro da transação: duas
+// reservas simultâneas para o mesmo dia são decididas uma depois da outra.
+// P2034 (conflito de serialização) continua tratado por segurança.
 export const prismaBookingCreationStore: BookingCreationStore = {
   async transaction(fn) {
     try {
-      return await prisma.$transaction((tx) => fn(makeCreationRepo(tx)), {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      });
+      return await prisma.$transaction((tx) => fn(makeCreationRepo(tx)), { timeout: 15_000 });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
         throw new SlotTakenError();
@@ -54,16 +47,30 @@ export const mercadoPagoRefundGateway: RefundGateway = {
   async refund(mpPaymentId, idempotencyKey) {
     await refundPayment(mpPaymentId, idempotencyKey);
   },
+  async refundPartial(mpPaymentId, amount, idempotencyKey) {
+    await refundPaymentPartially(mpPaymentId, amount, idempotencyKey);
+  },
 };
 
 const prismaCancellationStore: CancellationStore = {
   findBooking: (id) => prisma.booking.findUnique({ where: { id } }),
   async findApprovedDeposit(bookingId) {
+    // Sinal ou valor total aprovado (duplicidades já são estornadas no webhook).
     const payment = await prisma.payment.findFirst({
-      where: { bookingId, type: "DEPOSIT", status: "APPROVED", mpPaymentId: { not: null } },
-      orderBy: { createdAt: "desc" },
+      where: { bookingId, type: { in: ["DEPOSIT", "FULL"] }, status: "APPROVED", mpPaymentId: { not: null } },
+      orderBy: { createdAt: "asc" },
     });
-    return payment?.mpPaymentId ? { id: payment.id, mpPaymentId: payment.mpPaymentId } : null;
+    if (!payment?.mpPaymentId) return null;
+    return {
+      id: payment.id,
+      mpPaymentId: payment.mpPaymentId,
+      type: payment.type === "FULL" ? "FULL" : "DEPOSIT",
+      amount: Number(payment.amount),
+      refundedAmount: payment.refundedAmount === null ? 0 : Number(payment.refundedAmount),
+    };
+  },
+  async markPartialRefund(paymentId, refundedTotal) {
+    await prisma.payment.update({ where: { id: paymentId }, data: { refundedAmount: refundedTotal } });
   },
   async claimCancellation(bookingId, data) {
     const { count } = await prisma.booking.updateMany({
@@ -133,16 +140,7 @@ const prismaPaymentProcessingStore: PaymentProcessingStore = {
     return count > 0;
   },
   async hasOtherActiveBooking(booking, now) {
-    const count = await prisma.booking.count({
-      where: {
-        AND: [
-          { id: { not: booking.id } },
-          activeBookingWhere(now),
-          overlapping(booking.scheduledStart, booking.scheduledEnd),
-        ],
-      },
-    });
-    return count > 0;
+    return !(await bookingStillFits(prisma, booking, now));
   },
   async reactivate(bookingId) {
     const { count } = await prisma.booking.updateMany({

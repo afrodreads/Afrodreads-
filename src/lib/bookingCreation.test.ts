@@ -10,28 +10,45 @@ import {
   type NewBookingData,
 } from "./bookingCreation";
 import { isPaymentWindowOpen } from "./bookingRules";
+import { defaultRuleBook } from "./capacity/ruleBook";
+import { bookingPeriod } from "./schedule";
 import { makeBooking, sp } from "./testHelpers";
+import { saoPauloDateKey } from "./timezone";
 
 // "Agora" fixo: quarta-feira, 1º/10/2026, 09h em São Paulo.
 const NOW = sp("2026-10-01T09:00:00");
 
+// Ids dos serviços = slugs (como em defaultRuleBook).
+const MAX_HOURS: Record<string, number> = {
+  retwist: 5,
+  microlocs: 12,
+  "manutencao-topo": 5,
+  "manutencao-completa": 5,
+  "cabeca-toda": 8,
+};
+
 class FakeStore implements BookingCreationStore {
-  services = new Map<string, string>([["retwist", "service-retwist"], ["microlocs", "service-micro"]]);
+  services = new Map(Object.entries(MAX_HOURS).map(([slug, maxHours]) => [slug, { id: slug, slug, maxHours, active: true }]));
+  rules = defaultRuleBook();
   blockedDays = new Set<string>();
   bookings: Booking[] = [];
   created: NewBookingData[] = [];
+  lockedDays: string[] = [];
   failWith: Error | null = null;
 
   async transaction<T>(fn: (repo: BookingCreationRepo) => Promise<T>): Promise<T> {
     if (this.failWith) throw this.failWith;
     return fn({
-      findServiceIdBySlug: async (slug) => this.services.get(slug) ?? null,
+      findService: async (slug) => this.services.get(slug) ?? null,
+      lockDay: async (dayKey) => {
+        this.lockedDays.push(dayKey);
+      },
       isFullDayBlocked: async (day) => this.blockedDays.has(day.toISOString()),
-      countActiveOverlapping: async (start, end, now) =>
-        this.bookings.filter((b) => {
-          const active = b.status === "CONFIRMED" || isPaymentWindowOpen(b, now);
-          return active && b.scheduledStart < end && b.scheduledEnd > start;
-        }).length,
+      loadRuleBook: async () => this.rules,
+      listActiveDayBookings: async (day, now) =>
+        this.bookings
+          .filter((b) => (b.status === "CONFIRMED" || isPaymentWindowOpen(b, now)) && saoPauloDateKey(b.scheduledStart) === day.toISOString().slice(0, 10))
+          .map((b) => ({ id: b.id, serviceId: b.serviceId, period: bookingPeriod(b), forced: b.forced })),
       create: async (data) => {
         this.created.push(data);
         const booking = makeBooking({
@@ -40,7 +57,7 @@ class FakeStore implements BookingCreationStore {
           depositAmount: data.depositAmount as unknown as Booking["depositAmount"],
           remainingAmount: data.remainingAmount as unknown as Booking["remainingAmount"],
           notes: data.notes ?? null,
-          status: "PENDING_PAYMENT",
+          status: data.status,
           createdAt: NOW,
         });
         this.bookings.push(booking);
@@ -72,7 +89,7 @@ describe("createBooking: criação válida", () => {
     assert.equal(data.depositAmount, 50);
     assert.equal(data.depositIsPercentage, false);
     assert.equal(data.remainingAmount, 350);
-    assert.equal(data.serviceId, "service-retwist");
+    assert.equal(data.serviceId, "retwist");
   });
 
   it("o fim do atendimento é o início + duração máxima do serviço", async () => {
@@ -143,7 +160,7 @@ describe("createBooking: horário e agenda", () => {
   it("recusa horários fora da grade (não é 10h nem 15h de SP)", async () => {
     const store = new FakeStore();
     const result = await createBooking(baseInput({ scheduledStart: sp("2026-10-07T03:00:00") }), store, NOW);
-    assert.deepEqual(result, { error: "Horário indisponível. Escolha outro horário.", status: 409 });
+    assert.deepEqual(result, { error: "Horário indisponível. Escolha outro horário.", status: 409, reason: "outside_grid" });
     assert.equal(store.created.length, 0);
   });
 
@@ -169,40 +186,40 @@ describe("createBooking: horário e agenda", () => {
     const store = new FakeStore();
     store.blockedDays.add("2026-10-07T00:00:00.000Z");
     const result = await createBooking(baseInput(), store, NOW);
-    assert.deepEqual(result, { error: "Horário indisponível. Escolha outro horário.", status: 409 });
+    assert.deepEqual(result, { error: "Horário indisponível. Escolha outro horário.", status: 409, reason: "blocked_day" });
     assert.equal(store.created.length, 0);
   });
 
-  it("recusa horário já confirmado por outro cliente", async () => {
+  it("recusa a vaga já confirmada por outro cliente (retwist: 1 por período, só a Thay)", async () => {
     const store = new FakeStore();
-    store.bookings.push(makeBooking({ status: "CONFIRMED", scheduledStart: sp("2026-10-07T10:00:00"), scheduledEnd: sp("2026-10-07T15:00:00") }));
+    store.bookings.push(makeBooking({ serviceId: "retwist", status: "CONFIRMED", scheduledStart: sp("2026-10-07T10:00:00") }));
     const result = await createBooking(baseInput(), store, NOW);
-    assert.equal("error" in result && result.status, 409);
+    assert.deepEqual(result, { error: "Horário indisponível. Escolha outro horário.", status: 409, reason: "max_per_period" });
     assert.equal(store.created.length, 0);
   });
 
-  it("recusa horário segurado por pagamento pendente ainda dentro do prazo", async () => {
+  it("recusa a vaga segurada por pagamento pendente ainda dentro do prazo", async () => {
     const store = new FakeStore();
     store.bookings.push(
       makeBooking({
+        serviceId: "retwist",
         status: "PENDING_PAYMENT",
         createdAt: new Date(NOW.getTime() - 30 * 60 * 1000),
         scheduledStart: sp("2026-10-07T10:00:00"),
-        scheduledEnd: sp("2026-10-07T15:00:00"),
       }),
     );
     const result = await createBooking(baseInput(), store, NOW);
     assert.equal("error" in result && result.status, 409);
   });
 
-  it("libera o horário de um pagamento pendente que passou do prazo", async () => {
+  it("libera a vaga de um pagamento pendente que passou do prazo", async () => {
     const store = new FakeStore();
     store.bookings.push(
       makeBooking({
+        serviceId: "retwist",
         status: "PENDING_PAYMENT",
         createdAt: new Date(NOW.getTime() - 61 * 60 * 1000),
         scheduledStart: sp("2026-10-07T10:00:00"),
-        scheduledEnd: sp("2026-10-07T15:00:00"),
       }),
     );
     const result = await createBooking(baseInput(), store, NOW);
@@ -212,7 +229,7 @@ describe("createBooking: horário e agenda", () => {
   it("não considera agendamentos cancelados ou expirados como ocupados", async () => {
     const store = new FakeStore();
     for (const status of ["CANCELLED", "EXPIRED"] as const) {
-      store.bookings.push(makeBooking({ status, scheduledStart: sp("2026-10-07T10:00:00"), scheduledEnd: sp("2026-10-07T15:00:00") }));
+      store.bookings.push(makeBooking({ serviceId: "retwist", status, scheduledStart: sp("2026-10-07T10:00:00") }));
     }
     assert.ok("booking" in (await createBooking(baseInput(), store, NOW)));
   });
@@ -235,5 +252,69 @@ describe("createBooking: horário e agenda", () => {
     store.services.clear();
     const result = await createBooking(baseInput(), store, NOW);
     assert.equal("error" in result && result.status, 404);
+  });
+});
+
+describe("createBooking: capacidade por cadeiras e períodos", () => {
+  const topo = (start: string) => baseInput({ serviceSlug: "manutencao-topo", scheduledStart: sp(start) });
+
+  it("duas manutenções no topo cabem no mesmo período; a terceira não", async () => {
+    const store = new FakeStore();
+    assert.ok("booking" in (await createBooking(topo("2026-10-07T10:00:00"), store, NOW)));
+    assert.ok("booking" in (await createBooking(topo("2026-10-07T10:00:00"), store, NOW)));
+    const third = await createBooking(topo("2026-10-07T10:00:00"), store, NOW);
+    assert.equal("error" in third && third.reason, "max_per_period");
+    assert.ok("booking" in (await createBooking(topo("2026-10-07T15:00:00"), store, NOW)));
+  });
+
+  it("grava o período e trava a agenda do dia durante a reserva", async () => {
+    const store = new FakeStore();
+    await createBooking(topo("2026-10-07T15:00:00"), store, NOW);
+    assert.equal(store.created[0].period, "AFTERNOON");
+    assert.deepEqual(store.lockedDays, ["2026-10-07"]);
+  });
+
+  it("serviço desativado não aceita reserva", async () => {
+    const store = new FakeStore();
+    store.services.set("retwist", { ...store.services.get("retwist")!, active: false });
+    const result = await createBooking(baseInput(), store, NOW);
+    assert.equal("error" in result && result.reason, "inactive_service");
+  });
+});
+
+describe("createBooking: encaixe manual pelo painel (só administradores)", () => {
+  const admin = { force: true, reason: "Cliente antiga, Lyon atende sozinho", status: "CONFIRMED" as const };
+
+  it("forçar ignora capacidade e bloqueio do dia, e registra o motivo", async () => {
+    const store = new FakeStore();
+    store.blockedDays.add("2026-10-07T00:00:00.000Z");
+    store.bookings.push(makeBooking({ serviceId: "retwist", status: "CONFIRMED", scheduledStart: sp("2026-10-07T10:00:00") }));
+    const result = await createBooking(baseInput({ admin }), store, NOW);
+    assert.ok("booking" in result);
+    assert.equal(store.created[0].forced, true);
+    assert.equal(store.created[0].forcedReason, "Cliente antiga, Lyon atende sozinho");
+    assert.equal(store.created[0].status, "CONFIRMED");
+  });
+
+  it("forçar vale em qualquer dia, mas o horário continua sendo 10h ou 15h", async () => {
+    const store = new FakeStore();
+    assert.ok("booking" in (await createBooking(baseInput({ admin, scheduledStart: sp("2026-10-05T10:00:00") }), store, NOW))); // segunda
+    const odd = await createBooking(baseInput({ admin, scheduledStart: sp("2026-10-07T12:00:00") }), store, NOW);
+    assert.equal("error" in odd && odd.reason, "outside_grid");
+  });
+
+  it("encaixe sem forçar segue as regras normais", async () => {
+    const store = new FakeStore();
+    store.bookings.push(makeBooking({ serviceId: "retwist", status: "CONFIRMED", scheduledStart: sp("2026-10-07T10:00:00") }));
+    const result = await createBooking(baseInput({ admin: { ...admin, force: false } }), store, NOW);
+    assert.equal("error" in result && result.status, 409);
+  });
+
+  it("sem pedido de encaixe, o agendamento nunca nasce forçado nem confirmado", async () => {
+    const store = new FakeStore();
+    await createBooking(baseInput(), store, NOW);
+    assert.equal(store.created[0].forced, false);
+    assert.equal(store.created[0].forcedReason, null);
+    assert.equal(store.created[0].status, "PENDING_PAYMENT");
   });
 });

@@ -39,13 +39,13 @@ describe("nenhuma rota pública nova", () => {
     assert.deepEqual(offenders.map(rel), ["src/app/api/agent/inbound/route.ts"]);
   });
 
-  it("só a rota de orçamento (vínculo best-effort) e a entrada autenticada do agente usam a fundação", () => {
+  it("só o orçamento, o encaixe do painel (ambos vínculo best-effort) e a entrada autenticada do agente usam a fundação", () => {
     const users = walk(path.join(root, "src", "app"))
       .filter((file) => /\.(ts|tsx)$/.test(file))
       .filter((file) => readFileSync(file, "utf8").includes("lib/conversations"))
       .map(rel)
       .sort();
-    assert.deepEqual(users, ["src/app/api/agent/inbound/route.ts", "src/app/api/quotes/[token]/complete/route.ts"]);
+    assert.deepEqual(users, ["src/app/api/admin/bookings/route.ts", "src/app/api/agent/inbound/route.ts", "src/app/api/quotes/[token]/complete/route.ts"]);
 
     const source = readFileSync(path.join(root, "src/app/api/quotes/[token]/complete/route.ts"), "utf8");
     assert.match(source, /@\/lib\/conversations\/wiring/);

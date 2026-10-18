@@ -1,4 +1,5 @@
 import type { Booking } from "@prisma/client";
+import { lateCancellationRefund } from "./paymentOptions";
 import { isDepositRefundable } from "./pricing";
 
 // Regra única de cancelamento, usada pelo painel e por qualquer outro canal.
@@ -10,12 +11,21 @@ import { isDepositRefundable } from "./pricing";
 //   faz o estorno (duas chamadas simultâneas nunca estornam duas vezes);
 // - o estorno usa chave de idempotência fixa por pagamento, então repetir a
 //   chamada (ex.: tentar de novo após falha) nunca gera estorno duplicado;
-// - só há estorno quando existe sinal APROVADO e a regra de devolução se aplica.
+// - só há estorno quando existe pagamento APROVADO e a regra de devolução se aplica;
+// - quem pagou o VALOR TOTAL e cancela sem direito a devolução (menos de 2
+//   dias) recebe de volta tudo menos o valor do sinal (estorno parcial).
 
 /** `client`: pedido do cliente (vale a regra de 2 dias). `studio`: o estúdio não pôde atender (sempre devolve). */
 export type CancelInitiator = "client" | "studio";
 
-export type ApprovedDeposit = { id: string; mpPaymentId: string };
+/** Pagamento aprovado do agendamento (sinal ou valor total). */
+export type ApprovedDeposit = {
+  id: string;
+  mpPaymentId: string;
+  type?: "DEPOSIT" | "FULL";
+  amount?: number;
+  refundedAmount?: number;
+};
 
 export interface CancellationStore {
   findBooking(id: string): Promise<Booking | null>;
@@ -26,10 +36,13 @@ export interface CancellationStore {
     data: { cancelledAt: Date; refundEligible: boolean | null },
   ): Promise<Booking | null>;
   markDepositRefunded(paymentId: string): Promise<void>;
+  /** Registra o total já devolvido de um estorno parcial (o pagamento continua APROVADO). */
+  markPartialRefund(paymentId: string, refundedTotal: number): Promise<void>;
 }
 
 export interface RefundGateway {
   refund(mpPaymentId: string, idempotencyKey: string): Promise<void>;
+  refundPartial(mpPaymentId: string, amount: number, idempotencyKey: string): Promise<void>;
 }
 
 export type CancelResult =
@@ -40,11 +53,17 @@ export type CancelResult =
       booking: Booking;
       refundEligible: boolean;
       depositRefunded: boolean;
+      /** Valor devolvido agora a quem pagou o total e cancelou tarde (0 se nada). */
+      partialRefundAmount: number;
       refundError: boolean;
     };
 
 export function refundIdempotencyKey(paymentId: string): string {
   return `refund-${paymentId}`;
+}
+
+export function partialRefundIdempotencyKey(paymentId: string): string {
+  return `refund-partial-${paymentId}`;
 }
 
 export async function cancelBooking(
@@ -60,6 +79,7 @@ export async function cancelBooking(
     booking: Booking,
   ): Promise<CancelResult> => {
     let depositRefunded = false;
+    let partialRefundAmount = 0;
     let refundError = false;
 
     if (booking.cancellationRefundedDeposit === true) {
@@ -70,10 +90,31 @@ export async function cancelBooking(
           await store.markDepositRefunded(deposit.id);
           depositRefunded = true;
         } catch (error) {
-          // Uma falha no estorno não desfaz o cancelamento: o sinal continua
+          // Uma falha no estorno não desfaz o cancelamento: o pagamento continua
           // APPROVED e chamar o cancelamento de novo tenta o estorno outra vez.
           refundError = true;
-          console.error("Falha ao estornar sinal", { bookingId: booking.id, error });
+          console.error("Falha ao estornar pagamento", { bookingId: booking.id, error });
+        }
+      }
+    } else if (booking.cancellationRefundedDeposit === false) {
+      // Sem direito a devolução: quem pagou o total recebe tudo menos o sinal.
+      const payment = await store.findApprovedDeposit(booking.id);
+      if (payment?.type === "FULL" && payment.amount !== undefined) {
+        const alreadyRefunded = payment.refundedAmount ?? 0;
+        const amount = lateCancellationRefund({
+          paid: payment.amount,
+          depositAmount: Number(booking.depositAmount),
+          alreadyRefunded,
+        });
+        if (amount > 0) {
+          try {
+            await gateway.refundPartial(payment.mpPaymentId, amount, partialRefundIdempotencyKey(payment.id));
+            await store.markPartialRefund(payment.id, Math.round((alreadyRefunded + amount) * 100) / 100);
+            partialRefundAmount = amount;
+          } catch (error) {
+            refundError = true;
+            console.error("Falha ao estornar parte do pagamento total", { bookingId: booking.id, error });
+          }
         }
       }
     }
@@ -83,6 +124,7 @@ export async function cancelBooking(
       booking,
       refundEligible: booking.cancellationRefundedDeposit === true,
       depositRefunded,
+      partialRefundAmount,
       refundError,
     };
   };
@@ -117,6 +159,7 @@ export async function cancelBooking(
         booking: current,
         refundEligible: current.cancellationRefundedDeposit === true,
         depositRefunded: false,
+        partialRefundAmount: 0,
         refundError: false,
       };
     }

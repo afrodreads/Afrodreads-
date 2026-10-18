@@ -1,17 +1,17 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+import { serviceInputSchema } from "@/lib/serviceRegistry";
+import { listServicesForAdmin, saveService } from "@/lib/serviceRegistryStore";
 
 export async function GET() {
-  const services = await prisma.service.findMany({ orderBy: { order: "asc" } });
-  return NextResponse.json({
-    services: services.map((service) => ({
-      id: service.id,
-      slug: service.slug,
-      name: service.name,
-      minHours: service.minHours,
-      maxHours: service.maxHours,
-      basePrice: service.basePrice ? Number(service.basePrice) : null,
-      active: service.active,
-    })),
-  });
+  return NextResponse.json({ services: await listServicesForAdmin() });
+}
+
+/** Cadastra um serviço novo (com as regras de capacidade). */
+export async function POST(request: NextRequest) {
+  const parsed = serviceInputSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
+  }
+  const service = await saveService(null, parsed.data);
+  return NextResponse.json({ service }, { status: 201 });
 }
