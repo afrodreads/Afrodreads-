@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { calculateDeposit } from "@/lib/pricing";
 import { formatBRL, formatDateTimeBR, formatTimeBR } from "@/lib/format";
@@ -327,7 +327,7 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
             <StepActions
               onBack={() => setStep(2)}
               onNext={handleSubmit}
-              nextLabel={submitting ? "Reservando..." : "Reservar horário e ir para pagamento"}
+              nextLabel={submitting ? "Reservando..." : "Reservar e pagar"}
               nextDisabled={submitting}
             />
           </div>
@@ -349,7 +349,7 @@ function StepActions({
   nextLabel?: string;
 }) {
   return (
-    <div className="flex justify-between pt-2">
+    <div className="flex items-center justify-between gap-4 pt-2">
       {onBack ? (
         <button onClick={onBack} className="text-sm font-medium text-brand-white/60 hover:text-brand-white">
           Voltar
@@ -360,7 +360,7 @@ function StepActions({
       <button
         onClick={onNext}
         disabled={nextDisabled}
-        className="rounded-full bg-brand-yellow px-6 py-2 text-sm font-bold text-brand-black transition-transform hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
+        className="whitespace-nowrap rounded-full bg-brand-yellow px-6 py-2 text-sm font-bold text-brand-black transition-transform hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
       >
         {nextLabel}
       </button>
@@ -379,10 +379,12 @@ function Input({
   onChange: (value: string) => void;
   type?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-brand-white/80">{label}</label>
+      <label htmlFor={id} className="mb-2 block text-sm font-medium text-brand-white/80">{label}</label>
       <input
+        id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -402,9 +404,9 @@ function SummaryRow({
   highlight?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-white/10 pb-3">
-      <span className="text-sm text-brand-white/60">{label}</span>
-      <span className={`text-sm font-semibold ${highlight ? "text-brand-yellow" : "text-brand-white"}`}>
+    <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-3">
+      <span className="shrink-0 text-sm text-brand-white/60">{label}</span>
+      <span className={`text-right text-sm font-semibold ${highlight ? "text-brand-yellow" : "text-brand-white"}`}>
         {value}
       </span>
     </div>

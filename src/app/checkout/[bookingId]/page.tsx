@@ -97,9 +97,9 @@ export default async function CheckoutPage({
 
 function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="flex items-center justify-between border-b border-white/10 pb-3 last:border-0">
-      <span className="text-sm text-brand-white/60">{label}</span>
-      <span className={`text-sm font-semibold ${highlight ? "text-brand-yellow" : "text-brand-white"}`}>
+    <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-3 last:border-0">
+      <span className="shrink-0 text-sm text-brand-white/60">{label}</span>
+      <span className={`text-right text-sm font-semibold ${highlight ? "text-brand-yellow" : "text-brand-white"}`}>
         {value}
       </span>
     </div>

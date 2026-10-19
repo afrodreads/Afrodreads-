@@ -26,7 +26,8 @@ const MONTH_NAMES = [
 
 export function monthLabel(month: string): string {
   const [year, m] = month.split("-").map(Number);
-  return `${MONTH_NAMES[m - 1]} de ${year}`;
+  const name = MONTH_NAMES[m - 1];
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} de ${year}`;
 }
 
 export function shiftMonth(month: string, delta: number): string {
@@ -160,7 +161,7 @@ export function MonthCalendar({
         >
           ‹
         </button>
-        <p className="font-semibold capitalize text-brand-white">{monthLabel(month)}</p>
+        <p className="font-semibold text-brand-white">{monthLabel(month)}</p>
         <button
           type="button"
           onClick={() => setMonth(shiftMonth(month, 1))}

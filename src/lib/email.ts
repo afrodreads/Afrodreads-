@@ -1,3 +1,4 @@
+import { googleCalendarLink } from "./calendarFeed";
 import { Resend } from "resend";
 import type { Booking, Service } from "@prisma/client";
 import { formatBRL, formatDateTimeBR } from "@/lib/format";
@@ -118,6 +119,21 @@ export async function sendTeamBookingNotificationEmail(
           ${booking.notes ? row("Observações", escapeHtml(booking.notes)) : ""}
           ${row("Código", escapeHtml(booking.id))}
         </table>
+        <p style="margin-top: 20px;">
+          <a href="${escapeHtml(googleCalendarLink({
+            id: booking.id,
+            serviceName: booking.service.name,
+            clientName: booking.clientName,
+            clientPhone: booking.clientPhone,
+            scheduledStart: booking.scheduledStart,
+            scheduledEnd: booking.scheduledEnd,
+            paymentOption: booking.paymentOption,
+            remainingAmount: paid.remaining,
+            forced: booking.forced,
+            notes: booking.notes,
+            updatedAt: booking.updatedAt,
+          }))}" style="display: inline-block; background: #f5c400; color: #111; padding: 10px 18px; border-radius: 999px; font-weight: bold; text-decoration: none;">Adicionar ao Google Agenda</a>
+        </p>
         <p style="margin-top: 16px; color: #555; font-size: 14px;">
           Responder este e-mail responde direto ao cliente.
         </p>

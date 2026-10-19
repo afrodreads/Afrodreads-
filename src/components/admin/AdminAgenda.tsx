@@ -18,6 +18,7 @@ type AgendaBooking = {
   forced: boolean;
   forcedReason: string | null;
   paymentOption: "DEPOSIT" | "FULL" | null;
+  googleCalendarUrl: string | null;
 };
 type Agenda = { days: CalendarDay[]; bookings: Record<string, AgendaBooking[]> };
 type ServiceOption = { slug: string; name: string; basePrice: number | null; active: boolean };
@@ -56,7 +57,7 @@ export function AdminAgenda({ initialMonth }: { initialMonth: string }) {
         <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Mês anterior" className="rounded-full px-3 py-1 text-lg text-brand-white/70 hover:text-brand-yellow">
           ‹
         </button>
-        <h2 className="font-semibold capitalize text-brand-white">{monthLabel(month)}</h2>
+        <h2 className="font-semibold text-brand-white">{monthLabel(month)}</h2>
         <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Próximo mês" className="rounded-full px-3 py-1 text-lg text-brand-white/70 hover:text-brand-yellow">
           ›
         </button>
@@ -106,6 +107,11 @@ export function AdminAgenda({ initialMonth }: { initialMonth: string }) {
                         {booking.paymentOption === "DEPOSIT" && " · sinal pago"}
                         {booking.forced && ` · ENCAIXE${booking.forcedReason ? `: ${booking.forcedReason}` : ""}`}
                       </span>
+                      {booking.googleCalendarUrl && (
+                        <a href={booking.googleCalendarUrl} target="_blank" rel="noreferrer" className="text-xs font-semibold text-brand-yellow underline">
+                          📅 Google Agenda
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>
