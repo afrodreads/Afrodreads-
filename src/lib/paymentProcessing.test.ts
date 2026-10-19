@@ -58,6 +58,9 @@ class FakeGateway implements RefundGateway {
     this.calls.push({ mpPaymentId, key });
     if (this.fail) throw new Error("falhou");
   }
+  async refundPartial() {
+    throw new Error("pagamento atrasado nunca usa estorno parcial");
+  }
 }
 
 const slotA = { scheduledStart: sp("2026-10-07T10:00:00"), scheduledEnd: sp("2026-10-07T15:00:00") };

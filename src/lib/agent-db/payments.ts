@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { UniqueConflictError } from "../conversations/errors";
-import { activeBookingWhere } from "../bookingRules";
+import { bookingStillFits } from "../capacity/store";
 import type { StaffDirectory } from "../agent/actors";
 import type { ManualPaymentRecord, ManualPaymentStore } from "../agent/manualPayment";
 import type { PaymentHoldRecord, PaymentHoldStore } from "../agent/paymentHold";
@@ -65,16 +65,12 @@ export const prismaManualPaymentStore: ManualPaymentStore = {
   },
 
   async hasOtherActiveBooking(booking, now) {
-    const count = await prisma.booking.count({
-      where: {
-        AND: [
-          { id: { not: booking.id } },
-          activeBookingWhere(now),
-          { scheduledStart: { lt: booking.scheduledEnd }, scheduledEnd: { gt: booking.scheduledStart } },
-        ],
-      },
+    // Mesma regra de capacidade da agenda (cadeiras e períodos), não sobreposição de horário.
+    const full = await prisma.booking.findUnique({
+      where: { id: booking.id },
+      select: { id: true, serviceId: true, scheduledStart: true, period: true, forced: true },
     });
-    return count > 0;
+    return full ? !(await bookingStillFits(prisma, full, now)) : true;
   },
 
   async confirm({ fromStatuses, record, event }) {

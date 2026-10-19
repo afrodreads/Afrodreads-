@@ -1,8 +1,8 @@
 import type { Booking } from "@prisma/client";
-import { getServiceBySlug } from "./services";
 import { calculateDeposit } from "./pricing";
-import { isOfferedStartTime } from "./schedule";
-import { saoPauloDayAsUtcMidnight } from "./timezone";
+import { offeredPeriod, periodOfStart } from "./schedule";
+import { saoPauloDateKey, saoPauloDayAsUtcMidnight } from "./timezone";
+import { checkAdd, type DayBooking, type Period, type Rejection, type RuleBook } from "./capacity/engine";
 
 // Núcleo da criação de agendamento, sem acesso direto ao banco: quem chama
 // injeta o `store` (Prisma em produção, um fake nos testes).
@@ -10,6 +10,18 @@ import { saoPauloDayAsUtcMidnight } from "./timezone";
 // IMPORTANTE: `servicePrice` é confiado aqui. Ele só pode vir do servidor
 // (ex.: o valor gravado no orçamento), NUNCA de um corpo de requisição
 // público — por isso POST /api/bookings foi desativado.
+//
+// Capacidade: quem decide se o serviço cabe no dia é o motor de capacidade
+// (src/lib/capacity/engine.ts) com as regras do cadastro de serviços. A agenda
+// do dia fica travada durante a transação, então duas clientes nunca reservam
+// a última vaga ao mesmo tempo.
+
+/** Encaixe pelo painel (só administradores): `force` ignora as regras de capacidade. */
+export type AdminBookingOptions = {
+  force: boolean;
+  reason: string | null;
+  status: "PENDING_PAYMENT" | "CONFIRMED";
+};
 
 export type CreateBookingInput = {
   serviceSlug: string;
@@ -20,9 +32,12 @@ export type CreateBookingInput = {
   clientEmail: string;
   clientPhone: string;
   notes?: string;
+  admin?: AdminBookingOptions;
 };
 
-export type CreateBookingResult = { booking: Booking } | { error: string; status: number };
+export type CreateBookingResult =
+  | { booking: Booking }
+  | { error: string; status: number; reason?: Rejection | "blocked_day" | "outside_grid" };
 
 export type NewBookingData = {
   clientName: string;
@@ -31,18 +46,28 @@ export type NewBookingData = {
   serviceId: string;
   scheduledStart: Date;
   scheduledEnd: Date;
+  period: Period;
   isOutOfTownSeason: boolean;
   servicePrice: number;
   depositAmount: number;
   depositIsPercentage: boolean;
   remainingAmount: number;
   notes?: string;
+  status: "PENDING_PAYMENT" | "CONFIRMED";
+  forced: boolean;
+  forcedReason: string | null;
 };
 
+export type ServiceForBooking = { id: string; slug: string; maxHours: number; active: boolean };
+
 export interface BookingCreationRepo {
-  findServiceIdBySlug(slug: string): Promise<string | null>;
+  findService(slug: string): Promise<ServiceForBooking | null>;
+  /** Trava a agenda do dia ("AAAA-MM-DD") até o fim da transação. */
+  lockDay(dayKey: string): Promise<void>;
   isFullDayBlocked(day: Date): Promise<boolean>;
-  countActiveOverlapping(start: Date, end: Date, now: Date): Promise<number>;
+  loadRuleBook(): Promise<RuleBook>;
+  /** Agendamentos que ocupam a agenda no dia de calendário `day` (meia-noite UTC). */
+  listActiveDayBookings(day: Date, now: Date): Promise<DayBooking[]>;
   create(data: NewBookingData): Promise<Booking>;
 }
 
@@ -59,17 +84,14 @@ export class SlotTakenError extends Error {
 }
 
 const MAX_SERVICE_PRICE_BRL = 100_000;
-const UNAVAILABLE = "Horário indisponível. Escolha outro horário.";
+export const UNAVAILABLE = "Horário indisponível. Escolha outro horário.";
 
 export async function createBooking(
   input: CreateBookingInput,
   store: BookingCreationStore,
   now: Date = new Date(),
 ): Promise<CreateBookingResult> {
-  const serviceDefinition = getServiceBySlug(input.serviceSlug);
-  if (!serviceDefinition) {
-    return { error: "Serviço não encontrado", status: 404 };
-  }
+  const forced = input.admin?.force === true;
 
   if (!Number.isFinite(input.servicePrice) || input.servicePrice <= 0 || input.servicePrice > MAX_SERVICE_PRICE_BRL) {
     return { error: "Valor do serviço inválido", status: 400 };
@@ -80,26 +102,25 @@ export async function createBooking(
     return { error: "Escolha um horário futuro.", status: 400 };
   }
 
-  // Só os horários que a agenda realmente oferece (dia aberto + 10h/15h de SP).
-  if (!isOfferedStartTime(start, serviceDefinition.maxHours)) {
-    return { error: UNAVAILABLE, status: 409 };
-  }
+  // Cliente: só a grade (terça a sábado, 10h ou 15h). Encaixe: qualquer dia, mas 10h ou 15h.
+  const period = forced ? periodOfStart(start) : offeredPeriod(start);
+  if (!period) return { error: UNAVAILABLE, status: 409, reason: "outside_grid" };
 
-  const end = new Date(start.getTime() + serviceDefinition.maxHours * 60 * 60 * 1000);
+  const day = saoPauloDayAsUtcMidnight(start);
 
   try {
     return await store.transaction(async (repo): Promise<CreateBookingResult> => {
-      const serviceId = await repo.findServiceIdBySlug(input.serviceSlug);
-      if (!serviceId) {
-        return { error: "Serviço não sincronizado no banco. Rode o seed.", status: 404 };
-      }
+      const service = await repo.findService(input.serviceSlug);
+      if (!service) return { error: "Serviço não encontrado", status: 404 };
+      if (!service.active && !forced) return { error: "Serviço indisponível no momento.", status: 409, reason: "inactive_service" };
 
-      if (await repo.isFullDayBlocked(saoPauloDayAsUtcMidnight(start))) {
-        return { error: UNAVAILABLE, status: 409 };
-      }
+      await repo.lockDay(saoPauloDateKey(start));
 
-      if ((await repo.countActiveOverlapping(start, end, now)) > 0) {
-        return { error: UNAVAILABLE, status: 409 };
+      if (!forced) {
+        if (await repo.isFullDayBlocked(day)) return { error: UNAVAILABLE, status: 409, reason: "blocked_day" };
+        const [rules, existing] = await Promise.all([repo.loadRuleBook(), repo.listActiveDayBookings(day, now)]);
+        const check = checkAdd(rules, existing, service.id, period);
+        if (!check.ok) return { error: UNAVAILABLE, status: 409, reason: check.reason };
       }
 
       const { depositAmount, depositIsPercentage, remainingAmount } = calculateDeposit({
@@ -112,15 +133,19 @@ export async function createBooking(
         clientName: input.clientName,
         clientEmail: input.clientEmail,
         clientPhone: input.clientPhone,
-        serviceId,
+        serviceId: service.id,
         scheduledStart: start,
-        scheduledEnd: end,
+        scheduledEnd: new Date(start.getTime() + service.maxHours * 60 * 60 * 1000),
+        period,
         isOutOfTownSeason: input.isOutOfTownSeason,
         servicePrice: input.servicePrice,
         depositAmount,
         depositIsPercentage,
         remainingAmount,
         notes: input.notes,
+        status: input.admin?.status ?? "PENDING_PAYMENT",
+        forced,
+        forcedReason: forced ? input.admin?.reason?.trim() || null : null,
       });
 
       return { booking };
