@@ -41,12 +41,19 @@ export function classifyPaidAmount(paid: number, amounts: Amounts): PaymentChoic
 
 /**
  * Pagamentos aprovados em duplicidade (ex.: pagou o sinal e também o total):
- * fica o primeiro (menor id do Mercado Pago, que cresce com o tempo) e os
- * demais devem ser estornados. A decisão é a mesma em qualquer ordem de webhook.
+ * fica o valor total, se houver (o serviço já está quitado e só o sinal volta);
+ * entre pagamentos do mesmo tipo, o primeiro (menor id do Mercado Pago, que
+ * cresce com o tempo). Os demais devem ser estornados. A decisão é a mesma em
+ * qualquer ordem de webhook.
  */
-export function duplicatesToRefund(approved: readonly { id: string; mpPaymentId: string }[]): string[] {
+export function duplicatesToRefund(
+  approved: readonly { id: string; mpPaymentId: string; type?: PaymentChoice }[],
+): string[] {
   if (approved.length <= 1) return [];
-  const sorted = [...approved].sort((a, b) => compareMpIds(a.mpPaymentId, b.mpPaymentId));
+  const rank = (type?: PaymentChoice) => (type === "FULL" ? 0 : 1);
+  const sorted = [...approved].sort(
+    (a, b) => rank(a.type) - rank(b.type) || compareMpIds(a.mpPaymentId, b.mpPaymentId),
+  );
   return sorted.slice(1).map((payment) => payment.id);
 }
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatBRL, formatDateTimeBR, formatTimeBR } from "@/lib/format";
 import { saoPauloDateKey } from "@/lib/timezone";
+import { PERIOD_LABEL, PERIOD_START_TIME, periodStart } from "@/lib/schedule";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING_PAYMENT: "Aguardando pagamento",
@@ -62,6 +63,8 @@ function BookingCard({
   const [slots, setSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forcing, setForcing] = useState(false);
+  const [reason, setReason] = useState("");
 
   const canAct = booking.status === "PENDING_PAYMENT" || booking.status === "CONFIRMED";
 
@@ -108,23 +111,33 @@ function BookingCard({
     }
   }
 
-  async function handlePickSlot(slot: string) {
+  async function handlePickSlot(slot: string, force = false) {
     setError(null);
+    if (force && reason.trim().length < 5) {
+      setError("Escreva o motivo do encaixe (mínimo 5 letras).");
+      return;
+    }
     try {
       const response = await fetch(`/api/admin/bookings/${booking.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reschedule", scheduledStart: slot }),
+        body: JSON.stringify(
+          force
+            ? { action: "reschedule", scheduledStart: slot, force: true, reason: reason.trim() }
+            : { action: "reschedule", scheduledStart: slot },
+        ),
       });
       const data = await response.json();
       if (!response.ok) {
         setError(data.error ?? "Não foi possível reagendar.");
         return;
       }
-      onUpdate({ ...booking, scheduledStart: data.booking.scheduledStart });
+      onUpdate({ ...booking, scheduledStart: data.booking.scheduledStart, forced: booking.forced || force });
       setRescheduling(false);
       setDate("");
       setSlots([]);
+      setForcing(false);
+      setReason("");
     } catch {
       setError("Não foi possível reagendar. Tente novamente.");
     }
@@ -202,6 +215,38 @@ function BookingCard({
               </button>
             ))}
           </div>
+          {date && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs text-brand-white/70">
+                <input type="checkbox" checked={forcing} onChange={(e) => setForcing(e.target.checked)} />
+                Forçar encaixe fora das regras (só administradores)
+              </label>
+              {forcing && (
+                <>
+                  <input
+                    type="text"
+                    value={reason}
+                    maxLength={300}
+                    placeholder="Motivo do encaixe"
+                    aria-label="Motivo do encaixe"
+                    onChange={(e) => setReason(e.target.value)}
+                    className="w-full rounded-lg border border-white/20 bg-brand-black px-3 py-2 text-sm text-brand-white"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {(["MORNING", "AFTERNOON"] as const).map((period) => (
+                      <button
+                        key={period}
+                        onClick={() => handlePickSlot(periodStart(new Date(`${date}T00:00:00Z`), period).toISOString(), true)}
+                        className="rounded-full border border-amber-300/50 px-3 py-1 text-xs text-amber-200 hover:border-amber-200"
+                      >
+                        Forçar {PERIOD_LABEL[period]} · {PERIOD_START_TIME[period]}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 

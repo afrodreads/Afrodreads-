@@ -26,14 +26,14 @@ const deposit: ApprovedPayment = { id: "pay-dep", mpPaymentId: "100", type: "DEP
 const full: ApprovedPayment = { id: "pay-full", mpPaymentId: "200", type: "FULL" };
 
 describe("pagamento em duplicidade (sinal e total pagos no mesmo agendamento)", () => {
-  it("fica o primeiro pagamento e o segundo é estornado", async () => {
+  it("fica o valor total e o sinal é estornado, mesmo que o sinal tenha sido pago primeiro", async () => {
     const store = new FakeStore([full, deposit]);
     const gateway = new FakeGateway();
     const result = await resolveDuplicatePayments("b1", store, gateway);
-    assert.equal(result.keeper?.id, "pay-dep");
-    assert.deepEqual(result.refunded, ["pay-full"]);
-    assert.deepEqual(gateway.calls, [{ mpPaymentId: "200", key: "refund-pay-full" }]);
-    assert.deepEqual(store.refundedMarks, ["pay-full"]);
+    assert.equal(result.keeper?.id, "pay-full");
+    assert.deepEqual(result.refunded, ["pay-dep"]);
+    assert.deepEqual(gateway.calls, [{ mpPaymentId: "100", key: "refund-pay-dep" }]);
+    assert.deepEqual(store.refundedMarks, ["pay-dep"]);
   });
 
   it("webhooks repetidos não estornam de novo (o estornado sai da lista; a chave é a mesma)", async () => {
@@ -54,9 +54,9 @@ describe("pagamento em duplicidade (sinal e total pagos no mesmo agendamento)", 
   it("falha no estorno fica registrada e o pagamento continua aprovado (tenta de novo no próximo webhook)", async () => {
     const store = new FakeStore([deposit, full]);
     const gateway = new FakeGateway();
-    gateway.failFor.add("200");
+    gateway.failFor.add("100");
     const result = await resolveDuplicatePayments("b1", store, gateway);
-    assert.deepEqual(result.failed, ["pay-full"]);
+    assert.deepEqual(result.failed, ["pay-dep"]);
     assert.deepEqual(store.refundedMarks, []);
   });
 });

@@ -3,8 +3,9 @@ import { duplicatesToRefund, type PaymentChoice } from "./paymentOptions";
 
 // Depois que um pagamento (sinal ou valor total) é aprovado:
 //  - se o mesmo agendamento já tem outro pagamento aprovado (ex.: o cliente
-//    abriu a cobrança do sinal e a do total e pagou as duas), fica o primeiro
-//    e os demais são estornados automaticamente;
+//    abriu a cobrança do sinal e a do total e pagou as duas), fica o valor
+//    total (ou o primeiro, se forem do mesmo tipo) e os demais são estornados
+//    automaticamente;
 //  - o agendamento passa a refletir o que ficou pago: sinal (restante no dia)
 //    ou valor total (nada a pagar no dia).
 
