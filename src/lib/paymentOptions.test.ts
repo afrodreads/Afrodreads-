@@ -54,6 +54,20 @@ describe("pagamento em duplicidade", () => {
     assert.deepEqual(duplicatesToRefund([b, a]), ["p1"]);
     assert.deepEqual(duplicatesToRefund([a]), []);
   });
+
+  it("pagou sinal e total: fica o total e o sinal é estornado, em qualquer ordem", () => {
+    const sinal = { id: "s", mpPaymentId: "100", type: "DEPOSIT" as const };
+    const total = { id: "t", mpPaymentId: "200", type: "FULL" as const };
+    assert.deepEqual(duplicatesToRefund([sinal, total]), ["s"]);
+    assert.deepEqual(duplicatesToRefund([total, sinal]), ["s"]);
+  });
+
+  it("dois totais: fica o primeiro", () => {
+    const t1 = { id: "t1", mpPaymentId: "300", type: "FULL" as const };
+    const t2 = { id: "t2", mpPaymentId: "400", type: "FULL" as const };
+    const sinal = { id: "s", mpPaymentId: "100", type: "DEPOSIT" as const };
+    assert.deepEqual(duplicatesToRefund([t2, sinal, t1]).sort(), ["s", "t2"]);
+  });
 });
 
 describe("cancelamento tardio de quem pagou o total", () => {
