@@ -116,7 +116,7 @@ describe("nenhuma mensagem real pode ser enviada", () => {
     assert.equal((http.match(/replyForTestContact\(/g) ?? []).length, 2, "definição + uma única chamada");
     assert.match(
       http,
-      /if \(shouldProcess && deps\.processJobInline && config\.testReplyContactIds\?\.has\(payload\.contactId\)\) \{[\s\S]{0,300}replyForTestContact\(/,
+      /if \(shouldProcess && deps\.processJobInline && \(isTestContact \|\| liveReply\)\) \{[\s\S]{0,300}replyForTestContact\(/,
     );
   });
 

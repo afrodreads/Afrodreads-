@@ -8,6 +8,7 @@ import { normalizeGroupingPolicy, type GroupingPolicy } from "../agent/grouping"
 import { ingestInbound } from "../agent/pipeline";
 import { isAllowedMediaUrl, type MediaResult } from "../agent-media/transcribe";
 import { clientIp, FixedWindowLimiter, secretFromHeaders, secretsMatch } from "./security";
+import { decideLive, liveConfigFromEnv, startOfSaoPauloDay, type LiveConfig, type LiveDecision } from "./live";
 
 // Entrada autenticada do agente (POST /api/agent/inbound), em MODO SOMBRA.
 //
@@ -40,6 +41,8 @@ export type InboundConfig = {
    * continua sem enviar nada. Vazio/ausente: ninguém recebe texto (modo sombra puro).
    */
   testReplyContactIds?: ReadonlySet<string>;
+  /** Piloto com leads reais (janela de horário + limites). Ausente/desligado: só contatos de teste. */
+  live?: LiveConfig;
 };
 
 export const MAX_BODY_BYTES = 16 * 1024;
@@ -72,6 +75,7 @@ export function inboundConfigFromEnv(env: Record<string, string | undefined> = p
         .filter(Boolean)
         .slice(0, 5),
     ),
+    live: liveConfigFromEnv(env),
   };
 }
 
@@ -79,7 +83,8 @@ export function inboundConfigFromEnv(env: Record<string, string | undefined> = p
 export const inboundPayloadSchema = z
   .object({
     channel: z.literal("whatsapp"),
-    type: z.enum(["message", "human_reply"]).default("message"),
+    /** gate: só pergunta quem atende este contato (agente ou robô antigo); não grava nada nem chama o modelo. */
+    type: z.enum(["message", "human_reply", "gate"]).default("message"),
     /** Opcional: o ManyChat não oferece um id único por mensagem. Sem ele, o id é derivado (ver `derivedMessageId`). */
     messageId: z.string().trim().min(1).max(200).optional(),
     contactId: z.string().trim().min(1).max(200),
@@ -132,6 +137,8 @@ export type InboundHandlerDeps = {
   transcribeMedia?(url: string): Promise<MediaResult>;
   /** Se esta mídia (id `media:...`) já foi registrada para o contato. */
   mediaMessageExists?(unitId: string, contactId: string, externalMessageId: string): Promise<boolean>;
+  /** Respostas da IA desde `since` (todas, ou só deste contato). Base dos limites do piloto. */
+  countAiRepliesSince?(unitId: string, since: Date, contactId: string | null): Promise<number>;
   /** Última mensagem recebida do contato e se já houve resposta depois dela (detecta mídia). */
   lastInboundForContact?(unitId: string, contactId: string): Promise<{ text: string; answered: boolean } | null>;
   /** Situação da abertura da conversa (só contatos de teste): permite responder sem o modelo. */
@@ -353,6 +360,21 @@ async function replyForTestContact(
   });
 }
 
+/** Quem atende este contato agora, pelo estado do piloto (ver live.ts). */
+async function liveDecisionFor(deps: InboundHandlerDeps, unitId: string, contactId: string, now: Date): Promise<LiveDecision> {
+  const live = deps.config.live;
+  const isTest = deps.config.testReplyContactIds?.has(contactId) ?? false;
+  if (isTest || !live || live.mode === "off") {
+    return decideLive(live ?? { ...liveConfigFromEnv({}), mode: "off" }, now, { isTest, conversationMode: null, repliesToday: 0, contactRepliesToday: 0 });
+  }
+  const conversation = await deps.conversations.transaction((repo) => repo.findConversationByExternalId(unitId, "WHATSAPP", contactId));
+  const since = startOfSaoPauloDay(now);
+  const [repliesToday, contactRepliesToday] = deps.countAiRepliesSince
+    ? await Promise.all([deps.countAiRepliesSince(unitId, since, null), deps.countAiRepliesSince(unitId, since, contactId)])
+    : [0, 0];
+  return decideLive(live, now, { isTest, conversationMode: conversation?.mode ?? null, repliesToday, contactRepliesToday });
+}
+
 export function createInboundHandler(deps: InboundHandlerDeps): (request: Request) => Promise<Response> {
   const ipLimiter = deps.ipLimiter ?? new FixedWindowLimiter(deps.config.ipLimitPerMinute, 60_000);
 
@@ -391,7 +413,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
     const text = UNFILLED_VARIABLE.test(payload.text.trim()) ? "" : payload.text.trim();
     if (text.length > MAX_TEXT_CHARS) return fail(400, "invalid_payload");
     // Sem texto: só vale como mídia de cliente (nunca como resposta da equipe).
-    if (!text && payload.type !== "message") return fail(400, "invalid_payload");
+    if (!text && payload.type === "human_reply") return fail(400, "invalid_payload");
     // O telefone serve para achar/criar o cliente; a conversa é identificada pelo contactId do canal.
     if (!normalizePhone(payload.phone)) {
       deps.log("agent_inbound_invalid_payload", { fields: "phone(formato)" });
@@ -416,6 +438,26 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
 
       const recent = await deps.countRecentForContact(unitId, payload.contactId, new Date(now.getTime() - 60_000));
       if (recent >= config.contactLimitPerMinute) return fail(429, "rate_limited");
+
+      // Pergunta "quem atende?": o ManyChat usa a resposta para escolher entre o agente e o robô antigo.
+      // Não grava nada, não chama o modelo e não custa nada.
+      if (payload.type === "gate") {
+        const decision = await liveDecisionFor(deps, unitId, payload.contactId, now);
+        deps.log("agent_live_gate", { agente: decision.agente, reason: decision.reason });
+        return reply(200, { ok: true, status: "gate", modo: decision.agente ? "agente" : "robo" });
+      }
+
+      // Piloto: contato que não é de teste só segue se o piloto mandar o agente atender.
+      const isTestContact = config.testReplyContactIds?.has(payload.contactId) ?? false;
+      let liveSilent = false;
+      let liveReply = false;
+      if (!isTestContact && config.live && config.live.mode !== "off" && payload.type === "message") {
+        const decision = await liveDecisionFor(deps, unitId, payload.contactId, now);
+        deps.log("agent_live_decision", { agente: decision.agente, silent: decision.silent, reason: decision.reason });
+        if (!decision.agente) return reply(200, { ok: true, status: "outside_hours" });
+        liveReply = true;
+        liveSilent = decision.silent;
+      }
 
       if (payload.type === "human_reply") {
         const conversation = await deps.conversations.transaction((repo) =>
@@ -458,7 +500,8 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
 
       // Contato de TESTE: roda o agente agora e devolve o rascunho (se passou nas travas)
       // para o ManyChat enviar. Qualquer outro contato segue o caminho de sombra abaixo.
-      if (shouldProcess && deps.processJobInline && config.testReplyContactIds?.has(payload.contactId)) {
+      if (liveSilent) return reply(200, { ok: true, status: "cap_reached" });
+      if (shouldProcess && deps.processJobInline && (isTestContact || liveReply)) {
         const job = { conversationId: inbound.conversationId, triggerMessageId: inbound.messageId };
         return await replyForTestContact(deps, deps.processJobInline, job, now.getTime());
       }

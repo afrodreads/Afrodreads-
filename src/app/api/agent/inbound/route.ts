@@ -2,6 +2,7 @@ import path from "node:path";
 import { after } from "next/server";
 import { createShadowDeps } from "@/lib/agent-db";
 import {
+  countAiRepliesSince,
   countRecentInboundForContact,
   lastInboundForContact,
   mediaMessageExists,
@@ -55,6 +56,7 @@ export async function POST(request: Request): Promise<Response> {
     conversations: prismaConversationsStore,
     resolveUnitId: () => resolveInboundUnitId(config.unitSlug),
     countRecentForContact: countRecentInboundForContact,
+    countAiRepliesSince,
     lastInboundForContact,
     // Áudio: baixa o arquivo do ManyChat e transcreve (desligado sem OPENAI_API_KEY e AGENT_TRANSCRIBE_ENABLED=true).
     transcribeMedia: createTranscriber(transcriberConfigFromEnv()),

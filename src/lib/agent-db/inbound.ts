@@ -26,6 +26,18 @@ export const prismaGroupingReader: GroupingReader = {
   },
 };
 
+/** Respostas da IA desde `since` nesta unidade; com `contactId`, só as deste contato (limites do piloto). */
+export function countAiRepliesSince(unitId: string, since: Date, contactId: string | null): Promise<number> {
+  return prisma.message.count({
+    where: {
+      direction: "OUTBOUND",
+      sender: "AI",
+      createdAt: { gte: since },
+      conversation: { unitId, channel: "WHATSAPP", ...(contactId ? { externalId: contactId } : {}) },
+    },
+  });
+}
+
 /** Mensagens recebidas de um contato do canal, nesta unidade, desde `since`. */
 export function countRecentInboundForContact(unitId: string, contactId: string, since: Date): Promise<number> {
   return prisma.message.count({

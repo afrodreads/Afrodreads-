@@ -17,6 +17,7 @@ import {
   type InboundConfig,
 } from "./inbound";
 import { FixedWindowLimiter } from "./security";
+import { liveConfigFromEnv } from "./live";
 import type { MediaResult } from "../agent-media/transcribe";
 
 // Simula o ManyChat chamando POST /api/agent/inbound (modo sombra).
@@ -88,6 +89,13 @@ function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>
       const answered = h.db.messages.some((m) => m.conversationId === last.conversationId && m.direction === "OUTBOUND" && m.createdAt >= last.createdAt);
       return { text: last.content, answered };
     },
+    countAiRepliesSince: async (unitId, since, contactId) =>
+      h.db.messages.filter((m) => {
+        const conversation = h.db.conversations.find((c) => c.id === m.conversationId);
+        return (
+          m.direction === "OUTBOUND" && m.sender === "AI" && conversation?.unitId === unitId && m.createdAt >= since && (contactId === null || conversation.externalId === contactId)
+        );
+      }).length,
     transcribeMedia: options.transcribe,
     mediaMessageExists: async (unitId, contactId, externalMessageId) => {
       const conversation = h.db.conversations.find((c) => c.unitId === unitId && c.externalId === contactId);
@@ -709,5 +717,103 @@ describe("resposta de teste: duas mensagens e silêncio", () => {
     const response = await s.post(payload());
     assert.deepEqual(response.body, { ok: true, status: "no_reply", reply: "-", reply2: "-" });
     assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND").length, 0);
+  });
+});
+
+describe("piloto com leads reais (janela de horário, gate e limites)", () => {
+  const night = liveConfigFromEnv({ AGENT_LIVE_MODE: "night" });
+  const NIGHT = new Date("2026-10-07T23:00:00-03:00"); // quarta 23h: janela aberta
+  const DAY = new Date("2026-10-07T14:00:00-03:00"); // quarta 14h: janela fechada
+  const atTime = (s: ReturnType<typeof setup>, when: Date, overrides: Record<string, unknown> = {}) => {
+    s.setClock(when);
+    return payload({ timestamp: when.toISOString(), ...overrides });
+  };
+
+  it("gate dentro da janela: lead novo vai para o agente e nada é gravado nem chama o modelo", async () => {
+    const s = setup({ config: { live: night } });
+    const response = await s.post(atTime(s, NIGHT, { type: "gate", text: "" }));
+    assert.deepEqual(response.body, { ok: true, status: "gate", modo: "agente", reply: "-", reply2: "-" });
+    assert.equal(s.db.messages.length, 0);
+    assert.equal(s.model.calls.length, 0);
+  });
+
+  it("gate fora da janela: lead novo segue com o robô antigo", async () => {
+    const s = setup({ config: { live: night } });
+    const response = await s.post(atTime(s, DAY, { type: "gate", text: "{{last_input_text}}" }));
+    assert.equal(response.body.modo, "robo");
+    assert.equal(s.db.messages.length, 0);
+  });
+
+  it("gate com o piloto desligado: sempre robô antigo (interruptor de segurança)", async () => {
+    const s = setup({ config: { live: liveConfigFromEnv({}) } });
+    assert.equal((await s.post(atTime(s, NIGHT, { type: "gate", text: "" }))).body.modo, "robo");
+  });
+
+  it("gate: contato de teste vai sempre para o agente", async () => {
+    const s = setup({ config: { live: night, testReplyContactIds: new Set(["mc-123456"]) } });
+    assert.equal((await s.post(atTime(s, DAY, { type: "gate", text: "" }))).body.modo, "agente");
+  });
+
+  it("lead real dentro da janela recebe resposta do agente, gravada como mensagem da IA", async () => {
+    const s = setup({ model: replyWith("Oi! Que bom ter você aqui 💛"), config: { live: night } });
+    const response = await s.post(atTime(s, NIGHT));
+    assert.equal(response.body.status, "replied");
+    assert.equal(response.body.reply, "Oi! Que bom ter você aqui 💛");
+    assert.equal(s.db.messages.filter((m) => m.direction === "OUTBOUND" && m.sender === "AI").length, 1);
+  });
+
+  it("lead real fora da janela: sem resposta, nada gravado e o modelo nem é chamado", async () => {
+    const s = setup({ config: { live: night } });
+    const response = await s.post(atTime(s, DAY));
+    assert.deepEqual(response.body, { ok: true, status: "outside_hours", reply: "-", reply2: "-" });
+    assert.equal(s.db.messages.length, 0);
+    assert.equal(s.model.calls.length, 0);
+  });
+
+  it("conversa que começou na janela continua depois dela (até a Thay assumir)", async () => {
+    let turn = 0;
+    const model = new ScriptedModel(() => ({ text: ++turn === 1 ? "Me conta mais 💛" : "Entendi, micro! Qual o comprimento? 💛", toolCalls: [] }));
+    const s = setup({ model, config: { live: night } });
+    await s.post(atTime(s, NIGHT, { messageId: "m-1" }));
+    const next = new Date("2026-10-08T10:15:00-03:00"); // janela já fechou
+    const response = await s.post(atTime(s, next, { messageId: "m-2", text: "Quero micro" }));
+    assert.equal(response.body.status, "replied");
+  });
+
+  it("depois do encaminhamento (HUMAN) o agente não responde mais, nem na janela", async () => {
+    const s = setup({ config: { live: night } });
+    await s.post(atTime(s, NIGHT, { messageId: "m-1" }));
+    await handoffToHuman(s.db, { conversationId: s.db.conversations[0].id, reason: "OTHER", summary: { headline: "x" }, actor: STAFF });
+    const calls = s.model.calls.length;
+    const response = await s.post(atTime(s, new Date("2026-10-07T23:30:00-03:00"), { messageId: "m-2", text: "Oi?" }));
+    assert.equal(response.body.reply, "-");
+    assert.equal(s.model.calls.length, calls);
+    assert.equal(s.db.conversations[0].mode, "HUMAN");
+  });
+
+  it("limite do contato: o agente fica em silêncio (e o gate continua dizendo agente)", async () => {
+    const tiny = { ...night, maxRepliesPerContactPerDay: 1 };
+    const s = setup({ model: replyWith("Oi! 💛"), config: { live: tiny } });
+    assert.equal((await s.post(atTime(s, NIGHT, { messageId: "m-1" }))).body.status, "replied");
+    const second = await s.post(atTime(s, new Date("2026-10-07T23:05:00-03:00"), { messageId: "m-2", text: "E aí?" }));
+    assert.equal(second.body.status, "cap_reached");
+    assert.equal(second.body.reply, "-");
+    assert.equal((await s.post(atTime(s, new Date("2026-10-07T23:06:00-03:00"), { type: "gate", text: "" }))).body.modo, "agente");
+  });
+
+  it("limite diário geral: lead novo volta para o robô antigo", async () => {
+    const tiny = { ...night, maxRepliesPerDay: 1 };
+    const s = setup({ model: replyWith("Oi! 💛"), config: { live: tiny } });
+    await s.post(atTime(s, NIGHT, { messageId: "m-1", contactId: "mc-A" }));
+    const gate = await s.post(atTime(s, new Date("2026-10-07T23:10:00-03:00"), { type: "gate", text: "", contactId: "mc-B" }));
+    assert.equal(gate.body.modo, "robo");
+  });
+
+  it("os logs do piloto não trazem texto, telefone nem nome", async () => {
+    const s = setup({ model: replyWith("Oi! 💛"), config: { live: night } });
+    await s.post(atTime(s, NIGHT, { text: "Meu CPF é 123.456.789-00" }));
+    const logs = s.logs.join("\n");
+    assert.ok(logs.includes("agent_live_decision"));
+    for (const leaked of ["98765", "Maria", "CPF", "123.456"]) assert.equal(logs.includes(leaked), false, leaked);
   });
 });
