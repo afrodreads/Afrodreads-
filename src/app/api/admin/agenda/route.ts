@@ -5,6 +5,7 @@ import { adminMonth, monthDays } from "@/lib/capacity/calendar";
 import { assignChairs } from "@/lib/capacity/engine";
 import { loadMonthData } from "@/lib/capacity/store";
 import { bookingPeriod } from "@/lib/schedule";
+import { googleCalendarLink } from "@/lib/calendarFeed";
 import { saoPauloDateKey } from "@/lib/timezone";
 
 // Agenda do painel: cor de cada dia (o dia como um todo) e os agendamentos
@@ -44,6 +45,22 @@ export async function GET(request: NextRequest) {
         forcedReason: row.forcedReason,
         paymentOption: row.paymentOption,
         scheduledStart: row.scheduledStart.toISOString(),
+        googleCalendarUrl:
+          row.status === "CONFIRMED"
+            ? googleCalendarLink({
+                id: row.id,
+                serviceName: row.service.name,
+                clientName: row.clientName,
+                clientPhone: row.clientPhone,
+                scheduledStart: row.scheduledStart,
+                scheduledEnd: row.scheduledEnd,
+                paymentOption: row.paymentOption,
+                remainingAmount: Number(row.remainingAmount),
+                forced: row.forced,
+                notes: row.notes,
+                updatedAt: row.updatedAt,
+              })
+            : null,
       }));
   }
 

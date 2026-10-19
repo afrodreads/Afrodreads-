@@ -27,6 +27,8 @@ export type AdminBooking = {
   /** O que o pagamento aprovado quitou: sinal ou valor total (nulo = nada pago ainda). */
   paymentOption: "DEPOSIT" | "FULL" | null;
   forced: boolean;
+  /** Link "Adicionar ao Google Agenda" (só agendamentos confirmados). */
+  googleCalendarUrl: string | null;
 };
 
 export function BookingsList({ bookings: initialBookings }: { bookings: AdminBooking[] }) {
@@ -149,6 +151,11 @@ function BookingCard({
               ? `Pago o valor total: ${formatBRL(booking.servicePrice)}`
               : `Sinal ${formatBRL(booking.depositAmount)}${booking.paymentOption === "DEPOSIT" ? " (pago)" : ""} · Total ${formatBRL(booking.servicePrice)}`}
             {booking.forced && <span className="block text-xs text-amber-200">Encaixe fora das regras</span>}
+            {booking.googleCalendarUrl && booking.status === "CONFIRMED" && (
+              <a href={booking.googleCalendarUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs font-semibold text-brand-yellow underline">
+                📅 Adicionar ao Google Agenda
+              </a>
+            )}
           </p>
         </div>
       </div>

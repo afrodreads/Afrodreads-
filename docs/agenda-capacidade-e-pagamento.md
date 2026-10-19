@@ -78,6 +78,28 @@ ignora capacidade e bloqueio do dia (o horário continua sendo 10h ou 15h). O **
   **total recebe tudo menos o valor do sinal** (estorno parcial, com chave de idempotência).
 - Sem desconto para pagamento total (não foi pedido).
 
+## Manutenções por tipo e área (19/10/2026)
+
+Migration `20261019030000_manutencoes_raiz` (só dados):
+
+| Serviço no painel | Slug | Regras |
+|---|---|---|
+| Manutenção completa (cabeça toda) | `manutencao-completa` | as da especificação (2 cadeiras) |
+| Manutenção completa (topo) | `manutencao-topo` (antes "Manutenção no topo") | as da especificação (1 cadeira, 2 por período, 4 por dia) |
+| Manutenção só raiz (cabeça toda) | `manutencao-raiz-cabeca-toda` | **PENDENTE**: copiadas da completa (cabeça toda) |
+| Manutenção só raiz (topo) | `manutencao-raiz-topo` | **PENDENTE**: copiadas da completa (topo) |
+
+As "só raiz" herdam também com quem dividem o dia. Confirme duração e regras no painel.
+
+## Google Agenda
+
+- **Agenda assinada**: no painel (Agenda → "Google Agenda" → Conectar) há um link privado
+  (`/api/agenda/feed?token=…`) para "Adicionar agenda → Do URL" no Google Agenda. Os agendamentos **confirmados**
+  aparecem sozinhos (o Google atualiza a cada algumas horas). O token deriva de `ADMIN_SESSION_SECRET`: trocar esse
+  segredo invalida o link. Sem o token certo a rota responde 404. O feed tem nome e WhatsApp dos clientes: não compartilhar.
+- **Um clique**: botão "Adicionar ao Google Agenda" no e-mail da equipe a cada agendamento confirmado, na lista e no
+  detalhe do dia do painel. Coloca o compromisso na hora.
+
 ## Arquivos principais
 
 `src/lib/capacity/*`, `src/lib/schedule.ts`, `src/lib/bookingCreation.ts`, `src/lib/bookingStores.ts`,
