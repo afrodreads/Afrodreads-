@@ -51,21 +51,33 @@ async function sendEmail(params: {
   }
 }
 
+/** O que ficou pago: valor total (nada no dia) ou sinal (restante no dia). */
+function paidSummary(booking: Booking): { intro: string; paidLabel: string; paidAmount: number; remaining: number } {
+  const full = booking.paymentOption === "FULL";
+  return {
+    intro: full ? "Recebemos o pagamento total e seu horário está garantido. Não há nada a pagar no dia." : "Recebemos seu sinal e seu horário está garantido.",
+    paidLabel: full ? "Valor pago (total)" : "Sinal pago",
+    paidAmount: full ? Number(booking.servicePrice) : Number(booking.depositAmount),
+    remaining: full ? 0 : Number(booking.remainingAmount),
+  };
+}
+
 export async function sendBookingConfirmationEmail(
   booking: Booking & { service: Service },
 ): Promise<void> {
+  const paid = paidSummary(booking);
   await sendEmail({
     to: booking.clientEmail,
     subject: "Seu agendamento na Afro Dreads está confirmado!",
     html: `
       <div style="font-family: sans-serif; color: #111; max-width: 480px;">
         <h1 style="font-size: 20px;">Agendamento confirmado, ${escapeHtml(booking.clientName)}!</h1>
-        <p>Recebemos seu sinal e seu horário está garantido.</p>
+        <p>${paid.intro}</p>
         <table style="width: 100%; margin-top: 16px; border-collapse: collapse;">
           <tr><td style="padding: 8px 0; color: #555;">Serviço</td><td style="padding: 8px 0; text-align: right;">${escapeHtml(booking.service.name)}</td></tr>
           <tr><td style="padding: 8px 0; color: #555;">Data e horário</td><td style="padding: 8px 0; text-align: right;">${formatDateTimeBR(booking.scheduledStart)}</td></tr>
-          <tr><td style="padding: 8px 0; color: #555;">Sinal pago</td><td style="padding: 8px 0; text-align: right;">${formatBRL(Number(booking.depositAmount))}</td></tr>
-          <tr><td style="padding: 8px 0; color: #555;">Restante no dia</td><td style="padding: 8px 0; text-align: right;">${formatBRL(Number(booking.remainingAmount))}</td></tr>
+          <tr><td style="padding: 8px 0; color: #555;">${paid.paidLabel}</td><td style="padding: 8px 0; text-align: right;">${formatBRL(paid.paidAmount)}</td></tr>
+          <tr><td style="padding: 8px 0; color: #555;">Restante no dia</td><td style="padding: 8px 0; text-align: right;">${formatBRL(paid.remaining)}</td></tr>
         </table>
         <p style="margin-top: 16px; color: #555; font-size: 14px;">
           Qualquer dúvida, fale com a gente pelo WhatsApp. Até breve!
@@ -76,11 +88,12 @@ export async function sendBookingConfirmationEmail(
 }
 
 // Aviso interno: a equipe recebe os dados do cliente e do serviço assim que o
-// sinal é confirmado. Endereço configurável por TEAM_NOTIFICATION_EMAIL.
+// pagamento (sinal ou total) é confirmado. Endereço configurável por TEAM_NOTIFICATION_EMAIL.
 export async function sendTeamBookingNotificationEmail(
   booking: Booking & { service: Service },
 ): Promise<void> {
   const to = process.env.TEAM_NOTIFICATION_EMAIL ?? "afrodreadsofc@gmail.com";
+  const paid = paidSummary(booking);
   const row = (label: string, value: string) =>
     `<tr><td style="padding: 6px 12px 6px 0; color: #555; vertical-align: top;">${label}</td><td style="padding: 6px 0;">${value}</td></tr>`;
 
@@ -91,7 +104,7 @@ export async function sendTeamBookingNotificationEmail(
     html: `
       <div style="font-family: sans-serif; color: #111; max-width: 520px;">
         <h1 style="font-size: 20px;">Novo agendamento confirmado</h1>
-        <p>O sinal foi pago e o horário está garantido.</p>
+        <p>${booking.paymentOption === "FULL" ? "O valor total foi pago" : "O sinal foi pago"} e o horário está garantido.</p>
         <table style="border-collapse: collapse; margin-top: 12px;">
           ${row("Cliente", escapeHtml(booking.clientName))}
           ${row("WhatsApp", escapeHtml(booking.clientPhone))}
@@ -99,8 +112,8 @@ export async function sendTeamBookingNotificationEmail(
           ${row("Serviço", escapeHtml(booking.service.name))}
           ${row("Data e horário", formatDateTimeBR(booking.scheduledStart))}
           ${row("Valor do serviço", formatBRL(Number(booking.servicePrice)))}
-          ${row("Sinal pago", formatBRL(Number(booking.depositAmount)))}
-          ${row("Restante no dia", formatBRL(Number(booking.remainingAmount)))}
+          ${row(paid.paidLabel, formatBRL(paid.paidAmount))}
+          ${row("Restante no dia", formatBRL(paid.remaining))}
           ${booking.isOutOfTownSeason ? row("Temporada", "Atendimento por temporada fora de SP") : ""}
           ${booking.notes ? row("Observações", escapeHtml(booking.notes)) : ""}
           ${row("Código", escapeHtml(booking.id))}

@@ -12,7 +12,7 @@ export default function BookingSuccessPage() {
         Pagamento recebido! 🎉
       </h1>
       <p className="mt-4 text-brand-white/70">
-        Seu sinal foi processado e seu horário está confirmado. Você vai receber os detalhes
+        Seu pagamento foi processado e seu horário está confirmado. Você vai receber os detalhes
         por e-mail em instantes.
       </p>
       <Link

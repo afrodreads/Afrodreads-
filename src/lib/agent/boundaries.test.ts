@@ -222,20 +222,26 @@ describe("nada da unidade fixo no código do agente", () => {
 });
 
 describe("migrations", () => {
-  it("as migrations do agente são as últimas e só aditivas", () => {
+  it("as migrations do agente e da agenda são só aditivas", () => {
     const migrations = readdirSync(path.join(root, "prisma", "migrations")).filter((name) => /^\d/.test(name));
-    assert.deepEqual(migrations.slice(-4), [
+    assert.deepEqual(migrations.slice(-5), [
       "20260930180000_add_booking_expired_status",
       "20260930200000_add_agent_foundation",
       "20260930220000_agent_shadow_persistence",
       "20261001010000_agent_run_usage",
+      "20261018120000_agenda_capacidade_e_pagamento",
     ]);
-    for (const name of migrations.slice(-2)) {
+    for (const name of ["20260930220000_agent_shadow_persistence", "20261001010000_agent_run_usage", "20261018120000_agenda_capacidade_e_pagamento"]) {
       const sql = read(path.join(root, "prisma", "migrations", name, "migration.sql"));
       assert.doesNotMatch(sql, /\bDROP\b/i, name);
       assert.doesNotMatch(sql, /^\s*DELETE\s+FROM/im, name);
       assert.doesNotMatch(sql, /ALTER COLUMN|RENAME|TRUNCATE/i, name);
-      for (const alter of sql.match(/ALTER TABLE "\w+" ADD COLUMN[^;]*;/g) ?? []) assert.doesNotMatch(alter, /NOT NULL/, name);
+      // Coluna nova obrigatória só com valor padrão (linhas antigas continuam válidas).
+      for (const alter of sql.match(/ALTER TABLE "\w+" ADD COLUMN[^;]*;/g) ?? []) {
+        for (const column of alter.split(/,\n/)) {
+          if (/NOT NULL/.test(column)) assert.match(column, /DEFAULT/, `${name}: ${column.trim()}`);
+        }
+      }
     }
     const phase3 = read(path.join(root, "prisma", "migrations", "20260930220000_agent_shadow_persistence", "migration.sql"));
     assert.deepEqual(phase3.match(/^UPDATE "\w+"/gm), ['UPDATE "Unit"']);

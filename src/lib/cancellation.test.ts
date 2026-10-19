@@ -4,7 +4,14 @@ import type { Booking } from "@prisma/client";
 import { cancelBooking, type CancellationStore, type RefundGateway } from "./cancellation";
 import { makeBooking, sp } from "./testHelpers";
 
-type FakePayment = { id: string; mpPaymentId: string; status: string };
+type FakePayment = {
+  id: string;
+  mpPaymentId: string;
+  status: string;
+  type?: "DEPOSIT" | "FULL";
+  amount?: number;
+  refundedAmount?: number;
+};
 
 class FakeStore implements CancellationStore {
   booking: Booking | null;
@@ -18,7 +25,11 @@ class FakeStore implements CancellationStore {
   }
   async findApprovedDeposit() {
     const p = this.payments.find((x) => x.status === "APPROVED");
-    return p ? { id: p.id, mpPaymentId: p.mpPaymentId } : null;
+    return p ? { id: p.id, mpPaymentId: p.mpPaymentId, type: p.type, amount: p.amount, refundedAmount: p.refundedAmount } : null;
+  }
+  async markPartialRefund(paymentId: string, refundedTotal: number) {
+    const p = this.payments.find((x) => x.id === paymentId);
+    if (p) p.refundedAmount = refundedTotal;
   }
   async claimCancellation(bookingId: string, data: { cancelledAt: Date; refundEligible: boolean | null }) {
     if (!this.booking || this.booking.id !== bookingId) return null;
@@ -39,7 +50,15 @@ class FakeStore implements CancellationStore {
 
 class FakeGateway implements RefundGateway {
   calls: { mpPaymentId: string; key: string }[] = [];
+  partialCalls: { mpPaymentId: string; amount: number; key: string }[] = [];
   failTimes = 0;
+  async refundPartial(mpPaymentId: string, amount: number, key: string) {
+    this.partialCalls.push({ mpPaymentId, amount, key });
+    if (this.failTimes > 0) {
+      this.failTimes -= 1;
+      throw new Error("Mercado Pago indisponível");
+    }
+  }
   async refund(mpPaymentId: string, key: string) {
     this.calls.push({ mpPaymentId, key });
     if (this.failTimes > 0) {
@@ -213,5 +232,63 @@ describe("cancelBooking: sem estorno duplicado", () => {
 
     assert.equal(gateway.calls.length, 0);
     assert.equal(store.payments[0].status, "APPROVED");
+  });
+});
+
+describe("cancelBooking: quem pagou o valor total", () => {
+  const paidFull = (): FakePayment => ({ id: "pay-full", mpPaymentId: "mp-900", status: "APPROVED", type: "FULL", amount: 400 });
+
+  it("cancela com 2 dias ou mais: devolve tudo (estorno total)", async () => {
+    const store = new FakeStore(confirmedBooking(), [paidFull()]);
+    const gateway = new FakeGateway();
+    const result = await cancelBooking({ bookingId: "b1", now: sp("2026-06-08T09:00:00") }, store, gateway);
+    assert.ok(result.kind === "cancelled");
+    assert.equal(result.depositRefunded, true);
+    assert.equal(result.partialRefundAmount, 0);
+    assert.deepEqual(gateway.calls, [{ mpPaymentId: "mp-900", key: "refund-pay-full" }]);
+    assert.equal(store.payments[0].status, "REFUNDED");
+  });
+
+  it("cancela com menos de 2 dias: o estúdio retém só o sinal e devolve o restante", async () => {
+    const store = new FakeStore(confirmedBooking(), [paidFull()]);
+    const gateway = new FakeGateway();
+    const result = await cancelBooking({ bookingId: "b1", now: sp("2026-06-09T09:00:00") }, store, gateway);
+    assert.ok(result.kind === "cancelled");
+    assert.equal(result.refundEligible, false);
+    assert.equal(result.partialRefundAmount, 350); // R$ 400 pagos - R$ 50 de sinal
+    assert.deepEqual(gateway.partialCalls, [{ mpPaymentId: "mp-900", amount: 350, key: "refund-partial-pay-full" }]);
+    assert.equal(gateway.calls.length, 0);
+    assert.equal(store.payments[0].status, "APPROVED");
+    assert.equal(store.payments[0].refundedAmount, 350);
+  });
+
+  it("chamadas repetidas não devolvem de novo", async () => {
+    const store = new FakeStore(confirmedBooking(), [paidFull()]);
+    const gateway = new FakeGateway();
+    const now = sp("2026-06-09T09:00:00");
+    await cancelBooking({ bookingId: "b1", now }, store, gateway);
+    const again = await cancelBooking({ bookingId: "b1", now }, store, gateway);
+    assert.ok(again.kind === "already_cancelled");
+    assert.equal(again.partialRefundAmount, 0);
+    assert.equal(gateway.partialCalls.length, 1);
+  });
+
+  it("falha no estorno parcial: tenta de novo na próxima chamada, com a mesma chave", async () => {
+    const store = new FakeStore(confirmedBooking(), [paidFull()]);
+    const gateway = new FakeGateway();
+    gateway.failTimes = 1;
+    const now = sp("2026-06-09T09:00:00");
+    const first = await cancelBooking({ bookingId: "b1", now }, store, gateway);
+    assert.ok(first.kind === "cancelled" && first.refundError);
+    const retry = await cancelBooking({ bookingId: "b1", now }, store, gateway);
+    assert.ok(retry.kind === "already_cancelled" && retry.partialRefundAmount === 350);
+    assert.equal(gateway.partialCalls[0].key, gateway.partialCalls[1].key);
+  });
+
+  it("quem pagou só o sinal e cancela tarde continua sem devolução", async () => {
+    const store = new FakeStore(confirmedBooking(), [{ ...paid(), type: "DEPOSIT", amount: 50 }]);
+    const gateway = new FakeGateway();
+    await cancelBooking({ bookingId: "b1", now: sp("2026-06-09T09:00:00") }, store, gateway);
+    assert.equal(gateway.calls.length + gateway.partialCalls.length, 0);
   });
 });

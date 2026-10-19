@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServiceBySlug } from "@/lib/services";
-import { getAvailableStartTimes } from "@/lib/schedule";
-import { activeBookingWhere } from "@/lib/bookingRules";
+import { checkAdd } from "@/lib/capacity/engine";
+import { loadDayBookings, loadRuleBook } from "@/lib/capacity/store";
+import { openPeriods, periodStart } from "@/lib/schedule";
 import { parseDateKey } from "@/lib/timezone";
 
+// Horários livres de um dia para um serviço: manhã (10h) e/ou tarde (15h),
+// conforme as regras de capacidade do cadastro de serviços.
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const serviceSlug = searchParams.get("service");
@@ -17,8 +19,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const serviceDefinition = getServiceBySlug(serviceSlug);
-  if (!serviceDefinition) {
+  const service = await prisma.service.findUnique({ where: { slug: serviceSlug }, select: { id: true, active: true } });
+  if (!service || !service.active) {
     return NextResponse.json({ error: "Serviço não encontrado" }, { status: 404 });
   }
 
@@ -27,30 +29,21 @@ export async function GET(request: NextRequest) {
   if (!date) {
     return NextResponse.json({ error: "Data inválida. Use o formato AAAA-MM-DD." }, { status: 400 });
   }
-  const nextDay = new Date(date);
-  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
   const now = new Date();
-  const [existingBookings, blockedDate] = await Promise.all([
-    prisma.booking.findMany({
-      where: {
-        AND: [activeBookingWhere(now), { scheduledStart: { gte: date, lt: nextDay } }],
-      },
-      select: { scheduledStart: true, scheduledEnd: true },
-    }),
+  const periods = openPeriods(date, now);
+  if (periods.length === 0) return NextResponse.json({ slots: [] });
+
+  const [blockedDate, rules, existing] = await Promise.all([
     prisma.blockedDate.findUnique({ where: { date } }),
+    loadRuleBook(prisma),
+    loadDayBookings(prisma, date, now),
   ]);
+  if (blockedDate?.fullDay) return NextResponse.json({ slots: [] });
 
-  if (blockedDate?.fullDay) {
-    return NextResponse.json({ slots: [] });
-  }
-
-  // Horários que já passaram não são oferecidos.
-  const slots = getAvailableStartTimes(
-    date,
-    serviceDefinition.maxHours,
-    existingBookings,
-  ).filter((slot) => slot.getTime() > now.getTime());
-
-  return NextResponse.json({ slots: slots.map((slot) => slot.toISOString()) });
+  const free = periods.filter((period) => checkAdd(rules, existing, service.id, period).ok);
+  return NextResponse.json({
+    slots: free.map((period) => periodStart(date, period).toISOString()),
+    periods: free,
+  });
 }

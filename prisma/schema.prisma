@@ -45,6 +45,32 @@ enum QuoteStatus {
   CANCELLED
 }
 
+// Quem pode fazer o serviço (cadeira da Lyon, da Thay ou qualquer uma).
+enum ServiceStaff {
+  ANY
+  LYON
+  THAY
+}
+
+// Os dois períodos do dia (manhã = 10h, tarde = 15h, horário de São Paulo).
+enum DayPeriod {
+  MORNING
+  AFTERNOON
+}
+
+// O que o cliente pagou: o sinal (restante no dia) ou o valor total.
+enum PaymentOption {
+  DEPOSIT
+  FULL
+}
+
+// O que o link de orçamento deixa o cliente escolher.
+enum QuotePaymentOptions {
+  CLIENT_CHOICE
+  DEPOSIT_ONLY
+  FULL_ONLY
+}
+
 model Service {
   id          String    @id @default(cuid())
   slug        String    @unique
@@ -56,11 +82,44 @@ model Service {
   imageUrl    String?
   order       Int       @default(0)
   active      Boolean   @default(true)
+
+  // Regras de capacidade da agenda, editáveis no painel (/admin/servicos).
+  // Os padrões reproduzem o comportamento antigo: o serviço ocupa o estúdio
+  // inteiro no período e não divide o dia com ninguém.
+  chairs          Int          @default(2)
+  staff           ServiceStaff @default(ANY)
+  // Ocupa a cadeira nos dois períodos (ex.: Microlocs).
+  fullDay         Boolean      @default(false)
+  maxPerPeriod    Int?
+  maxPerDay       Int?
+  startsMorning   Boolean      @default(true)
+  startsAfternoon Boolean      @default(true)
+  // true = regra ainda não confirmada pelo estúdio (aparece como PENDENTE no painel).
+  rulesPending    Boolean      @default(true)
+  rulesNote       String?
+  companions      ServiceCompanion[] @relation("ServiceCompanions")
+  companionOf     ServiceCompanion[] @relation("CompanionOfServices")
+
   bookings    Booking[]
   quotes      Quote[]
   promotions  Promotion[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+// "Pode dividir o dia com". Gravado sempre nos dois sentidos (A→B e B→A).
+// serviceId = companionId: mais de um agendamento do mesmo serviço no dia.
+// sharesChair: podem usar a mesma cadeira no mesmo período (ex.: manutenção
+// completa + retwist: a Thay entra depois de terminar o retwist).
+model ServiceCompanion {
+  serviceId   String
+  service     Service @relation("ServiceCompanions", fields: [serviceId], references: [id], onDelete: Cascade)
+  companionId String
+  companion   Service @relation("CompanionOfServices", fields: [companionId], references: [id], onDelete: Cascade)
+  sharesChair Boolean @default(false)
+
+  @@id([serviceId, companionId])
+  @@index([companionId])
 }
 
 model Booking {
@@ -107,6 +166,15 @@ model Booking {
   paymentDueAt    DateTime?
   appointmentType AppointmentType?
 
+  // Agenda por períodos e cadeiras. Nulo nos agendamentos antigos: o período
+  // vem do horário (10h = manhã, 15h = tarde).
+  period       DayPeriod?
+  // Encaixe feito pelo painel fora das regras de capacidade.
+  forced       Boolean @default(false)
+  forcedReason String?
+  // O que o pagamento aprovado quitou (sinal ou valor total). Nulo = nada pago ainda.
+  paymentOption PaymentOption?
+
   paymentConfirmations PaymentConfirmation[]
   paymentHolds         PaymentHold[]
   createdAt     DateTime  @default(now())
@@ -129,6 +197,8 @@ model Payment {
 
   amount       Decimal @db.Decimal(10, 2)
   installments Int?
+  // Estorno parcial (ex.: valor total pago e cancelamento tardio: devolve tudo menos o sinal).
+  refundedAmount Decimal? @db.Decimal(10, 2)
 
   mpPreferenceId String?
   mpPaymentId    String? @unique
@@ -158,6 +228,7 @@ model Quote {
 
   servicePrice      Decimal @db.Decimal(10, 2)
   isOutOfTownSeason Boolean @default(false)
+  paymentOptions    QuotePaymentOptions @default(CLIENT_CHOICE)
 
   status    QuoteStatus @default(SENT)
   expiresAt DateTime

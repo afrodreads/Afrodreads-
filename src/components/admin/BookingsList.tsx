@@ -24,6 +24,9 @@ export type AdminBooking = {
   status: string;
   depositAmount: number;
   servicePrice: number;
+  /** O que o pagamento aprovado quitou: sinal ou valor total (nulo = nada pago ainda). */
+  paymentOption: "DEPOSIT" | "FULL" | null;
+  forced: boolean;
 };
 
 export function BookingsList({ bookings: initialBookings }: { bookings: AdminBooking[] }) {
@@ -75,8 +78,10 @@ function BookingCard({
       onUpdate({ ...booking, status: "CANCELLED" });
       if (data.refundError) {
         setError(
-          "Cancelado, mas o estorno automático do sinal falhou. Cancele de novo para tentar outra vez ou devolva pelo Mercado Pago.",
+          "Cancelado, mas o estorno automático falhou. Cancele de novo para tentar outra vez ou devolva pelo Mercado Pago.",
         );
+      } else if (data.partialRefundAmount > 0) {
+        setError(`Cancelado. Como pagou o valor total, ${formatBRL(data.partialRefundAmount)} foram devolvidos e o sinal ficou retido.`);
       }
     } catch {
       setError("Não foi possível cancelar. Tente novamente.");
@@ -140,7 +145,10 @@ function BookingCard({
             {STATUS_LABEL[booking.status] ?? booking.status}
           </p>
           <p className="text-brand-white/60">
-            Sinal {formatBRL(booking.depositAmount)} · Total {formatBRL(booking.servicePrice)}
+            {booking.paymentOption === "FULL"
+              ? `Pago o valor total: ${formatBRL(booking.servicePrice)}`
+              : `Sinal ${formatBRL(booking.depositAmount)}${booking.paymentOption === "DEPOSIT" ? " (pago)" : ""} · Total ${formatBRL(booking.servicePrice)}`}
+            {booking.forced && <span className="block text-xs text-amber-200">Encaixe fora das regras</span>}
           </p>
         </div>
       </div>
