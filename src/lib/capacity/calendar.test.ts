@@ -34,7 +34,23 @@ describe("calendário do mês", () => {
     assert.deepEqual(find(days, "2026-12-02"), { date: "2026-12-02", status: "yellow", remaining: 1 });
 
     const topo = clientMonth(december, "manutencao-topo", data(bookings));
-    assert.equal(find(topo, "2026-12-02").status, "green"); // ainda cabem 2 à tarde
+    assert.deepEqual(find(topo, "2026-12-02"), { date: "2026-12-02", status: "yellow", remaining: 2 }); // já tem cliente; ainda cabem 2 à tarde
+  });
+
+  it("cliente: sem ninguém marcado o dia é verde, mesmo que o serviço só caiba 1 por dia", () => {
+    // Microlocs ocupa o dia inteiro: cabe 1 por dia, e em dia vazio isso não é "última vaga".
+    const days = clientMonth(december, "microlocs", data());
+    assert.deepEqual(find(days, "2026-12-01"), { date: "2026-12-01", status: "green", remaining: 1 });
+    for (const day of days) assert.notEqual(day.status, "yellow", day.date);
+  });
+
+  it("cliente: amarelo só quando já tem cliente marcado e ainda cabe; vermelho quando não cabe", () => {
+    const comCliente = { "2026-12-01": [{ id: "a", serviceId: "manutencao-completa", period: "MORNING" as const }] };
+    assert.equal(find(clientMonth(december, "manutencao-completa", data(comCliente)), "2026-12-01").status, "yellow");
+    // Microlocs (dia inteiro) não cabe com cliente na manhã: vermelho, não amarelo.
+    assert.equal(find(clientMonth(december, "microlocs", data(comCliente)), "2026-12-01").status, "red");
+    // Outros dias, sem cliente: verde.
+    assert.equal(find(clientMonth(december, "manutencao-completa", data(comCliente)), "2026-12-08").status, "green");
   });
 
   it("cliente: dia lotado para o serviço fica vermelho", () => {
