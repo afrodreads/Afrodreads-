@@ -2,7 +2,7 @@ const RULES = [
   {
     big: "R$ 50",
     title: "Sinal para reservar",
-    text: "Sinal fixo de R$ 50 para garantir seu horário. Em dezembro ou em atendimentos por temporada fora de São Paulo, o sinal passa a ser 50% do valor do serviço.",
+    text: "Sinal fixo de R$ 50 para garantir seu horário. Em novembro, em dezembro ou em atendimentos por temporada fora de São Paulo, o sinal passa a ser 50% do valor do serviço.",
   },
   {
     big: "2 dias",
