@@ -76,11 +76,20 @@ export function canStartIn(rule: CapacityRule, period: Period): boolean {
   return period === "MORNING" ? rule.startsMorning : rule.startsAfternoon;
 }
 
+/**
+ * Serviço interno e inativo que representa um período já ocupado por um
+ * atendimento combinado antes da agenda online (migration
+ * 20261020200000_reservas_anteriores_novembro). Ocupa as duas cadeiras do
+ * período e não restringe o OUTRO período do dia: só a falta de cadeira decide.
+ */
+export const PRIOR_BOOKING_SLUG = "reserva-anterior";
+
 /** Os dois serviços podem estar no mesmo dia? (dados gravados nos dois sentidos; checa os dois por segurança) */
 export function compatible(book: RuleBook, a: string, b: string): boolean {
   const ra = book.get(a);
   const rb = book.get(b);
   if (!ra || !rb) return false;
+  if (ra.slug === PRIOR_BOOKING_SLUG || rb.slug === PRIOR_BOOKING_SLUG) return true;
   return ra.companions.has(b) || rb.companions.has(a);
 }
 

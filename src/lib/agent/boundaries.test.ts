@@ -185,15 +185,16 @@ describe("nada da unidade fixo no código do agente", () => {
 describe("migrations", () => {
   it("as migrations do agente e da agenda são só aditivas", () => {
     const migrations = readdirSync(path.join(root, "prisma", "migrations")).filter((name) => /^\d/.test(name));
-    assert.deepEqual(migrations.slice(-6), [
+    assert.deepEqual(migrations.slice(-7), [
       "20260930180000_add_booking_expired_status",
       "20260930200000_add_agent_foundation",
       "20260930220000_agent_shadow_persistence",
       "20261001010000_agent_run_usage",
       "20261018120000_agenda_capacidade_e_pagamento",
       "20261019030000_manutencoes_raiz",
+      "20261020200000_reservas_anteriores_novembro",
     ]);
-    for (const name of ["20260930220000_agent_shadow_persistence", "20261001010000_agent_run_usage", "20261018120000_agenda_capacidade_e_pagamento", "20261019030000_manutencoes_raiz"]) {
+    for (const name of ["20260930220000_agent_shadow_persistence", "20261001010000_agent_run_usage", "20261018120000_agenda_capacidade_e_pagamento", "20261019030000_manutencoes_raiz", "20261020200000_reservas_anteriores_novembro"]) {
       const sql = read(path.join(root, "prisma", "migrations", name, "migration.sql"));
       assert.doesNotMatch(sql, /\bDROP\b/i, name);
       assert.doesNotMatch(sql, /^\s*DELETE\s+FROM/im, name);
