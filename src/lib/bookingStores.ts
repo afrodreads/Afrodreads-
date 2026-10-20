@@ -159,6 +159,9 @@ const prismaPaymentProcessingStore: PaymentProcessingStore = {
   },
 };
 
-export function processApprovedPaymentNow(params: { bookingId: string; mpPaymentId: string }) {
-  return processApprovedPayment(params, prismaPaymentProcessingStore, mercadoPagoRefundGateway);
+export function processApprovedPaymentNow(
+  params: { bookingId: string; mpPaymentId: string },
+  gateway: RefundGateway = mercadoPagoRefundGateway,
+) {
+  return processApprovedPayment(params, prismaPaymentProcessingStore, gateway);
 }

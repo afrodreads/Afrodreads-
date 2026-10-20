@@ -105,6 +105,13 @@ describe("createBooking: criação válida", () => {
     assert.equal(result.booking.status, "PENDING_PAYMENT");
   });
 
+  it("novembro cobra 50% de sinal", async () => {
+    const store = new FakeStore();
+    await createBooking(baseInput({ scheduledStart: sp("2026-11-11T10:00:00") }), store, NOW); // quarta
+    assert.equal(store.created[0].depositAmount, 200);
+    assert.equal(store.created[0].depositIsPercentage, true);
+  });
+
   it("dezembro cobra 50% de sinal", async () => {
     const store = new FakeStore();
     await createBooking(baseInput({ scheduledStart: sp("2026-12-09T10:00:00") }), store, NOW); // quarta

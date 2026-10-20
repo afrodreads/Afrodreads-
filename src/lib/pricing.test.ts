@@ -7,9 +7,14 @@ import { calculateDeposit, isDepositRefundable } from "./pricing";
 const sp = (iso: string) => new Date(`${iso}-03:00`);
 
 describe("calculateDeposit", () => {
-  it("cobra R$50 fixos fora de dezembro", () => {
+  it("cobra R$50 fixos fora de novembro e dezembro", () => {
     const r = calculateDeposit({ servicePrice: 400, scheduledStart: sp("2026-05-10T10:00:00"), isOutOfTownSeason: false });
     assert.deepEqual(r, { depositAmount: 50, depositIsPercentage: false, remainingAmount: 350 });
+  });
+
+  it("cobra 50% em novembro", () => {
+    const r = calculateDeposit({ servicePrice: 400, scheduledStart: sp("2026-11-10T10:00:00"), isOutOfTownSeason: false });
+    assert.deepEqual(r, { depositAmount: 200, depositIsPercentage: true, remainingAmount: 200 });
   });
 
   it("cobra 50% em dezembro", () => {
@@ -34,16 +39,19 @@ describe("calculateDeposit", () => {
     assert.equal(r.remainingAmount, 166.66);
   });
 
-  it("dezembro é o mês do calendário de São Paulo, não o de UTC", () => {
-    // 22h30 de 30/11 em SP já é 1º de dezembro em UTC: continua sinal fixo.
-    const lateNovember = calculateDeposit({ servicePrice: 400, scheduledStart: sp("2026-11-30T22:30:00"), isOutOfTownSeason: false });
-    assert.equal(lateNovember.depositIsPercentage, false);
-    // 00h30 de 1/12 em SP: dezembro.
-    const earlyDecember = calculateDeposit({ servicePrice: 400, scheduledStart: sp("2026-12-01T00:30:00"), isOutOfTownSeason: false });
-    assert.equal(earlyDecember.depositIsPercentage, true);
+  it("novembro e dezembro são os meses do calendário de São Paulo, não os de UTC", () => {
+    // 22h30 de 31/10 em SP já é 1º de novembro em UTC: continua sinal fixo.
+    const lateOctober = calculateDeposit({ servicePrice: 400, scheduledStart: sp("2026-10-31T22:30:00"), isOutOfTownSeason: false });
+    assert.equal(lateOctober.depositIsPercentage, false);
+    // 00h30 de 1/11 em SP: novembro.
+    const earlyNovember = calculateDeposit({ servicePrice: 400, scheduledStart: sp("2026-11-01T00:30:00"), isOutOfTownSeason: false });
+    assert.equal(earlyNovember.depositIsPercentage, true);
     // 23h de 31/12 em SP já é janeiro em UTC: ainda é dezembro.
     const newYearsEve = calculateDeposit({ servicePrice: 400, scheduledStart: sp("2026-12-31T23:00:00"), isOutOfTownSeason: false });
     assert.equal(newYearsEve.depositIsPercentage, true);
+    // 1º de janeiro volta ao sinal fixo.
+    const january = calculateDeposit({ servicePrice: 400, scheduledStart: sp("2027-01-05T10:00:00"), isOutOfTownSeason: false });
+    assert.equal(january.depositIsPercentage, false);
   });
 
   it("dá o mesmo resultado com o servidor em qualquer fuso", () => {

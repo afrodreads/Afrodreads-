@@ -382,7 +382,7 @@ Nunca aplique a promoção por conta própria fora dos critérios confirmados.
 O agente pode explicar as regras, mas **não confirma, cancela ou altera agendamento**.
 
 - Agendamento normal: sinal de **R$ 50**, descontado do valor final.
-- Dezembro e atendimentos por temporada fora de São Paulo: sinal de **50% do serviço**.
+- Novembro, dezembro e atendimentos por temporada fora de São Paulo: sinal de **50% do serviço** (a cliente também pode pagar o valor total).
 - Projetos com cabelo humano: material pode ser cobrado antecipadamente para reservar a data; Thay explica.
 - Sinal pode ser pago por Pix, depósito, transferência ou link no crédito.
 - Horário só é confirmado depois do comprovante.

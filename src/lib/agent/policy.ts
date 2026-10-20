@@ -24,7 +24,7 @@ export function currentPolicy(): BusinessPolicy {
   return {
     depositFixedBrl: FIXED_DEPOSIT_BRL,
     depositPercentage: PERCENTAGE_DEPOSIT_RATE,
-    depositPercentageCases: ["dezembro", "temporada fora de São Paulo"],
+    depositPercentageCases: ["novembro", "dezembro", "temporada fora de São Paulo"],
     refundMinDaysBefore: REFUND_MIN_DAYS_BEFORE,
     onlinePaymentWindowMinutes: BOOKING_PAYMENT_TTL_MINUTES,
     quotableAmountsBrl: [FIXED_DEPOSIT_BRL, LATE_FEE_BRL_PER_15_MIN],
@@ -35,7 +35,7 @@ export function currentPolicy(): BusinessPolicy {
 export function describePolicy(policy: BusinessPolicy): string[] {
   const percent = Math.round(policy.depositPercentage * 100);
   return [
-    `Sinal: R$ ${policy.depositFixedBrl} (descontado do valor final); em ${policy.depositPercentageCases.join(" e ")} o sinal é ${percent}% do serviço.`,
+    `Sinal: R$ ${policy.depositFixedBrl} (descontado do valor final); em ${policy.depositPercentageCases.join(", ").replace(/, ([^,]*)$/, " e $1")} o sinal é ${percent}% do serviço.`,
     `Cancelamento com ${policy.refundMinDaysBefore} dias ou mais de antecedência: o sinal é devolvido. Com menos, não é devolvido.`,
     "Quem cancela, devolve ou remarca é a equipe; o agente só explica a regra.",
   ];

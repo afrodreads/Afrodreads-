@@ -82,7 +82,7 @@ export const GUIDES: Guide[] = [
       {
         heading: "Sinal para garantir o horário",
         paragraphs: [
-          "O horário é reservado com um sinal fixo de R$ 50. Em dezembro ou em atendimentos por temporada fora de São Paulo, o sinal passa a ser 50% do valor do serviço.",
+          "O horário é reservado com um sinal fixo de R$ 50. Em novembro, em dezembro ou em atendimentos por temporada fora de São Paulo, o sinal passa a ser 50% do valor do serviço.",
           "Cancelamentos com 2 dias ou mais de antecedência têm o sinal devolvido integralmente. No mesmo dia ou com 1 dia de antecedência, o sinal não é devolvido.",
         ],
       },
