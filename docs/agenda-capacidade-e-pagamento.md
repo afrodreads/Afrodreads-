@@ -107,3 +107,16 @@ As "só raiz" herdam também com quem dividem o dia. Confirme duração e regras
 `src/app/api/admin/{agenda,bookings,services}/*`, `src/app/checkout/[bookingId]/page.tsx`,
 `src/components/{booking/MonthCalendar,checkout/*,admin/AdminAgenda}.tsx`, `src/app/admin/servicos/page.tsx`,
 migration `20261018120000_agenda_capacidade_e_pagamento` (aditiva).
+
+## Períodos já ocupados antes da agenda online
+
+Atendimentos combinados antes da agenda existir bloqueiam o período no sistema (pedido de 20/10/2026):
+
+| Data | Livre | Ocupado |
+|---|---|---|
+| quarta 04/11/2026 | 10h (manhã) | 15h (tarde) |
+| sábado 21/11/2026 | 15h (tarde) | 10h (manhã) |
+
+Como funciona: cada período ocupado é um agendamento CONFIRMADO do serviço interno **"Reserva anterior ao sistema"** (slug `reserva-anterior`, inativo, não aparece para o cliente), que ocupa as duas cadeiras do período e não restringe o outro período do dia (`PRIOR_BOOKING_SLUG` em `src/lib/capacity/engine.ts`). Aparece na lista e no detalhe do dia do painel e no feed do Google Agenda como "Reserva anterior (fora do sistema)". O e-mail de avaliação não é enviado para essas reservas.
+
+Para liberar um período (ou bloquear outro): cancele o agendamento no painel, ou crie outro com o serviço "Reserva anterior ao sistema" (a migration `20261020200000_reservas_anteriores_novembro` mostra o formato).

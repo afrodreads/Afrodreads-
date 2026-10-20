@@ -8,6 +8,7 @@ import {
   checkAdd,
   freeCells,
   PERIODS,
+  PRIOR_BOOKING_SLUG,
   remainingFor,
   serviceDayColor,
   type DayBooking,
@@ -270,5 +271,55 @@ describe("carga inicial = migration", () => {
       assert.ok(rule.startsMorning || rule.startsAfternoon, rule.slug);
       for (const limit of [rule.maxPerPeriod, rule.maxPerDay]) assert.ok(limit === null || limit >= 1, rule.slug);
     }
+  });
+});
+
+describe("período já ocupado antes da agenda online (reserva-anterior)", () => {
+  // Serviço interno e inativo: ocupa as duas cadeiras do período e não restringe o outro período.
+  const withPrior = new Map(book).set(PRIOR_BOOKING_SLUG, {
+    id: PRIOR_BOOKING_SLUG,
+    slug: PRIOR_BOOKING_SLUG,
+    name: "Reserva anterior ao sistema",
+    active: false,
+    chairs: 2,
+    staff: "ANY",
+    fullDay: false,
+    maxPerPeriod: 1,
+    maxPerDay: 1,
+    startsMorning: true,
+    startsAfternoon: true,
+    companions: new Map(),
+  });
+  const tardeOcupada: DayBooking[] = [{ id: "anterior", serviceId: PRIOR_BOOKING_SLUG, period: "AFTERNOON" }]; // quarta 04/11/2026
+  const manhaOcupada: DayBooking[] = [{ id: "anterior", serviceId: PRIOR_BOOKING_SLUG, period: "MORNING" }]; // sábado 21/11/2026
+
+  it("tarde ocupada: ninguém entra à tarde, a manhã segue livre para todos os serviços ativos", () => {
+    for (const rule of DEFAULT_RULES) {
+      assert.equal(checkAdd(withPrior, tardeOcupada, rule.slug, "AFTERNOON").ok, false, `${rule.slug} à tarde`);
+    }
+    assert.equal(checkAdd(withPrior, tardeOcupada, MC, "MORNING").ok, true);
+    assert.equal(checkAdd(withPrior, tardeOcupada, RT, "MORNING").ok, true);
+    assert.equal(checkAdd(withPrior, tardeOcupada, PT, "MORNING").ok, true);
+  });
+
+  it("manhã ocupada: ninguém entra de manhã, a tarde segue livre", () => {
+    for (const rule of DEFAULT_RULES) {
+      assert.equal(checkAdd(withPrior, manhaOcupada, rule.slug, "MORNING").ok, false, `${rule.slug} de manhã`);
+    }
+    assert.equal(checkAdd(withPrior, manhaOcupada, MC, "AFTERNOON").ok, true);
+    assert.equal(checkAdd(withPrior, manhaOcupada, MT, "AFTERNOON").ok, true);
+  });
+
+  it("o outro período continua obedecendo as regras de cada serviço", () => {
+    // Manutenção completa de manhã + outra manutenção completa de manhã (2 cadeiras) já não cabe.
+    const comUmaManha = [...tardeOcupada, { id: "x", serviceId: MC, period: "MORNING" as const }];
+    assert.equal(checkAdd(withPrior, comUmaManha, MC, "MORNING").ok, false);
+    assert.equal(checkAdd(withPrior, comUmaManha, MC, "AFTERNOON").ok, false);
+  });
+
+  it("calendário: o dia continua com vaga no outro período (não fica vermelho)", () => {
+    assert.equal(remainingFor(withPrior, tardeOcupada, MC), 1);
+    assert.notEqual(serviceDayColor(remainingFor(withPrior, tardeOcupada, MC)), "red");
+    assert.notEqual(adminDayColor(withPrior, tardeOcupada), "red");
   });
 });
