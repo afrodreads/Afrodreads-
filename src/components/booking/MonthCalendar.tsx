@@ -11,7 +11,7 @@ export type CalendarDay = { date: string; status: DayStatus; remaining?: number;
 
 export const STATUS_STYLE: Record<DayStatus, { cell: string; icon: string; label: string }> = {
   green: { cell: "border-emerald-400/70 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/30", icon: "✓", label: "Com vagas" },
-  yellow: { cell: "border-amber-300/80 bg-amber-400/15 text-amber-100 hover:bg-amber-400/30", icon: "!", label: "Última vaga" },
+  yellow: { cell: "border-amber-300/80 bg-amber-400/15 text-amber-100 hover:bg-amber-400/30", icon: "!", label: "Poucas vagas" },
   red: { cell: "border-red-400/60 bg-red-500/15 text-red-200/80", icon: "✕", label: "Esgotado" },
   closed: { cell: "border-transparent text-brand-white/25", icon: "", label: "Fechado" },
   blocked: { cell: "border-transparent text-brand-white/25", icon: "", label: "Fechado" },

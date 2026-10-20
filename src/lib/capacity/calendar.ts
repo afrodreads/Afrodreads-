@@ -17,7 +17,7 @@ export type CalendarDay = {
 
 export const DAY_STATUS_LABEL: Record<DayStatus, string> = {
   green: "Com vagas",
-  yellow: "Última vaga",
+  yellow: "Poucas vagas",
   red: "Esgotado",
   closed: "Fechado",
   past: "Indisponível",
@@ -53,14 +53,21 @@ function baseStatus(day: Date, data: MonthData): DayStatus | null {
   return null;
 }
 
-/** Calendário do cliente para o serviço escolhido. */
+/**
+ * Calendário do cliente para o serviço escolhido:
+ *  - vermelho: nenhuma vaga deste serviço no dia;
+ *  - amarelo: já tem cliente marcado no dia e ainda cabe o serviço;
+ *  - verde: ninguém marcado e cabe o serviço (mesmo que o serviço só caiba 1 por dia).
+ */
 export function clientMonth(days: readonly Date[], serviceId: string, data: MonthData): CalendarDay[] {
   return days.map((day) => {
     const date = keyOf(day);
     const status = baseStatus(day, data);
     if (status) return { date, status };
-    const remaining = remainingFor(data.book, data.bookingsByDay.get(date) ?? [], serviceId, openPeriods(day, data.now));
-    return { date, status: serviceDayColor(remaining), remaining };
+    const existing = data.bookingsByDay.get(date) ?? [];
+    const remaining = remainingFor(data.book, existing, serviceId, openPeriods(day, data.now));
+    if (serviceDayColor(remaining) === "red") return { date, status: "red", remaining };
+    return { date, status: existing.length > 0 ? "yellow" : "green", remaining };
   });
 }
 
