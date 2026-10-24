@@ -837,3 +837,35 @@ describe("histórico (record): grava a mensagem do cliente sem rodar o agente", 
     assert.deepEqual(again.body, { ok: true, status: "duplicate", reply: "-", reply2: "-" });
   });
 });
+
+describe("encaminhamento para a equipe vira real (conversa HUMAN, agente em silêncio)", () => {
+  const TEST_IDS = new Set(["mc-123456"]);
+
+  it("a resposta de passagem sai, a conversa passa para a equipe e a próxima mensagem fica sem resposta", async () => {
+    let turn = 0;
+    const model = new ScriptedModel(() =>
+      ++turn === 1
+        ? {
+            text: "Perfeito, já passei tudo pra Thay montar o seu orçamento 💛",
+            toolCalls: [{ name: "request_handoff", arguments: { reason: "QUOTE_REQUEST", summary: { headline: "Quer orçamento" } } }],
+          }
+        : { text: "NÃO DEVIA RESPONDER", toolCalls: [] },
+    );
+    const s = setup({ model, config: { testReplyContactIds: TEST_IDS } });
+
+    const first = await s.post(payload());
+    assert.equal(first.status, 200);
+    assert.deepEqual(first.body, {
+      ok: true,
+      status: "replied",
+      reply: "Perfeito, já passei tudo pra Thay montar o seu orçamento 💛",
+      reply2: "-",
+      handoff: "sim",
+    });
+    assert.equal(s.db.conversations[0].mode, "HUMAN");
+
+    const second = await s.post(payload({ messageId: "wamid.DEPOIS", text: "Obrigado!" }));
+    assert.equal((second.body as { reply: string }).reply, "-");
+    assert.equal(turn, 1); // o modelo nem foi chamado de novo
+  });
+});

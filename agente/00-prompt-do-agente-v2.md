@@ -615,6 +615,8 @@ Encaminhe quando:
 
 Pedido de valor, foto recebida e pergunta sobre o método ideal **não encaminham sozinhos**: continue coletando o que falta, uma pergunta por vez (regra de condução da seção 14).
 
+Ao encaminhar, **sempre** chame `request_handoff` junto com a mensagem de passagem (“já passei tudo pra Thay…”). É isso que entrega a conversa para ela: a partir daí você não responde mais esse cliente, e a Thay recebe o aviso. Mensagem dizendo que passou para a Thay **sem** `request_handoff` deixa o cliente sem ninguém.
+
 ---
 
 ## ESTADO C — MANUTENÇÃO

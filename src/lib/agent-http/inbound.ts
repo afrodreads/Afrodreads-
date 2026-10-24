@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { handoffToHuman } from "../conversations/conversation";
 import { DomainError } from "../conversations/errors";
+import { HANDOFF_REASONS, type HandoffReason } from "../conversations/types";
 import { recordOutboundMessage } from "../conversations/message";
 import { normalizePhone } from "../conversations/phone";
 import type { ConversationsStore } from "../conversations/repo";
@@ -321,6 +323,7 @@ async function replyForTestContact(
   startedAt: number,
 ): Promise<Response> {
   let text: string | null = null;
+  let handoff: ProposedHandoff | null = null;
   let opening: { parts: string[] } | null = null;
   try {
     opening = deps.openingState ? openingReply(await deps.openingState(job.conversationId)) : null;
@@ -332,7 +335,9 @@ async function replyForTestContact(
     text = opening.parts.length > 0 ? opening.parts.join(`\n${SPLIT_TOKEN}\n`) : null;
   } else {
     try {
-      text = approvedDraftText(await run(job));
+      const result = await run(job);
+      text = approvedDraftText(result);
+      handoff = text ? proposedHandoffOf(result) : null;
     } catch (error) {
       deps.log("agent_test_reply_failed", { error: error instanceof Error ? error.name : "Error" });
     }
@@ -355,13 +360,42 @@ async function replyForTestContact(
       text = null;
     }
   }
+  // A mensagem de passagem saiu: a conversa passa DE VERDADE para a equipe. Daqui em diante
+  // o agente fica em silêncio (HUMAN), e o ManyChat avisa a equipe (campo `handoff`).
+  let handedOff = false;
+  if (text && handoff) {
+    try {
+      await handoffToHuman(deps.conversations, {
+        conversationId: job.conversationId,
+        reason: handoff.reason,
+        summary: handoff.summary,
+        actor: { type: "AI", ref: "agente" },
+        now: deps.now(),
+      });
+      handedOff = true;
+      deps.log("agent_handoff_applied", { reason: handoff.reason });
+    } catch (error) {
+      deps.log("agent_handoff_failed", { error: error instanceof Error ? error.name : "Error" });
+    }
+  }
   const parts = text ? messageParts(text) : [];
   return reply(200, {
     ok: true,
     status: parts.length > 0 ? "replied" : "no_reply",
     reply: parts[0] ?? NO_REPLY,
     reply2: parts[1] ?? NO_REPLY,
+    ...(handedOff ? { handoff: "sim" } : {}),
   });
+}
+
+type ProposedHandoff = { reason: HandoffReason; summary: unknown };
+
+/** Encaminhamento que o agente pediu junto com a resposta aprovada (motivo válido), se houver. */
+function proposedHandoffOf(result: unknown): ProposedHandoff | null {
+  const proposed = (result as { result?: { proposedHandoff?: { reason?: unknown; summary?: unknown } | null } | null } | null)
+    ?.result?.proposedHandoff;
+  if (!proposed || !HANDOFF_REASONS.includes(proposed.reason as HandoffReason)) return null;
+  return { reason: proposed.reason as HandoffReason, summary: proposed.summary ?? null };
 }
 
 /** Quem atende este contato agora, pelo estado do piloto (ver live.ts). */
