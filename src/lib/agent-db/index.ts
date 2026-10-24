@@ -18,7 +18,7 @@ import { prismaAgentRunStore, prismaPromptRegistry } from "./runs";
 // sempre passado pelo chamador (não existe cliente de IA real nesta fase), e o
 // caminho do prompt também (nada fixo aqui).
 
-export function createShadowDeps(options: { model: ModelClient; promptPath: string }) {
+export function createShadowDeps(options: { model: ModelClient; promptPath: string | readonly string[] }) {
   const reader = prismaAgentContextReader({ units: prismaUnitConfigProvider, promotions: prismaPromotionsProvider });
   const core = {
     config: { mode: "shadow" as const },
