@@ -15,7 +15,8 @@ import { deriveAgentStatus, type AgentStatus } from "./status";
 // não fornece aqui é desconhecido para o agente (ver `unknowns`). Preço de
 // serviço NUNCA faz parte do contexto.
 
-export const CONTEXT_MESSAGE_LIMIT = 20;
+// Conversa inteira na prática (o agente nunca pode perder o que já foi dito, como o nome).
+export const CONTEXT_MESSAGE_LIMIT = 80;
 const MESSAGE_TEXT_LIMIT = 600;
 
 /**
@@ -94,9 +95,34 @@ export function formatSaoPaulo(date: Date): string {
   return `${pad(p.day)}/${pad(p.month)}/${p.year} ${pad(p.hour)}:${pad(p.minute)} (${WEEKDAYS[p.weekday]}, horário de São Paulo)`;
 }
 
+/** Mensagem do cliente gravada enquanto a equipe (ou o robô antigo) atendia: o agente não viu as respostas. */
+function sentWhileTeamAttended(message: MessageRecord): boolean {
+  if (message.sender !== "CUSTOMER") return false;
+  const metadata = message.metadata as Record<string, unknown> | null | undefined;
+  return metadata?.withTeam === true;
+}
+
+const ASKS_NAME = /como (voc[eê]|vc) se chama|qual (é )?o seu nome|me (fala|diz) seu nome/i;
+
+/**
+ * Resposta do cliente à pergunta do nome, se ela já foi feita nesta conversa (a primeira mensagem
+ * do cliente logo depois da pergunta). Serve para o agente nunca perguntar o nome duas vezes.
+ */
+export function answerToNameQuestion(messages: readonly ContextMessage[]): string | null {
+  const asked = messages.findIndex((message) => message.role === "assistant" && ASKS_NAME.test(message.text));
+  if (asked === -1) return null;
+  const answer = messages.slice(asked + 1).find((message) => message.role === "user");
+  if (!answer) return null;
+  const text = answer.text.replace(WITH_TEAM_PREFIX, "").trim();
+  return text ? text.slice(0, 120) : null;
+}
+
+export const WITH_TEAM_PREFIX ="[enviada quando a equipe atendia; você não vê as respostas da equipe] ";
+
 function toContextMessage(message: MessageRecord): ContextMessage {
-  const text =
+  const body =
     message.content.length > MESSAGE_TEXT_LIMIT ? `${message.content.slice(0, MESSAGE_TEXT_LIMIT)}…` : message.content;
+  const text = sentWhileTeamAttended(message) ? WITH_TEAM_PREFIX + body : body;
   const imageUrl = imageUrlOf(message);
   return {
     id: message.id,
@@ -179,6 +205,17 @@ export function renderContextBlock(context: AgentContext): string {
   lines.push(`- Agora: ${context.nowSaoPaulo}`);
   lines.push(`- Estado da conversa: ${context.status}`);
   lines.push(`- Nome do cliente: ${context.customerName ?? "não informado"}`);
+  const nameAnswer = answerToNameQuestion(context.messages);
+  if (nameAnswer) {
+    lines.push(
+      `- O nome JÁ foi pedido nesta conversa e o cliente respondeu logo depois: "${nameAnswer}". NUNCA pergunte o nome de novo; use o nome que está nessa resposta.`,
+    );
+  }
+  if (context.messages.some((message) => message.text.startsWith(WITH_TEAM_PREFIX))) {
+    lines.push(
+      "- Parte desta conversa aconteceu com a equipe, e você não vê as respostas dela. Leia TODO o histórico antes de responder, não recomece o atendimento e não repita perguntas já respondidas. Se não der para entender em que ponto a conversa está, diga que vai passar para a equipe e encaminhe.",
+    );
+  }
   lines.push(`- Unidade: ${context.unit.displayName}${context.unit.publicArea ? ` (${context.unit.publicArea})` : ""}`);
   if (context.unit.humanName) lines.push(`- Atendente humana: ${context.unit.humanName}`);
   if (context.unit.humanHoursText) lines.push(`- Horário do atendimento humano: ${context.unit.humanHoursText}`);

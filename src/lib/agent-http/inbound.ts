@@ -83,8 +83,12 @@ export function inboundConfigFromEnv(env: Record<string, string | undefined> = p
 export const inboundPayloadSchema = z
   .object({
     channel: z.literal("whatsapp"),
-    /** gate: só pergunta quem atende este contato (agente ou robô antigo); não grava nada nem chama o modelo. */
-    type: z.enum(["message", "human_reply", "gate"]).default("message"),
+    /**
+     * gate: só pergunta quem atende este contato (agente ou robô antigo); não grava nada nem chama o modelo.
+     * record: só GRAVA a mensagem do cliente (histórico), sem rodar o agente. O ManyChat manda assim as
+     * mensagens de quem não está com o agente, para que ele tenha o contexto todo se entrar depois.
+     */
+    type: z.enum(["message", "human_reply", "gate", "record"]).default("message"),
     /** Opcional: o ManyChat não oferece um id único por mensagem. Sem ele, o id é derivado (ver `derivedMessageId`). */
     messageId: z.string().trim().min(1).max(200).optional(),
     contactId: z.string().trim().min(1).max(200),
@@ -408,7 +412,7 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
     const payload = parsed.data;
 
     const mediaUrl =
-      payload.type === "message" && payload.mediaUrl && !UNFILLED_VARIABLE.test(payload.mediaUrl) ? payload.mediaUrl : null;
+      (payload.type === "message" || payload.type === "record") && payload.mediaUrl && !UNFILLED_VARIABLE.test(payload.mediaUrl) ? payload.mediaUrl : null;
     // Variável do ManyChat que não foi substituída (ex.: contato sem texto recente): não é texto de cliente.
     const text = UNFILLED_VARIABLE.test(payload.text.trim()) ? "" : payload.text.trim();
     if (text.length > MAX_TEXT_CHARS) return fail(400, "invalid_payload");
@@ -479,7 +483,10 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
         return reply(recorded.duplicate ? 200 : 202, { ok: true, status: recorded.duplicate ? "duplicate" : "recorded" });
       }
 
-      const { content, messageId: mediaId, metadata } = await customerContent(deps, unitId, payload.contactId, text, mediaUrl);
+      const media = await customerContent(deps, unitId, payload.contactId, text, mediaUrl);
+      const { content, messageId: mediaId } = media;
+      // Mensagem gravada enquanto outra pessoa atendia: o agente precisa saber que não viu as respostas da equipe.
+      const metadata = payload.type === "record" ? { ...media.metadata, withTeam: true } : media.metadata;
 
       const { inbound, shouldProcess } = await ingestInbound(
         deps.conversations,
@@ -497,6 +504,8 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
       );
 
       if (inbound.duplicate) return reply(200, { ok: true, status: "duplicate" });
+      // Só histórico: o agente não responde (quem atende é a equipe ou o robô antigo).
+      if (payload.type === "record") return reply(202, { ok: true, status: "recorded" });
 
       // Contato de TESTE: roda o agente agora e devolve o rascunho (se passou nas travas)
       // para o ManyChat enviar. Qualquer outro contato segue o caminho de sombra abaixo.

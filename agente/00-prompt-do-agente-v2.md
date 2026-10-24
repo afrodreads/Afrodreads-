@@ -619,8 +619,8 @@ Pedido de valor, foto recebida e pergunta sobre o método ideal **não encaminha
 
 ## ESTADO C — MANUTENÇÃO
 
-Descubra apenas o necessário:
-1. Onde os dreads foram feitos.
+Descubra apenas o necessário. **Nunca pergunte onde os dreads foram feitos** (nem "com quem" ou "em qual estúdio"): não muda o atendimento nem o orçamento. Se o cliente contar por conta própria, só anote.
+1. Quantos dreads são e se é cabeça toda ou só o topo (se a foto não mostrar).
 2. Quando foi a última manutenção.
 3. Se são com extensão humana, sintética ou próprio cabelo.
 4. Foto/vídeo atual.
@@ -728,7 +728,7 @@ Intenção:
 Temperatura do lead:
 Origem do lead:
 Tipo: aplicação do zero / manutenção / promoção / dúvida / outro
-Já tem dreads? Onde foram feitos:
+Já tem dreads?:
 Objetivo do projeto:
 Tamanho atual:
 Comprimento desejado:

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { MemoryConversations } from "../conversations/memoryRepo";
 import { finishConversation, handoffToHuman, claimHandoff } from "../conversations/conversation";
 import { receiveInboundMessage, recordOutboundMessage } from "../conversations/message";
-import { buildAgentContext, CONTEXT_MESSAGE_LIMIT, contextSnapshot, formatSaoPaulo, renderContextBlock } from "./context";
+import { answerToNameQuestion, buildAgentContext, CONTEXT_MESSAGE_LIMIT, contextSnapshot, formatSaoPaulo, renderContextBlock, WITH_TEAM_PREFIX } from "./context";
 import { MemoryContextReader, promotion, SECRET_ADDRESS, SECRET_MAP } from "./testSupport";
 
 const NOW = new Date("2026-10-01T15:30:00-03:00");
@@ -116,11 +116,57 @@ describe("contexto do agente", () => {
 
   it("limita e trunca o histórico", async () => {
     const { db, unit, reader, conversationId } = await setup();
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < CONTEXT_MESSAGE_LIMIT + 10; i++) {
       await receiveInboundMessage(db, { unitId: unit.id, phone: "11987654321", externalMessageId: `x${i}`, content: "a".repeat(800) }, NOW);
     }
     const context = buildAgentContext((await reader.load(conversationId))!, NOW);
     assert.equal(context.messages.length, CONTEXT_MESSAGE_LIMIT);
     assert.ok(context.messages.every((m) => m.text.length <= 601));
+  });
+});
+
+describe("o agente nunca pergunta o nome duas vezes", () => {
+  const msg = (role: "user" | "assistant", text: string) => ({
+    id: text,
+    role,
+    sender: role === "user" ? ("CUSTOMER" as const) : ("AI" as const),
+    text,
+  });
+
+  it("acha a resposta do cliente logo depois da pergunta do nome", () => {
+    const messages = [
+      msg("user", "Olá, gostaria de fazer um orçamento!"),
+      msg("assistant", "Pra iniciar seu atendimento, me fala como você se chama?"),
+      msg("user", `${WITH_TEAM_PREFIX}Guilherme`),
+      msg("user", "Tenho 27 dreads, quero saber o valor da manutenção"),
+    ];
+    assert.equal(answerToNameQuestion(messages), "Guilherme");
+  });
+
+  it("sem pergunta do nome, ou sem resposta ainda, não há nome", () => {
+    assert.equal(answerToNameQuestion([msg("user", "Oi")]), null);
+    assert.equal(answerToNameQuestion([msg("user", "Oi"), msg("assistant", "Qual é o seu nome?")]), null);
+  });
+
+  it("o bloco de dados avisa que o nome já foi respondido e que a equipe participou", async () => {
+    const { db, reader, conversationId } = await setup();
+    await recordOutboundMessage(db, { conversationId, sender: "AI", content: "Pra iniciar seu atendimento, me fala como você se chama?" }, NOW);
+    const conversation = db.conversations.find((c) => c.id === conversationId)!;
+    await receiveInboundMessage(
+      db,
+      {
+        unitId: conversation.unitId,
+        phone: "11987654321",
+        externalConversationId: conversation.externalId ?? undefined,
+        externalMessageId: "m2",
+        content: "Guilherme",
+        metadata: { withTeam: true },
+      },
+      new Date(NOW.getTime() + 60_000),
+    );
+    const block = renderContextBlock(buildAgentContext((await reader.load(conversationId))!, new Date(NOW.getTime() + 120_000)));
+    assert.match(block, /NUNCA pergunte o nome de novo/);
+    assert.match(block, /"Guilherme"/);
+    assert.match(block, /você não vê as respostas dela/);
   });
 });

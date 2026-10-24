@@ -817,3 +817,23 @@ describe("piloto com leads reais (janela de horário, gate e limites)", () => {
     for (const leaked of ["98765", "Maria", "CPF", "123.456"]) assert.equal(logs.includes(leaked), false, leaked);
   });
 });
+describe("histórico (record): grava a mensagem do cliente sem rodar o agente", () => {
+  it("grava, marca que a equipe atendia e não aciona a IA", async () => {
+    const s = setup();
+    const response = await s.post(payload({ type: "record", messageId: "wamid.REC1", text: "Guilherme" }));
+    assert.equal(response.status, 202);
+    assert.deepEqual(response.body, { ok: true, status: "recorded", reply: "-", reply2: "-" });
+    const saved = s.db.messages.find((m) => m.content === "Guilherme");
+    assert.equal(saved?.sender, "CUSTOMER");
+    assert.equal((saved?.metadata as Record<string, unknown>).withTeam, true);
+    assert.equal(s.tasks.length, 0);
+    assert.equal(s.db.messages.filter((m) => m.sender === "AI").length, 0);
+  });
+
+  it("o mesmo registro de novo é duplicata", async () => {
+    const s = setup();
+    await s.post(payload({ type: "record", messageId: "wamid.REC2", text: "oi" }));
+    const again = await s.post(payload({ type: "record", messageId: "wamid.REC2", text: "oi" }));
+    assert.deepEqual(again.body, { ok: true, status: "duplicate", reply: "-", reply2: "-" });
+  });
+});
