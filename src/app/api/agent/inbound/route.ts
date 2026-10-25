@@ -32,7 +32,7 @@ const PROMPT_PATH = path.join(process.cwd(), "agente", "00-prompt-do-agente-v2.m
 // Camada comercial: vem depois do V2 e nunca vence as regras dele. AGENT_COMMERCIAL_LAYER=off desliga.
 const COMMERCIAL_LAYER_PATH = path.join(process.cwd(), "agente", "08-camada-comercial.md");
 
-/** Agrupamento da resposta de teste: 1,2 s de silêncio; responde de qualquer jeito após 4 s (o ManyChat espera só 10 s). */
+/** Agrupamento da resposta: 0,4 s de silêncio; responde de qualquer jeito após 2,5 s (o ManyChat espera só 10 s). */
 // Espera curta: cada segundo aqui sai do limite de 10 s do ManyChat (respostas de 7 a 9 s eram descartadas).
 const TEST_REPLY_GROUPING = { quietMs: 400, maxWaitMs: 2500 };
 

@@ -86,7 +86,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "request_handoff",
     description:
-      "Propõe passar a conversa para a atendente humana, com motivo e resumo estruturado. Use nos casos da seção de encaminhamento. É só uma proposta: a equipe decide.",
+      "Passa a conversa para a atendente humana, com motivo e resumo. Use nos casos da seção de encaminhamento. RESUMO CURTO: headline e no máximo 6 itens curtos em collected; sem customerNeed longo. Resumo longo atrasa a mensagem e o cliente fica sem resposta. No turno da passagem, não chame update_lead_data.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
