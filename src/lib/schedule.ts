@@ -1,63 +1,56 @@
+import type { Period } from "./capacity/engine";
+import { getSaoPauloParts, saoPauloDayAsUtcMidnight, zonedTimeToUtc } from "./timezone";
+
+// Grade da agenda: terça a sábado, dois períodos por dia (horário de São Paulo).
+// Quem cabe em cada período é decidido pelo motor de capacidade
+// (src/lib/capacity/engine.ts) com as regras do cadastro de serviços.
+
 // Dias em que o estúdio atende. 0 = domingo ... 6 = sábado.
 const OPEN_WEEKDAYS = new Set([2, 3, 4, 5, 6]);
 
-// A agenda tem só dois horários fixos por dia: 10h e 15h. O segundo horário
-// só é oferecido quando o procedimento dura menos de 8h — serviços de 8h ou
-// mais tomam o dia inteiro, então só cabe um atendimento.
-export const FIRST_SLOT_TIME = "10:00";
-export const SECOND_SLOT_TIME = "15:00";
-export const LONG_SERVICE_THRESHOLD_HOURS = 8;
+export const PERIOD_START_TIME: Record<Period, string> = { MORNING: "10:00", AFTERNOON: "15:00" };
+export const PERIOD_LABEL: Record<Period, string> = { MORNING: "Manhã", AFTERNOON: "Tarde" };
 
-// America/Sao_Paulo está em UTC-3 o ano todo desde a extincao do horario de
-// verao no Brasil em 2019. `date` chega como meia-noite UTC do dia
-// solicitado (ver api/availability), entao usamos os campos UTC para achar
-// o dia da semana e somamos o offset para gerar os instantes corretos.
-const SAO_PAULO_UTC_OFFSET_HOURS = 3;
-
-type ExistingBooking = { scheduledStart: Date; scheduledEnd: Date };
-
-export function getAvailableStartTimes(
-  date: Date,
-  serviceDurationHours: number,
-  existingBookings: ExistingBooking[],
-): Date[] {
-  if (!OPEN_WEEKDAYS.has(date.getUTCDay())) return [];
-
-  const candidateTimes = [FIRST_SLOT_TIME];
-  if (serviceDurationHours < LONG_SERVICE_THRESHOLD_HOURS) {
-    candidateTimes.push(SECOND_SLOT_TIME);
-  }
-
-  const durationMs = serviceDurationHours * 60 * 60 * 1000;
-  const slots: Date[] = [];
-
-  for (const time of candidateTimes) {
-    const start = combineDateAndTime(date, time);
-    const candidateEnd = new Date(start.getTime() + durationMs);
-
-    const overlaps = existingBookings.some((booking) =>
-      rangesOverlap(start, candidateEnd, booking.scheduledStart, booking.scheduledEnd),
-    );
-
-    if (!overlaps) slots.push(start);
-  }
-
-  return slots;
+/** `day` = meia-noite UTC do dia de calendário (formato da API de agenda e de BlockedDate). */
+export function isOpenWeekday(day: Date): boolean {
+  return OPEN_WEEKDAYS.has(day.getUTCDay());
 }
 
-function combineDateAndTime(date: Date, time: string): Date {
-  const [hours, minutes] = time.split(":").map(Number);
-  return new Date(
-    Date.UTC(
-      date.getUTCFullYear(),
-      date.getUTCMonth(),
-      date.getUTCDate(),
-      hours + SAO_PAULO_UTC_OFFSET_HOURS,
-      minutes,
-    ),
-  );
+/** Instante real de início do período no dia de calendário `day`. */
+export function periodStart(day: Date, period: Period): Date {
+  const [hour, minute] = PERIOD_START_TIME[period].split(":").map(Number);
+  return zonedTimeToUtc({
+    year: day.getUTCFullYear(),
+    month: day.getUTCMonth() + 1,
+    day: day.getUTCDate(),
+    hour,
+    minute,
+  });
 }
 
-function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
-  return aStart < bEnd && bStart < aEnd;
+/** Período de um horário de início (10h = manhã, 15h = tarde); `null` fora da grade. */
+export function periodOfStart(start: Date): Period | null {
+  const p = getSaoPauloParts(start);
+  const time = `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+  if (time === PERIOD_START_TIME.MORNING) return "MORNING";
+  if (time === PERIOD_START_TIME.AFTERNOON) return "AFTERNOON";
+  return null;
+}
+
+/** Período de um agendamento existente (agendamentos antigos não gravaram o período). */
+export function bookingPeriod(booking: { period?: Period | null; scheduledStart: Date }): Period {
+  return booking.period ?? periodOfStart(booking.scheduledStart) ?? (getSaoPauloParts(booking.scheduledStart).hour < 13 ? "MORNING" : "AFTERNOON");
+}
+
+/** O horário pertence à grade (dia aberto + 10h ou 15h)? Devolve o período. */
+export function offeredPeriod(start: Date): Period | null {
+  const period = periodOfStart(start);
+  if (!period || !isOpenWeekday(saoPauloDayAsUtcMidnight(start))) return null;
+  return period;
+}
+
+/** Períodos ainda oferecíveis no dia: dia aberto e horário ainda no futuro. */
+export function openPeriods(day: Date, now: Date): Period[] {
+  if (!isOpenWeekday(day)) return [];
+  return (["MORNING", "AFTERNOON"] as const).filter((period) => periodStart(day, period).getTime() > now.getTime());
 }

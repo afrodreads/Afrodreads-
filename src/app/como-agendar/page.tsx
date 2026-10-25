@@ -72,7 +72,7 @@ const FAQ: FaqItem[] = [
   {
     question: "De quanto é o sinal?",
     answer:
-      "O sinal é fixo, de R$ 50. Em dezembro e em atendimentos por temporada fora de São Paulo, o sinal passa a ser 50% do valor do serviço.",
+      "O sinal é fixo, de R$ 50. Em novembro, em dezembro e em atendimentos por temporada fora de São Paulo, o sinal passa a ser 50% do valor do serviço.",
   },
   {
     question: "Como pago o sinal?",

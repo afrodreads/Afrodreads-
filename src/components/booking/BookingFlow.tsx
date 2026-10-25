@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SERVICES } from "@/lib/services";
 import { calculateDeposit } from "@/lib/pricing";
 import { formatBRL, formatDateTimeBR, formatTimeBR } from "@/lib/format";
+import { saoPauloDateKey } from "@/lib/timezone";
+import { MonthCalendar } from "./MonthCalendar";
+
+type ServiceOption = { slug: string; name: string; minHours: number; maxHours: number; basePrice: number | null };
 
 export type QuoteInfo = {
   token: string;
@@ -29,7 +32,10 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [serviceSlug, setServiceSlug] = useState(quote?.serviceSlug ?? SERVICES[0].slug);
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [serviceSlug, setServiceSlug] = useState(quote?.serviceSlug ?? "");
+  // Mês atual de São Paulo: primeiro mês do calendário.
+  const [currentMonth] = useState(() => saoPauloDateKey(new Date()).slice(0, 7));
   const [isOutOfTownSeason, setIsOutOfTownSeason] = useState(quote?.isOutOfTownSeason ?? false);
   const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
   const [basePrices, setBasePrices] = useState<Record<string, number | null>>({});
@@ -54,7 +60,7 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
   const [clientPhone, setClientPhone] = useState("");
   const [notes, setNotes] = useState("");
 
-  const selectedService = SERVICES.find((s) => s.slug === serviceSlug)!;
+  const selectedServiceName = quote?.serviceName ?? services.find((s) => s.slug === serviceSlug)?.name ?? "";
 
   const depositPreview = useMemo(() => {
     if (!servicePrice || !selectedSlot) return null;
@@ -66,15 +72,18 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
   }, [servicePrice, selectedSlot, isOutOfTownSeason]);
 
   useEffect(() => {
-    if (quote) return; // valor já travado pelo orçamento
+    if (quote) return; // serviço e valor já travados pelo orçamento
     fetch("/api/services")
       .then((res) => res.json())
       .then((data) => {
+        const list: ServiceOption[] = data.services ?? [];
         const map: Record<string, number | null> = {};
-        for (const service of data.services ?? []) {
+        for (const service of list) {
           map[service.slug] = service.basePrice;
         }
+        setServices(list);
         setBasePrices(map);
+        setServiceSlug((current) => current || list[0]?.slug || "");
       })
       .catch(() => {});
   }, [quote]);
@@ -173,7 +182,7 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
                 onChange={(e) => setServiceSlug(e.target.value)}
                 className="w-full rounded-lg border border-white/20 bg-brand-black px-4 py-3 text-brand-white"
               >
-                {SERVICES.map((service) => (
+                {services.map((service) => (
                   <option key={service.slug} value={service.slug}>
                     {service.name} ({service.minHours}h–{service.maxHours}h)
                   </option>
@@ -219,24 +228,24 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
         {step === 1 && (
           <div className="space-y-6">
             <div>
-              <label className="mb-2 block text-sm font-medium text-brand-white/80">Data</label>
-              <input
-                type="date"
-                value={date}
-                min={new Date().toISOString().split("T")[0]}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-brand-black px-4 py-3 text-brand-white"
-              />
+              <p className="mb-2 block text-sm font-medium text-brand-white/80">Escolha o dia</p>
+              {serviceSlug && (
+                <MonthCalendar
+                  serviceSlug={serviceSlug}
+                  value={date}
+                  onChange={setDate}
+                  initialMonth={currentMonth}
+                  minMonth={currentMonth}
+                />
+              )}
             </div>
 
             {date && (
               <div>
-                <label className="mb-2 block text-sm font-medium text-brand-white/80">
-                  Horário disponível
-                </label>
+                <p className="mb-2 block text-sm font-medium text-brand-white/80">Período disponível</p>
                 {loadingSlots && <p className="text-sm text-brand-white/50">Carregando horários...</p>}
                 {!loadingSlots && availableSlots.length === 0 && (
-                  <p className="text-sm text-brand-white/50">Sem horários disponíveis nesta data.</p>
+                  <p className="text-sm text-brand-white/50">Esta data acabou de lotar. Escolha outro dia.</p>
                 )}
                 <div className="flex flex-wrap gap-2">
                   {availableSlots.map((slot) => (
@@ -249,7 +258,7 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
                           : "border-white/20 text-brand-white/80 hover:border-brand-yellow"
                       }`}
                     >
-                      {formatTimeBR(new Date(slot))}
+                      {Number(formatTimeBR(new Date(slot)).slice(0, 2)) < 13 ? "Manhã" : "Tarde"} · {formatTimeBR(new Date(slot))}
                     </button>
                   ))}
                 </div>
@@ -291,11 +300,11 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
 
         {step === 3 && depositPreview && (
           <div className="space-y-6">
-            <SummaryRow label="Serviço" value={selectedService.name} />
+            <SummaryRow label="Serviço" value={selectedServiceName} />
             <SummaryRow label="Data e horário" value={formatDateTimeBR(new Date(selectedSlot!))} />
             <SummaryRow label="Valor do serviço" value={formatBRL(servicePrice)} />
             <SummaryRow
-              label="Sinal a pagar agora"
+              label="Sinal para reservar"
               value={`${formatBRL(depositPreview.depositAmount)}${
                 depositPreview.depositIsPercentage ? " (50%)" : ""
               }`}
@@ -303,8 +312,13 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
             />
             <SummaryRow label="Restante no dia" value={formatBRL(depositPreview.remainingAmount)} />
 
+            <p className="rounded-lg bg-brand-yellow/10 p-4 text-xs text-brand-white/80">
+              No próximo passo você escolhe: pagar só o sinal ou já pagar o valor total. Seu horário fica
+              reservado enquanto você paga.
+            </p>
+
             <p className="rounded-lg bg-brand-black/60 p-4 text-xs text-brand-white/60">
-              Cancelamentos com 2 dias ou mais de antecedência têm o sinal devolvido.
+              Cancelamentos com 2 dias ou mais de antecedência têm o valor pago devolvido.
               Com 1 dia ou no mesmo dia do atendimento, o sinal não é reembolsado.
             </p>
 
@@ -313,7 +327,7 @@ export function BookingFlow({ quote }: { quote?: QuoteInfo }) {
             <StepActions
               onBack={() => setStep(2)}
               onNext={handleSubmit}
-              nextLabel={submitting ? "Enviando..." : "Confirmar e ir para pagamento"}
+              nextLabel={submitting ? "Reservando..." : "Reservar e pagar"}
               nextDisabled={submitting}
             />
           </div>
@@ -335,7 +349,7 @@ function StepActions({
   nextLabel?: string;
 }) {
   return (
-    <div className="flex justify-between pt-2">
+    <div className="flex items-center justify-between gap-4 pt-2">
       {onBack ? (
         <button onClick={onBack} className="text-sm font-medium text-brand-white/60 hover:text-brand-white">
           Voltar
@@ -346,7 +360,7 @@ function StepActions({
       <button
         onClick={onNext}
         disabled={nextDisabled}
-        className="rounded-full bg-brand-yellow px-6 py-2 text-sm font-bold text-brand-black transition-transform hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
+        className="whitespace-nowrap rounded-full bg-brand-yellow px-6 py-2 text-sm font-bold text-brand-black transition-transform hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
       >
         {nextLabel}
       </button>
@@ -365,10 +379,12 @@ function Input({
   onChange: (value: string) => void;
   type?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-brand-white/80">{label}</label>
+      <label htmlFor={id} className="mb-2 block text-sm font-medium text-brand-white/80">{label}</label>
       <input
+        id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -388,9 +404,9 @@ function SummaryRow({
   highlight?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-white/10 pb-3">
-      <span className="text-sm text-brand-white/60">{label}</span>
-      <span className={`text-sm font-semibold ${highlight ? "text-brand-yellow" : "text-brand-white"}`}>
+    <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-3">
+      <span className="shrink-0 text-sm text-brand-white/60">{label}</span>
+      <span className={`text-right text-sm font-semibold ${highlight ? "text-brand-yellow" : "text-brand-white"}`}>
         {value}
       </span>
     </div>

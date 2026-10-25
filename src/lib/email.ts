@@ -1,3 +1,4 @@
+import { googleCalendarLink } from "./calendarFeed";
 import { Resend } from "resend";
 import type { Booking, Service } from "@prisma/client";
 import { formatBRL, formatDateTimeBR } from "@/lib/format";
@@ -26,27 +27,115 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function getFrom(): string {
+  return process.env.EMAIL_FROM ?? "Afro Dreads <contato@afrodreads.com.br>";
+}
+
+// O SDK do Resend NÃO lança exceção quando a API recusa o envio (domínio não
+// verificado, destinatário inválido, limite excedido...): ele devolve
+// `{ data, error }`. Sem checar `error`, o envio falha em silêncio.
+async function sendEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}): Promise<void> {
+  const { error } = await getResendClient().emails.send({
+    from: getFrom(),
+    to: params.to,
+    subject: params.subject,
+    html: params.html,
+    replyTo: params.replyTo,
+  });
+  if (error) {
+    throw new Error(`Resend recusou o envio (${error.name}): ${error.message}`);
+  }
+}
+
+/** O que ficou pago: valor total (nada no dia) ou sinal (restante no dia). */
+function paidSummary(booking: Booking): { intro: string; paidLabel: string; paidAmount: number; remaining: number } {
+  const full = booking.paymentOption === "FULL";
+  return {
+    intro: full ? "Recebemos o pagamento total e seu horário está garantido. Não há nada a pagar no dia." : "Recebemos seu sinal e seu horário está garantido.",
+    paidLabel: full ? "Valor pago (total)" : "Sinal pago",
+    paidAmount: full ? Number(booking.servicePrice) : Number(booking.depositAmount),
+    remaining: full ? 0 : Number(booking.remainingAmount),
+  };
+}
+
 export async function sendBookingConfirmationEmail(
   booking: Booking & { service: Service },
 ): Promise<void> {
-  const from = process.env.EMAIL_FROM ?? "Afro Dreads <contato@afrodreads.com.br>";
-
-  await getResendClient().emails.send({
-    from,
+  const paid = paidSummary(booking);
+  await sendEmail({
     to: booking.clientEmail,
     subject: "Seu agendamento na Afro Dreads está confirmado!",
     html: `
       <div style="font-family: sans-serif; color: #111; max-width: 480px;">
         <h1 style="font-size: 20px;">Agendamento confirmado, ${escapeHtml(booking.clientName)}!</h1>
-        <p>Recebemos seu sinal e seu horário está garantido.</p>
+        <p>${paid.intro}</p>
         <table style="width: 100%; margin-top: 16px; border-collapse: collapse;">
           <tr><td style="padding: 8px 0; color: #555;">Serviço</td><td style="padding: 8px 0; text-align: right;">${escapeHtml(booking.service.name)}</td></tr>
           <tr><td style="padding: 8px 0; color: #555;">Data e horário</td><td style="padding: 8px 0; text-align: right;">${formatDateTimeBR(booking.scheduledStart)}</td></tr>
-          <tr><td style="padding: 8px 0; color: #555;">Sinal pago</td><td style="padding: 8px 0; text-align: right;">${formatBRL(Number(booking.depositAmount))}</td></tr>
-          <tr><td style="padding: 8px 0; color: #555;">Restante no dia</td><td style="padding: 8px 0; text-align: right;">${formatBRL(Number(booking.remainingAmount))}</td></tr>
+          <tr><td style="padding: 8px 0; color: #555;">${paid.paidLabel}</td><td style="padding: 8px 0; text-align: right;">${formatBRL(paid.paidAmount)}</td></tr>
+          <tr><td style="padding: 8px 0; color: #555;">Restante no dia</td><td style="padding: 8px 0; text-align: right;">${formatBRL(paid.remaining)}</td></tr>
         </table>
         <p style="margin-top: 16px; color: #555; font-size: 14px;">
           Qualquer dúvida, fale com a gente pelo WhatsApp. Até breve!
+        </p>
+      </div>
+    `,
+  });
+}
+
+// Aviso interno: a equipe recebe os dados do cliente e do serviço assim que o
+// pagamento (sinal ou total) é confirmado. Endereço configurável por TEAM_NOTIFICATION_EMAIL.
+export async function sendTeamBookingNotificationEmail(
+  booking: Booking & { service: Service },
+): Promise<void> {
+  const to = process.env.TEAM_NOTIFICATION_EMAIL ?? "afrodreadsofc@gmail.com";
+  const paid = paidSummary(booking);
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding: 6px 12px 6px 0; color: #555; vertical-align: top;">${label}</td><td style="padding: 6px 0;">${value}</td></tr>`;
+
+  await sendEmail({
+    to,
+    replyTo: booking.clientEmail,
+    subject: `Novo agendamento confirmado: ${booking.clientName} — ${formatDateTimeBR(booking.scheduledStart)}`,
+    html: `
+      <div style="font-family: sans-serif; color: #111; max-width: 520px;">
+        <h1 style="font-size: 20px;">Novo agendamento confirmado</h1>
+        <p>${booking.paymentOption === "FULL" ? "O valor total foi pago" : "O sinal foi pago"} e o horário está garantido.</p>
+        <table style="border-collapse: collapse; margin-top: 12px;">
+          ${row("Cliente", escapeHtml(booking.clientName))}
+          ${row("WhatsApp", escapeHtml(booking.clientPhone))}
+          ${row("E-mail", escapeHtml(booking.clientEmail))}
+          ${row("Serviço", escapeHtml(booking.service.name))}
+          ${row("Data e horário", formatDateTimeBR(booking.scheduledStart))}
+          ${row("Valor do serviço", formatBRL(Number(booking.servicePrice)))}
+          ${row(paid.paidLabel, formatBRL(paid.paidAmount))}
+          ${row("Restante no dia", formatBRL(paid.remaining))}
+          ${booking.isOutOfTownSeason ? row("Temporada", "Atendimento por temporada fora de SP") : ""}
+          ${booking.notes ? row("Observações", escapeHtml(booking.notes)) : ""}
+          ${row("Código", escapeHtml(booking.id))}
+        </table>
+        <p style="margin-top: 20px;">
+          <a href="${escapeHtml(googleCalendarLink({
+            id: booking.id,
+            serviceName: booking.service.name,
+            clientName: booking.clientName,
+            clientPhone: booking.clientPhone,
+            scheduledStart: booking.scheduledStart,
+            scheduledEnd: booking.scheduledEnd,
+            paymentOption: booking.paymentOption,
+            remainingAmount: paid.remaining,
+            forced: booking.forced,
+            notes: booking.notes,
+            updatedAt: booking.updatedAt,
+          }))}" style="display: inline-block; background: #f5c400; color: #111; padding: 10px 18px; border-radius: 999px; font-weight: bold; text-decoration: none;">Adicionar ao Google Agenda</a>
+        </p>
+        <p style="margin-top: 16px; color: #555; font-size: 14px;">
+          Responder este e-mail responde direto ao cliente.
         </p>
       </div>
     `,
@@ -58,15 +147,12 @@ const GOOGLE_REVIEW_URL = "https://g.page/r/CUFwpwTBzXTjEBM/review";
 export async function sendReviewRequestEmail(
   booking: Pick<Booking, "clientName" | "clientEmail">,
 ): Promise<void> {
-  const from = process.env.EMAIL_FROM ?? "Afro Dreads <contato@afrodreads.com.br>";
-
-  await getResendClient().emails.send({
-    from,
+  await sendEmail({
     to: booking.clientEmail,
     subject: "Como foi seu atendimento na Afro Dreads?",
     html: `
       <div style="font-family: sans-serif; color: #111; max-width: 480px;">
-        <p>Oi, ${booking.clientName}! Ficamos muito felizes por ter você com a gente na Afro Dreads! 💛</p>
+        <p>Oi, ${escapeHtml(booking.clientName)}! Ficamos muito felizes por ter você com a gente na Afro Dreads! 💛</p>
         <p>Sua opinião é muito importante para o nosso trabalho. Se puder, deixe uma avaliação no Google contando como foi o seu atendimento (por exemplo, o serviço que você fez). Isso ajuda outras pessoas a nos encontrarem.</p>
         <p>É só clicar no link abaixo:</p>
         <p><a href="${GOOGLE_REVIEW_URL}">${GOOGLE_REVIEW_URL}</a></p>

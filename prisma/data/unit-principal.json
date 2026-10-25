@@ -1,0 +1,57 @@
+{
+  "_sobre": "Configuração da unidade principal como DADO. Valores \"PENDENTE\" não são gravados (ficam nulos no banco). Aplicar com: npx tsx prisma/apply-unit-config.ts prisma/data/unit-principal.json --apply",
+  "slug": "principal",
+  "name": {
+    "value": "Afro Dreads - unidade principal",
+    "source": "migration 20260930200000_add_agent_foundation (rótulo provisório: confirmar o nome oficial da unidade)"
+  },
+  "publicArea": {
+    "value": "Pirituba, zona noroeste de São Paulo",
+    "source": "agente/00-prompt-do-agente-v2.md §8; src/lib/seo.ts"
+  },
+  "address": {
+    "value": "PENDENTE",
+    "source": "não existe no repositório (o site mostra só o bairro). Cadastrar o endereço completo."
+  },
+  "mapUrl": {
+    "value": "https://www.google.com/maps?cid=16389951172798541889",
+    "source": "src/lib/seo.ts (perfil da Afro Dreads no Google Maps)"
+  },
+  "phone": {
+    "value": "+55 11 91538-8113",
+    "source": "src/lib/seo.ts; src/lib/whatsapp.ts"
+  },
+  "humanHoursText": {
+    "value": "segunda a sexta, das 10h às 21h; sábado, das 10h às 15h; domingos e feriados, fechado",
+    "source": "agente/00-prompt-do-agente-v2.md §8 (horário do WhatsApp da equipe)"
+  },
+  "studioHoursText": {
+    "value": "terça a sábado, das 10h às 18h, com hora marcada",
+    "source": "src/lib/seo.ts (openingHoursSpecification); V2 §8",
+    "_nota": "informativo: o banco ainda não tem campo próprio; o horário do estúdio está no V2 e no site"
+  },
+  "reviewUrl": {
+    "value": "https://g.page/r/CUFwpwTBzXTjEBM/review",
+    "source": "src/lib/email.ts; V2 §22"
+  },
+  "parkingInfo": {
+    "value": "Temos estacionamento no local.",
+    "source": "agente/00-prompt-do-agente-v2.md §8 e §18"
+  },
+  "timezone": {
+    "value": "America/Sao_Paulo",
+    "source": "regra do projeto (Fase 0)"
+  },
+  "staff": [
+    {
+      "name": "Thay",
+      "role": "ATTENDANT",
+      "source": "V2 (atendente humana); página Sobre"
+    },
+    {
+      "name": "Lyon",
+      "role": "ADMIN",
+      "source": "página Sobre; responsável pelo painel (informado pelo dono)"
+    }
+  ]
+}

@@ -7,7 +7,7 @@
     "build": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint src",
-    "test": "tsx --test src/lib/*.test.ts",
+    "test": "tsx --test \"src/lib/**/*.test.ts\"",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -18,6 +18,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "@gsap/react": "^2.1.2",
     "@prisma/client": "6.2.1",
     "clsx": "2.1.1",
@@ -29,7 +30,7 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "resend": "4.0.1",
-    "zod": "3.24.1"
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.2.0",

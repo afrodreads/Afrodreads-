@@ -9,6 +9,8 @@ const createQuoteSchema = z.object({
   serviceSlug: z.string(),
   servicePrice: z.number().positive(),
   isOutOfTownSeason: z.boolean().default(false),
+  // O que o cliente pode pagar no checkout: escolher, só sinal ou só o valor total.
+  paymentOptions: z.enum(["CLIENT_CHOICE", "DEPOSIT_ONLY", "FULL_ONLY"]).default("CLIENT_CHOICE"),
 });
 
 export async function POST(request: NextRequest) {
@@ -19,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   const data = parsed.data;
   const service = await prisma.service.findUnique({ where: { slug: data.serviceSlug } });
-  if (!service) {
+  if (!service || !service.active) {
     return NextResponse.json({ error: "Serviço não encontrado" }, { status: 404 });
   }
 
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
       serviceId: service.id,
       servicePrice: data.servicePrice,
       isOutOfTownSeason: data.isOutOfTownSeason,
+      paymentOptions: data.paymentOptions,
       expiresAt,
     },
   });

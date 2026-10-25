@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SERVICES } from "@/lib/services";
+import { formatBRL } from "@/lib/format";
+import { QUOTE_CHOICE_LABEL, type QuotePaymentChoices } from "@/lib/paymentOptions";
+
+type ServiceOption = { slug: string; name: string; basePrice: number | null };
 
 export function NewQuoteForm() {
   const router = useRouter();
-  const [serviceSlug, setServiceSlug] = useState(SERVICES[0].slug);
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [serviceSlug, setServiceSlug] = useState("");
+  const [paymentOptions, setPaymentOptions] = useState<QuotePaymentChoices>("CLIENT_CHOICE");
   const [basePrices, setBasePrices] = useState<Record<string, number | null>>({});
   const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
   const servicePrice = priceOverrides[serviceSlug] ?? basePrices[serviceSlug] ?? 0;
@@ -22,11 +27,14 @@ export function NewQuoteForm() {
     fetch("/api/services")
       .then((res) => res.json())
       .then((data) => {
+        const list: ServiceOption[] = data.services ?? [];
         const map: Record<string, number | null> = {};
-        for (const service of data.services ?? []) {
+        for (const service of list) {
           map[service.slug] = service.basePrice;
         }
+        setServices(list);
         setBasePrices(map);
+        setServiceSlug((current) => current || list[0]?.slug || "");
       })
       .catch(() => {});
   }, []);
@@ -41,7 +49,7 @@ export function NewQuoteForm() {
       const response = await fetch("/api/admin/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceSlug, servicePrice, isOutOfTownSeason }),
+        body: JSON.stringify({ serviceSlug, servicePrice, isOutOfTownSeason, paymentOptions }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
@@ -57,8 +65,18 @@ export function NewQuoteForm() {
 
   function handleCopyMessage() {
     if (!generatedUrl) return;
-    const service = SERVICES.find((s) => s.slug === serviceSlug);
-    const message = `Olá! Segue o link para finalizar seu agendamento de ${service?.name} na Afro Dreads: ${generatedUrl}`;
+    const service = services.find((s) => s.slug === serviceSlug);
+    const howToPay =
+      paymentOptions === "DEPOSIT_ONLY"
+        ? "Para garantir o horário, é só pagar o sinal pelo próprio link."
+        : paymentOptions === "FULL_ONLY"
+          ? "Para garantir o horário, é só pagar pelo próprio link."
+          : "Para garantir o horário, você escolhe: pagar só o sinal ou já pagar o valor total.";
+    const message = [
+      `Oi! Aqui é da Afro Dreads 💛 Segue o seu link para agendar ${service?.name ?? "o serviço"} (valor: ${formatBRL(servicePrice)}):`,
+      generatedUrl,
+      `No link você vê os dias com vaga e escolhe o melhor para você. ${howToPay} O horário fica reservado enquanto você paga, e o link vale por 48 horas.`,
+    ].join("\n\n");
     navigator.clipboard.writeText(message).then(() => setCopied(true));
   }
 
@@ -75,7 +93,7 @@ export function NewQuoteForm() {
             onChange={(e) => setServiceSlug(e.target.value)}
             className="rounded-lg border border-white/20 bg-brand-black px-4 py-3 text-brand-white"
           >
-            {SERVICES.map((service) => (
+            {services.map((service) => (
               <option key={service.slug} value={service.slug}>
                 {service.name}
               </option>
@@ -98,6 +116,21 @@ export function NewQuoteForm() {
         </div>
       </div>
 
+      <div>
+        <label className="mb-2 block text-sm font-medium text-brand-white/80">Pagamento no link</label>
+        <select
+          value={paymentOptions}
+          onChange={(e) => setPaymentOptions(e.target.value as QuotePaymentChoices)}
+          className="rounded-lg border border-white/20 bg-brand-black px-4 py-3 text-brand-white"
+        >
+          {(Object.keys(QUOTE_CHOICE_LABEL) as QuotePaymentChoices[]).map((value) => (
+            <option key={value} value={value}>
+              {QUOTE_CHOICE_LABEL[value]}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <label className="flex items-center gap-3 text-sm text-brand-white/80">
         <input
           type="checkbox"
@@ -110,7 +143,7 @@ export function NewQuoteForm() {
 
       <button
         type="submit"
-        disabled={submitting || !servicePrice}
+        disabled={submitting || !servicePrice || !serviceSlug}
         className="rounded-full bg-brand-yellow px-6 py-2 text-sm font-bold text-brand-black disabled:opacity-50"
       >
         {submitting ? "Gerando..." : "Gerar link"}
