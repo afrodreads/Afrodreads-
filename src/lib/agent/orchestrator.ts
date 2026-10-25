@@ -3,6 +3,7 @@ import { InvalidInputError } from "../conversations/errors";
 import type { ConversationsStore } from "../conversations/repo";
 import { assertShadowMode } from "./config";
 import { buildAgentContext, contextSnapshot, type AgentContext, type AgentContextReader } from "./context";
+import { toWhatsappText } from "./format";
 import { checkDraft, type GuardrailResult } from "./guardrails";
 import type { ModelClient, ModelResponse } from "./model";
 import { buildSystemPrompt, type PromptSource } from "./prompt";
@@ -163,7 +164,7 @@ async function execute(deps: CoreDeps, args: ExecuteArgs): Promise<RunResult> {
     const modelMessages = context.messages.map((message) => {
       const { text, redactions } = redactForModel(message.text);
       redactedFragments += redactions;
-      return { role: message.role, content: text };
+      return { role: message.role, content: text, ...(message.imageUrl ? { imageUrl: message.imageUrl } : {}) };
     });
 
     const base: AgentRunResult = {
@@ -224,7 +225,7 @@ async function execute(deps: CoreDeps, args: ExecuteArgs): Promise<RunResult> {
     }
 
     // GUARDRAILS (inclui recusa e resposta cortada do provedor)
-    const originalText = response.text?.trim() ? response.text.trim() : null;
+    const originalText = response.text?.trim() ? toWhatsappText(response.text.trim()) : null;
     let verdict: GuardrailResult = originalText ? checkDraft(originalText, context) : { ok: true, violations: [] };
     if (response.stopReason === "refusal") {
       verdict = { ok: false, violations: [...verdict.violations, { code: "model_refusal", severity: "block", excerpt: "" }] };

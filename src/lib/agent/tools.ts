@@ -16,6 +16,20 @@ export type ToolName = (typeof TOOL_NAMES)[number];
 
 const short = z.string().trim().min(1).max(200);
 
+/** Estágio comercial do cliente (camada comercial, seção 28.8). Interno: nunca aparece para o cliente. */
+export const LEAD_STAGES = [
+  "CURIOSIDADE",
+  "PESQUISA",
+  "INTERESSE",
+  "CONSIDERACAO",
+  "INTENCAO_DE_COMPRA",
+  "PRONTO_PARA_AGENDAR",
+  "AGENDADO",
+  "POS_VENDA",
+  "OBJECAO",
+  "INATIVO",
+] as const;
+
 export const leadDataSchema = z
   .object({
     intent: z
@@ -32,13 +46,14 @@ export const leadDataSchema = z
       ])
       .optional(),
     temperature: z.enum(["QUENTE", "MORNO", "FRIO"]).optional(),
+    stage: z.enum(LEAD_STAGES).optional(),
     origin: short.optional(),
     appointmentType: z.enum(["aplicacao_do_zero", "manutencao"]).optional(),
     material: z.enum(["proprio", "sintetico", "humano"]).optional(),
     method: short.optional(),
     currentLength: short.optional(),
     desiredLength: short.optional(),
-    thickness: z.enum(["P", "M", "G"]).optional(),
+    thickness: z.enum(["MICRO", "P", "M", "G"]).optional(),
     color: short.optional(),
     headArea: z.enum(["topo", "cabeca_toda"]).optional(),
     haircut: z.enum(["alto", "americano"]).optional(),
@@ -110,13 +125,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           enum: ["INFORMACAO", "APLICACAO", "MANUTENCAO", "PROMOCAO", "ORCAMENTO", "AGENDAMENTO", "POS_ATENDIMENTO", "RECLAMACAO", "OUTRO"],
         },
         temperature: { type: "string", enum: ["QUENTE", "MORNO", "FRIO"] },
+        stage: { type: "string", enum: [...LEAD_STAGES], description: "Estágio comercial do cliente (interno)." },
         origin: shortString,
         appointmentType: { type: "string", enum: ["aplicacao_do_zero", "manutencao"] },
         material: { type: "string", enum: ["proprio", "sintetico", "humano"] },
         method: shortString,
         currentLength: shortString,
         desiredLength: shortString,
-        thickness: { type: "string", enum: ["P", "M", "G"] },
+        thickness: { type: "string", enum: ["MICRO", "P", "M", "G"] },
         color: shortString,
         headArea: { type: "string", enum: ["topo", "cabeca_toda"] },
         haircut: { type: "string", enum: ["alto", "americano"] },

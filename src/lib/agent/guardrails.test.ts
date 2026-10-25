@@ -176,3 +176,15 @@ describe("guardrails: estilo só avisa", () => {
     assert.ok(long.violations.some((v) => v.code === "style_length"));
   });
 });
+
+describe("guardrails: não repete a última mensagem enviada", () => {
+  it("bloqueia o mesmo texto da última resposta (ignorando maiúsculas e espaços)", () => {
+    const base = context(true);
+    const withLast: AgentContext = {
+      ...base,
+      messages: [{ id: "m1", role: "assistant", sender: "AI", text: "Recebi, obrigada! 💛  A Thay segue com você." }],
+    };
+    assert.ok(checkDraft("recebi, obrigada! 💛 a Thay segue com você.", withLast).violations.some((v) => v.code === "repeated_reply"));
+    assert.equal(checkDraft("Perfeito! Me conta o comprimento?", withLast).ok, true);
+  });
+});
