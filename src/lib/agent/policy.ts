@@ -24,7 +24,7 @@ export function currentPolicy(): BusinessPolicy {
   return {
     depositFixedBrl: FIXED_DEPOSIT_BRL,
     depositPercentage: PERCENTAGE_DEPOSIT_RATE,
-    depositPercentageCases: ["dezembro", "temporada fora de São Paulo"],
+    depositPercentageCases: ["novembro", "dezembro", "temporada fora de São Paulo"],
     refundMinDaysBefore: REFUND_MIN_DAYS_BEFORE,
     onlinePaymentWindowMinutes: BOOKING_PAYMENT_TTL_MINUTES,
     quotableAmountsBrl: [FIXED_DEPOSIT_BRL, LATE_FEE_BRL_PER_15_MIN],
