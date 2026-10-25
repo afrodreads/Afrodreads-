@@ -183,7 +183,9 @@ export const MEDIA_PLACEHOLDER =
   "[O cliente enviou uma mídia (foto, vídeo, áudio ou arquivo) sem texto. Ela chegou para a equipe; você não consegue ver nem ouvir o conteúdo.]";
 
 /** Foto: o texto gravado; a imagem vai anexada ao modelo pelo link em metadata.imageUrl. */
-export const IMAGE_PLACEHOLDER = "[O cliente enviou uma foto. Ela está anexada a esta mensagem.]";
+/** Texto que o cliente escreveu junto com a foto (legenda): é resposta dele, não suposição. */
+export const CAPTION_PREFIX = "Legenda escrita pelo cliente junto com a foto: ";
+export const IMAGE_PLACEHOLDER ="[O cliente enviou uma foto. Ela está anexada a esta mensagem.]";
 /** Tamanho máximo de texto aceito em metadata (ver conversations/message.ts). */
 const MAX_METADATA_TEXT = 200;
 
@@ -216,6 +218,12 @@ async function customerContent(
     const id = mediaMessageId(contactId, url);
     const seen = deps.mediaMessageExists ? await deps.mediaMessageExists(unitId, contactId, id) : false;
     if (!seen) {
+      // Legenda da foto: o texto que veio junto, desde que não seja o próprio link nem o texto
+      // anterior do cliente repetido pelo ManyChat (o campo de texto guarda a última mensagem).
+      const last = text && text !== url && deps.lastInboundForContact ? await deps.lastInboundForContact(unitId, contactId) : null;
+      const repeated = last ? last.text.trim() === text || last.text.trim().endsWith(`${CAPTION_PREFIX}${text}`) : false;
+      const caption = text && text !== url && !repeated ? text.slice(0, MAX_TEXT_CHARS) : null;
+      const withCaption = (base: string) => (caption ? `${base}\n${CAPTION_PREFIX}${caption}` : base);
       const media = deps.transcribeMedia ? await deps.transcribeMedia(url) : null;
       deps.log("agent_inbound_media", {
         kind: media?.kind ?? "unsupported",
@@ -225,9 +233,9 @@ async function customerContent(
       if (media?.kind === "audio") return { content: AUDIO_PREFIX + media.text.slice(0, MAX_TEXT_CHARS), messageId: id };
       // Foto com link curto o bastante para guardar: o modelo vê a imagem. Senão, só o aviso.
       if (media?.kind === "image" && url.length <= MAX_METADATA_TEXT) {
-        return { content: IMAGE_PLACEHOLDER, messageId: id, metadata: { media: "image", imageUrl: url } };
+        return { content: withCaption(IMAGE_PLACEHOLDER), messageId: id, metadata: { media: "image", imageUrl: url } };
       }
-      return { content: MEDIA_PLACEHOLDER, messageId: id };
+      return { content: withCaption(MEDIA_PLACEHOLDER), messageId: id };
     }
     // Mesma mídia de novo e nenhum texto novo: é reenvio; o id repetido faz virar duplicata.
     if (url === text || !text) return { content: MEDIA_PLACEHOLDER, messageId: id };

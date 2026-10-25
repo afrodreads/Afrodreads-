@@ -6,6 +6,7 @@ import { processAfterQuietPeriod } from "../agent/pipeline";
 import { agentHarness, MemoryGroupingReader, replyWith, ScriptedModel } from "../agent/testSupport";
 import {
   AUDIO_PREFIX,
+  CAPTION_PREFIX,
   IMAGE_PLACEHOLDER,
   createInboundHandler,
   derivedMessageId,
@@ -867,5 +868,23 @@ describe("encaminhamento para a equipe vira real (conversa HUMAN, agente em sil�
     const second = await s.post(payload({ messageId: "wamid.DEPOIS", text: "Obrigado!" }));
     assert.equal((second.body as { reply: string }).reply, "-");
     assert.equal(turn, 1); // o modelo nem foi chamado de novo
+  });
+});
+
+describe("foto com legenda: a legenda do cliente não se perde", () => {
+  it("guarda a legenda junto do aviso de foto", async () => {
+    const s = setup({ withModel: false, transcribe: async () => ({ kind: "image" }) });
+    const url = "https://manybot-files.s3.amazonaws.com/cabelo.jpg";
+    await s.post(payload({ text: "Na cabeça toda", messageId: undefined, mediaUrl: url }));
+    const inbound = s.db.messages.filter((m) => m.direction === "INBOUND");
+    assert.deepEqual(inbound.map((m) => m.content), [`${IMAGE_PLACEHOLDER}\n${CAPTION_PREFIX}Na cabeça toda`]);
+  });
+
+  it("texto anterior repetido pelo ManyChat não vira legenda", async () => {
+    const s = setup({ withModel: false, transcribe: async () => ({ kind: "image" }) });
+    await s.post(payload({ text: "Quero fazer manutenção", messageId: "wamid.T1" }));
+    await s.post(payload({ text: "Quero fazer manutenção", messageId: undefined, mediaUrl: "https://manybot-files.s3.amazonaws.com/b.jpg" }));
+    const inbound = s.db.messages.filter((m) => m.direction === "INBOUND");
+    assert.equal(inbound[1].content, IMAGE_PLACEHOLDER);
   });
 });
