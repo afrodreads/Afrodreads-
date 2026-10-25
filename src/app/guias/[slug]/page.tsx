@@ -6,7 +6,7 @@ import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { GUIDES, getGuideBySlug } from "@/lib/guides";
-import { SERVICES } from "@/lib/services";
+import { SERVICES, servicePath } from "@/lib/services";
 import { articleJsonLd, breadcrumbJsonLd, videoJsonLd } from "@/lib/seo";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
@@ -105,7 +105,7 @@ export default async function GuidePage({ params }: { params: Promise<Params> })
                 <ul className="mt-4 flex list-none flex-col gap-2 p-0 text-[15px] text-ink-muted">
                   {SERVICES.map((s) => (
                     <li key={s.slug}>
-                      <Link href={`/servicos/${s.slug}`} className="text-ink underline underline-offset-4">
+                      <Link href={servicePath(s.slug)} className="text-ink underline underline-offset-4">
                         {s.name}
                       </Link>
                       : {s.minHours}h a {s.maxHours}h
@@ -118,7 +118,7 @@ export default async function GuidePage({ params }: { params: Promise<Params> })
           {relatedService && (
             <p className="m-0 text-[15px] leading-relaxed text-ink-muted">
               Conheça o serviço:{" "}
-              <Link href={`/servicos/${relatedService.slug}`} className="text-ink underline underline-offset-4">
+              <Link href={servicePath(relatedService.slug)} className="text-ink underline underline-offset-4">
                 {relatedService.name}
               </Link>{" "}
               ({relatedService.minHours}h a {relatedService.maxHours}h de atendimento).

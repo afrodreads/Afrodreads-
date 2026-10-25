@@ -1,5 +1,5 @@
 import type { FaqItem } from "@/components/ui/FaqAccordion";
-import { SERVICES } from "@/lib/services";
+import { SERVICES, servicePath } from "@/lib/services";
 
 import { BUSINESS_ADDRESS, CANONICAL_URL as SITE_URL } from "@/lib/site";
 
@@ -47,7 +47,7 @@ export const businessJsonLd = {
         "@type": "Service",
         name: service.name,
         description: service.description,
-        url: `${SITE_URL}/servicos/${service.slug}`,
+        url: `${SITE_URL}${servicePath(service.slug)}`,
       },
     })),
   },
@@ -115,7 +115,7 @@ export function serviceJsonLd(service: { slug: string; name: string; description
     "@type": "Service",
     name: service.name,
     description: service.description,
-    url: `${SITE_URL}/servicos/${service.slug}`,
+    url: `${SITE_URL}${servicePath(service.slug)}`,
     serviceType: "Dreadlocks e microlocs",
     areaServed: "São Paulo, SP",
     provider: { "@type": "HairSalon", name: "Afro Dreads", url: SITE_URL },

@@ -7,7 +7,7 @@ import { AdTag } from "@/components/ui/Tag";
 import { AdButton } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { buildWhatsAppLink, type WhatsAppMessageKey } from "@/lib/whatsapp";
-import type { ServiceDefinition } from "@/lib/services";
+import { servicePath, type ServiceDefinition } from "@/lib/services";
 
 const INTENT_BY_SLUG: Record<string, WhatsAppMessageKey> = {
   "primeira-aplicacao-topo": "primeira",
@@ -109,7 +109,7 @@ export function ServiceListRow({
           Agendar
         </AdButton>
         <Link
-          href={`/servicos/${service.slug}`}
+          href={servicePath(service.slug)}
           className="text-sm text-ink-muted underline underline-offset-4 hover:text-ink"
         >
           Saiba mais sobre {service.name}

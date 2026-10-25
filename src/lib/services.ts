@@ -88,3 +88,15 @@ export const SERVICES: ServiceDefinition[] = [
 export function getServiceBySlug(slug: string): ServiceDefinition | undefined {
   return SERVICES.find((service) => service.slug === slug);
 }
+
+// URL pública de cada serviço. O slug interno (banco, agenda e pagamentos) não
+// muda; só o endereço visto pelo Google e pelas pessoas. "Start Locs" ainda usa o
+// slug histórico "retwist-twist" por dentro; o next.config.mjs redireciona a URL
+// antiga e reescreve a nova para a mesma página.
+export const PUBLIC_SERVICE_SLUGS: Record<string, string> = {
+  "retwist-twist": "start-locs",
+};
+
+export function servicePath(slug: string): string {
+  return `/servicos/${PUBLIC_SERVICE_SLUGS[slug] ?? slug}`;
+}

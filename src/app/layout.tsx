@@ -43,9 +43,9 @@ const dmMono = DM_Mono({
 
 const OG_IMAGE = "/og-image.png";
 const OG_IMAGE_ALT = "Mascote da Afro Dreads, mulher sorrindo com dreadlocks amarelos, sobre fundo amarelo";
-const TITLE = "Dreadlocks e Microlocs em Pirituba, SP | Afro Dreads";
+const TITLE = "Dreadlocks, Locs e Microlocs em Pirituba, SP | Afro Dreads";
 const DESCRIPTION =
-  "Estúdio especializado em dreadlocks e microlocs em Pirituba, SP. Formação, manutenção e revitalização com técnica e cuidado. Agende online.";
+  "Estúdio especializado em dreadlocks, locs e microlocs em Pirituba, SP. Formação, manutenção e revitalização com técnica e cuidado. Agende online.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -16,4 +16,8 @@ export const BUSINESS_ADDRESS = {
   longitude: -46.73062,
 } as const;
 
+// Nota do perfil no Google. Número manual: atualize quando mudar (conferido em
+// 2026-10-24: 5,0 com 57 avaliações). Usado na home e no llms.txt.
+export const GOOGLE_RATING = { score: "5,0", reviews: 57 } as const;
+
 export const BUSINESS_ADDRESS_LINE = `${BUSINESS_ADDRESS.street} – ${BUSINESS_ADDRESS.neighborhood}, ${BUSINESS_ADDRESS.city} – ${BUSINESS_ADDRESS.region}, ${BUSINESS_ADDRESS.postalCode}`;
