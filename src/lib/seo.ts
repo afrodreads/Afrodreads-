@@ -1,15 +1,13 @@
 import type { FaqItem } from "@/components/ui/FaqAccordion";
 import { SERVICES } from "@/lib/services";
 
-import { CANONICAL_URL as SITE_URL } from "@/lib/site";
+import { BUSINESS_ADDRESS, CANONICAL_URL as SITE_URL } from "@/lib/site";
 
 // Perfil da Afro Dreads no Google Maps (link estável pelo CID do lugar).
 const GOOGLE_MAPS_PROFILE = "https://www.google.com/maps?cid=16389951172798541889";
 
 // Dados estruturados (schema.org) do negócio, injetados como JSON-LD no
-// layout raiz. Endereço mantido só em nível de bairro/cidade — o mesmo
-// nível de detalhe já exposto publicamente pelo site (o endereço completo
-// só é enviado por WhatsApp após a confirmação do agendamento).
+// layout raiz. O endereço é o mesmo do perfil no Google (ver lib/site.ts).
 const BUSINESS_ID = `${SITE_URL}/#negocio`;
 
 export const businessJsonLd = {
@@ -31,14 +29,14 @@ export const businessJsonLd = {
   priceRange: "$$",
   address: {
     "@type": "PostalAddress",
-    addressLocality: "Pirituba, São Paulo",
-    addressRegion: "SP",
+    streetAddress: BUSINESS_ADDRESS.street,
+    addressLocality: BUSINESS_ADDRESS.city,
+    addressRegion: BUSINESS_ADDRESS.region,
+    postalCode: BUSINESS_ADDRESS.postalCode,
     addressCountry: "BR",
   },
   areaServed: "São Paulo, SP",
-  // Coordenadas arredondadas (~1 km, nível de bairro) de propósito, para não
-  // expor o ponto exato; o endereço completo só é enviado após o agendamento.
-  geo: { "@type": "GeoCoordinates", latitude: -23.49, longitude: -46.73 },
+  geo: { "@type": "GeoCoordinates", latitude: BUSINESS_ADDRESS.latitude, longitude: BUSINESS_ADDRESS.longitude },
   hasMap: GOOGLE_MAPS_PROFILE,
   hasOfferCatalog: {
     "@type": "OfferCatalog",

@@ -4,6 +4,7 @@ import { useScrollReveal } from "@/lib/useScrollReveal";
 import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
+import { BUSINESS_ADDRESS_LINE } from "@/lib/site";
 
 const GOOGLE_MAPS_URL = "https://share.google/hdE6lHpW06wTsRZvc";
 const RATING_SUMMARY = "5,0 ⭐ · 56 avaliações";
@@ -25,9 +26,8 @@ export function LocationSection() {
         >
           <div>
             <p className="m-0 text-lg font-semibold text-ink">Pirituba, São Paulo - SP</p>
-            <p className="m-0 mt-1 text-sm text-ink-muted">
-              O endereço completo é enviado por WhatsApp após a confirmação do agendamento.
-            </p>
+            <p className="m-0 mt-1 text-sm text-ink-muted">{BUSINESS_ADDRESS_LINE}</p>
+            <p className="m-0 mt-1 text-sm text-ink-muted">Atendimento com hora marcada, de terça a sábado, das 10h às 18h.</p>
             <p className="m-0 mt-3 text-sm font-semibold text-amarelo">{RATING_SUMMARY}</p>
           </div>
 

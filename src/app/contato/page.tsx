@@ -6,6 +6,7 @@ import { AdButton } from "@/components/ui/Button";
 import { ChannelCard } from "@/components/contato/ChannelCard";
 import { ContactForm } from "@/components/contato/ContactForm";
 import { WhatsAppIcon, InstagramIcon } from "@/components/icons/SocialIcons";
+import { BUSINESS_ADDRESS_LINE } from "@/lib/site";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
 export const metadata: Metadata = {
@@ -63,7 +64,7 @@ export default function ContatoPage() {
               icon={<PinIcon />}
               iconVariant="folha"
               title="Pirituba · São Paulo"
-              subtitle="Endereço enviado após o agendamento"
+              subtitle={BUSINESS_ADDRESS_LINE}
             />
           </div>
 
