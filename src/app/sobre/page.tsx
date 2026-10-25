@@ -5,7 +5,8 @@ import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
-import { SERVICES } from "@/lib/services";
+import { SERVICES, servicePath } from "@/lib/services";
+import { BUSINESS_ADDRESS_LINE } from "@/lib/site";
 import { aboutPageJsonLd, breadcrumbJsonLd } from "@/lib/seo";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
@@ -106,7 +107,7 @@ export default function SobrePage() {
             <ul className="mt-4 flex list-none flex-col gap-2 p-0 text-[15px] text-ink-muted">
               {SERVICES.map((service) => (
                 <li key={service.slug}>
-                  <Link href={`/servicos/${service.slug}`} className="text-ink underline underline-offset-4">
+                  <Link href={servicePath(service.slug)} className="text-ink underline underline-offset-4">
                     {service.name}
                   </Link>
                   : {service.description}
@@ -160,8 +161,8 @@ export default function SobrePage() {
           <section>
             <h2 className="m-0 font-serif text-3xl uppercase text-ink">Onde estamos</h2>
             <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">
-              Em Pirituba, zona noroeste de São Paulo. O endereço completo é enviado depois que o agendamento é
-              confirmado. Atendemos de terça a sábado, das 10h às 18h, com hora marcada.
+              Em Pirituba, zona noroeste de São Paulo: {BUSINESS_ADDRESS_LINE}. Atendemos de terça a sábado, das 10h
+              às 18h, com hora marcada.
             </p>
             <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">
               Também fazemos atendimentos em temporadas fora de São Paulo. Para saber se há datas abertas, fale com a

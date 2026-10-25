@@ -5,6 +5,7 @@ import { ServicesSection } from "@/components/home/ServicesSection";
 import { PortfolioPreview } from "@/components/home/PortfolioPreview";
 import { LocationSection } from "@/components/home/LocationSection";
 import { ReviewsSection } from "@/components/home/ReviewsSection";
+import { GuidesSection } from "@/components/home/GuidesSection";
 import { FinalVideoCta } from "@/components/home/FinalVideoCta";
 
 export default function HomePage() {
@@ -17,6 +18,7 @@ export default function HomePage() {
       <PortfolioPreview />
       <LocationSection />
       <ReviewsSection />
+      <GuidesSection />
       <FinalVideoCta />
     </>
   );

@@ -34,7 +34,8 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     question: "Onde fica a Afro Dreads?",
-    answer: "Em Pirituba, zona noroeste de São Paulo. O endereço completo é enviado depois que o agendamento é confirmado.",
+    answer:
+      "Em Pirituba, zona noroeste de São Paulo, na R. Pedro Marigliani, 43 – Chácara Inglesa (CEP 05141-010). O atendimento é com hora marcada.",
   },
   {
     question: "Vocês fazem tranças?",

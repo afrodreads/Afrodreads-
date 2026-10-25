@@ -1,8 +1,8 @@
 import { FAQ_ITEMS } from "@/lib/faq";
 import { GUIDES } from "@/lib/guides";
-import { SERVICES } from "@/lib/services";
+import { SERVICES, servicePath } from "@/lib/services";
 
-import { CANONICAL_URL as SITE_URL } from "@/lib/site";
+import { BUSINESS_ADDRESS_LINE, CANONICAL_URL as SITE_URL, GOOGLE_RATING } from "@/lib/site";
 
 export const dynamic = "force-static";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-static";
 // novo aparece aqui automaticamente.
 export function GET() {
   const services = SERVICES.map(
-    (s) => `- [${s.name}](${SITE_URL}/servicos/${s.slug}) (${s.minHours}h a ${s.maxHours}h): ${s.description}`,
+    (s) => `- [${s.name}](${SITE_URL}${servicePath(s.slug)}) (${s.minHours}h a ${s.maxHours}h): ${s.description}`,
   ).join("\n");
 
   const guides = GUIDES.map((g) => `- [${g.h1}](${SITE_URL}/guias/${g.slug}): ${g.description}`).join("\n");
@@ -22,14 +22,14 @@ export function GET() {
 > Estúdio especializado em dreadlocks e microlocs em Pirituba, São Paulo - SP. Faz formação (primeira aplicação), manutenção, revitalização, microlocs, penteados e outros serviços para dreads, com atendimento com hora marcada.
 
 - História: a Afro Dreads nasceu em São Luís, no Maranhão, a partir da paixão da Thay por dreads, e hoje atende em São Paulo, com o Lyon. Os dreads são tratados como identidade e conexão com a cultura afro-brasileira.
-- Localização: Pirituba, zona noroeste de São Paulo - SP, Brasil. O endereço completo é enviado após a confirmação do agendamento.
+- Localização: Pirituba, zona noroeste de São Paulo - SP, Brasil. Endereço: ${BUSINESS_ADDRESS_LINE}.
 - Atendimento: terça a sábado, das 10h às 18h, com hora marcada.
 - Telefone e WhatsApp: +55 11 91538-8113
 - Instagram: https://instagram.com/afrodreads_
 - TikTok: https://tiktok.com/@afrodreads_
 - YouTube: https://youtube.com/@afrodreadsofc
 - Valores: dependem do projeto (comprimento, quantidade, espessura, material, cor e tipo de procedimento) e são combinados pelo WhatsApp. O horário é reservado com um sinal.
-- Avaliação no Google: 5,0 (56 avaliações).
+- Avaliação no Google: ${GOOGLE_RATING.score} (${GOOGLE_RATING.reviews} avaliações).
 
 ## Páginas principais
 

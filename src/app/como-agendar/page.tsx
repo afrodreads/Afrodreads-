@@ -7,6 +7,7 @@ import { FaqAccordion, type FaqItem } from "@/components/ui/FaqAccordion";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { PolicyRules } from "@/components/servicos/PolicyRules";
 import { breadcrumbJsonLd, faqJsonLd } from "@/lib/seo";
+import { BUSINESS_ADDRESS_LINE } from "@/lib/site";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
 const TITLE = "Como agendar dreads e microlocs | Afro Dreads Pirituba";
@@ -52,7 +53,7 @@ const STEPS = [
   },
   {
     title: "Horário confirmado",
-    text: "Depois que o agendamento é confirmado, enviamos o endereço completo pelo WhatsApp. O atendimento é com hora marcada, de terça a sábado, das 10h às 18h.",
+    text: `Depois que o agendamento é confirmado, é só chegar no dia e no horário marcados. O atendimento é com hora marcada, de terça a sábado, das 10h às 18h, em ${BUSINESS_ADDRESS_LINE}.`,
   },
 ];
 
@@ -87,8 +88,8 @@ const FAQ: FaqItem[] = [
     answer: "O link tem prazo de validade. Fale com a gente pelo WhatsApp e enviamos um novo.",
   },
   {
-    question: "Quando recebo o endereço?",
-    answer: "Depois que o agendamento é confirmado. Ele é enviado pelo WhatsApp; no site mostramos só o bairro, Pirituba.",
+    question: "Qual é o endereço do estúdio?",
+    answer: `${BUSINESS_ADDRESS_LINE}, em Pirituba, zona noroeste de São Paulo.`,
   },
 ];
 

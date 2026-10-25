@@ -1,20 +1,20 @@
 import type { MetadataRoute } from "next";
 
 import { GUIDES } from "@/lib/guides";
-import { SERVICES } from "@/lib/services";
+import { SERVICES, servicePath } from "@/lib/services";
 import { CANONICAL_URL as SITE_URL } from "@/lib/site";
 
 // Só as páginas públicas de conteúdo — checkout, orçamento e admin são
 // transacionais/privadas e ficam de fora (ver robots.ts).
 // Atualize esta data quando o conteúdo das páginas públicas mudar. Usar
 // new Date() faria toda página parecer alterada a cada build.
-const LAST_MODIFIED = new Date("2026-09-29");
+const LAST_MODIFIED = new Date("2026-10-24");
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const routes = [
     "",
     "/servicos",
-    ...SERVICES.map((s) => `/servicos/${s.slug}`),
+    ...SERVICES.map((s) => servicePath(s.slug)),
     "/guias",
     ...GUIDES.map((g) => `/guias/${g.slug}`),
     "/portfolio",

@@ -7,7 +7,7 @@ import { AdButton } from "@/components/ui/Button";
 import { AdTag } from "@/components/ui/Tag";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { GUIDES } from "@/lib/guides";
-import { SERVICES, getServiceBySlug } from "@/lib/services";
+import { SERVICES, getServiceBySlug, servicePath } from "@/lib/services";
 import { SERVICE_DETAILS } from "@/lib/serviceDetails";
 import { serviceJsonLd, breadcrumbJsonLd } from "@/lib/seo";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
@@ -30,11 +30,11 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title,
     description,
-    alternates: { canonical: `/servicos/${service.slug}` },
+    alternates: { canonical: servicePath(service.slug) },
     openGraph: {
       title,
       description,
-      url: `/servicos/${service.slug}`,
+      url: servicePath(service.slug),
       siteName: "Afro Dreads",
       locale: "pt_BR",
       type: "website",
@@ -60,7 +60,7 @@ export default async function ServicePage({ params }: { params: Promise<Params> 
         dangerouslySetInnerHTML={{
           __html: JSON.stringify([
             serviceJsonLd(service),
-            breadcrumbJsonLd(service.name, `/servicos/${service.slug}`, [
+            breadcrumbJsonLd(service.name, servicePath(service.slug), [
               { name: "Serviços", path: "/servicos" },
             ]),
           ]),
@@ -144,7 +144,7 @@ export default async function ServicePage({ params }: { params: Promise<Params> 
             {others.map((s) => (
               <li key={s.slug}>
                 <Link
-                  href={`/servicos/${s.slug}`}
+                  href={servicePath(s.slug)}
                   className="inline-block rounded-full border border-line-strong px-4 py-2 text-sm text-ink hover:bg-surface-raised"
                 >
                   {s.name}
