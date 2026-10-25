@@ -33,7 +33,8 @@ const PROMPT_PATH = path.join(process.cwd(), "agente", "00-prompt-do-agente-v2.m
 const COMMERCIAL_LAYER_PATH = path.join(process.cwd(), "agente", "08-camada-comercial.md");
 
 /** Agrupamento da resposta de teste: 1,2 s de silêncio; responde de qualquer jeito após 4 s (o ManyChat espera só 10 s). */
-const TEST_REPLY_GROUPING = { quietMs: 1200, maxWaitMs: 4000 };
+// Espera curta: cada segundo aqui sai do limite de 10 s do ManyChat (respostas de 7 a 9 s eram descartadas).
+const TEST_REPLY_GROUPING = { quietMs: 400, maxWaitMs: 2500 };
 
 // Fotos do portfólio usadas como referência visual (também em `outputFileTracingIncludes`).
 const REFERENCES_DIR = path.join(process.cwd(), "agente", "referencias");
