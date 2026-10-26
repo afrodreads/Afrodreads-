@@ -52,7 +52,7 @@ const payload = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>; withModel?: boolean; ipLimiter?: FixedWindowLimiter; noUnit?: boolean; transcribe?: (url: string) => Promise<MediaResult> } = {}) {
+function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>; withModel?: boolean; ipLimiter?: FixedWindowLimiter; noUnit?: boolean; transcribe?: (url: string) => Promise<MediaResult>; sendReplyAsync?: (contactId: string, message: { reply: string; reply2: string; handoff: boolean }) => Promise<void> } = {}) {
   const model = options.model ?? replyWith("Oi! Me conta o que você está procurando. 💛", [
     { name: "update_lead_data", arguments: { intent: "INFORMACAO", temperature: "FRIO" } },
   ]);
@@ -120,6 +120,7 @@ function setup(options: { model?: ScriptedModel; config?: Partial<InboundConfig>
       options.withModel === false
         ? null
         : (job) => processAfterQuietPeriod({ agent: h.live, grouping }, job, { policy: { quietMs: 0, maxWaitMs: 0 }, sleep: async () => {}, now: () => clock }),
+    sendReplyAsync: options.sendReplyAsync ?? null,
     schedule: (task) => tasks.push(task),
     now: () => clock,
     log: (event, data) => logs.push(JSON.stringify({ event, ...data })),
@@ -886,5 +887,39 @@ describe("foto com legenda: a legenda do cliente não se perde", () => {
     await s.post(payload({ text: "Quero fazer manutenção", messageId: undefined, mediaUrl: "https://manybot-files.s3.amazonaws.com/b.jpg" }));
     const inbound = s.db.messages.filter((m) => m.direction === "INBOUND");
     assert.equal(inbound[1].content, IMAGE_PLACEHOLDER);
+  });
+});
+
+describe("envio assíncrono (API do ManyChat): sem o limite de 10 s", () => {
+  const TEST_IDS = new Set(["mc-123456"]);
+
+  it("responde na hora sem texto e entrega a resposta depois, pela API", async () => {
+    const sent: { contactId: string; reply: string; reply2: string; handoff: boolean }[] = [];
+    const s = setup({
+      model: replyWith("Oi! Seu cabelo tem pelo menos 4 dedos? 💛"),
+      config: { testReplyContactIds: TEST_IDS },
+      sendReplyAsync: async (contactId, message) => void sent.push({ contactId, ...message }),
+    });
+    const response = await s.post(payload());
+    assert.equal(response.status, 202);
+    assert.deepEqual(response.body, { ok: true, status: "accepted", reply: "-", reply2: "-" });
+    assert.equal(sent.length, 0);
+
+    await s.drain();
+    assert.deepEqual(sent, [{ contactId: "mc-123456", reply: "Oi! Seu cabelo tem pelo menos 4 dedos? 💛", reply2: "-", handoff: false }]);
+    assert.equal(s.db.messages.filter((m) => m.sender === "AI").length, 1);
+  });
+
+  it("se o ManyChat recusar o envio, a mensagem não é gravada como respondida", async () => {
+    const s = setup({
+      model: replyWith("Oi! 💛"),
+      config: { testReplyContactIds: TEST_IDS },
+      sendReplyAsync: async () => {
+        throw new Error("ManyChat envio falhou (400)");
+      },
+    });
+    await s.post(payload());
+    await s.drain();
+    assert.equal(s.db.messages.filter((m) => m.sender === "AI").length, 0);
   });
 });

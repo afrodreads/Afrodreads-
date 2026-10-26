@@ -13,6 +13,7 @@ import {
 import { createInboundHandler, inboundConfigFromEnv } from "@/lib/agent-http/inbound";
 import { FixedWindowLimiter } from "@/lib/agent-http/security";
 import { createTranscriber, transcriberConfigFromEnv } from "@/lib/agent-media/transcribe";
+import { createManyChatSender, manyChatSenderConfigFromEnv } from "@/lib/agent-send/manychat";
 import { createClaudeModelFromEnv } from "@/lib/agent-model/claude";
 import { loadReferenceImages, type ReferenceImage } from "@/lib/agent-model/references";
 import { processAfterQuietPeriod } from "@/lib/agent/pipeline";
@@ -35,6 +36,8 @@ const COMMERCIAL_LAYER_PATH = path.join(process.cwd(), "agente", "08-camada-come
 /** Agrupamento da resposta: 0,4 s de silêncio; responde de qualquer jeito após 2,5 s (o ManyChat espera só 10 s). */
 // Espera curta: cada segundo aqui sai do limite de 10 s do ManyChat (respostas de 7 a 9 s eram descartadas).
 const TEST_REPLY_GROUPING = { quietMs: 400, maxWaitMs: 2500 };
+/** Com envio assíncrono não há pressa: espera mais para juntar mensagens picadas. */
+const ASYNC_REPLY_GROUPING = { quietMs: 1500, maxWaitMs: 5000 };
 
 // Fotos do portfólio usadas como referência visual (também em `outputFileTracingIncludes`).
 const REFERENCES_DIR = path.join(process.cwd(), "agente", "referencias");
@@ -51,6 +54,9 @@ export async function POST(request: Request): Promise<Response> {
   const model = config.enabled ? createClaudeModelFromEnv(process.env, { referenceImages }) : null;
   const promptPath = process.env.AGENT_COMMERCIAL_LAYER === "off" ? [PROMPT_PATH] : [PROMPT_PATH, COMMERCIAL_LAYER_PATH];
   const deps = model ? createShadowDeps({ model, promptPath }) : null;
+  // Envio assíncrono pela API do ManyChat (MANYCHAT_API_TOKEN + AGENT_MANYCHAT_SEND_FLOW).
+  const senderConfig = manyChatSenderConfigFromEnv();
+  const sendReplyAsync = senderConfig ? createManyChatSender(senderConfig, (url, init) => fetch(url, init)) : null;
 
   const handler = createInboundHandler({
     config,
@@ -73,9 +79,10 @@ export async function POST(request: Request): Promise<Response> {
     processJobInline: deps
       ? (job) =>
           processAfterQuietPeriod({ agent: deps.live, grouping: prismaGroupingReader }, job, {
-            policy: TEST_REPLY_GROUPING,
+            policy: sendReplyAsync ? ASYNC_REPLY_GROUPING : TEST_REPLY_GROUPING,
           })
       : null,
+    sendReplyAsync,
     schedule: (task) => after(task),
     now: () => new Date(),
     // Logs sem conteúdo de mensagem, telefone ou nome.

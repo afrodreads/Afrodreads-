@@ -113,10 +113,11 @@ describe("nenhuma mensagem real pode ser enviada", () => {
     const testReplyBody = http.match(/async function replyForTestContact[\s\S]*?\r?\n}\r?\n/)?.[0] ?? "";
     assert.match(testReplyBody, /sender:\s*"AI"/);
     // Essa função só é chamada atrás da lista de contatos de teste (definida por configuração).
-    assert.equal((http.match(/replyForTestContact\(/g) ?? []).length, 2, "definição + uma única chamada");
+    // Definição + chamada síncrona + chamada do envio assíncrono (mesmo bloco, atrás da mesma condição).
+    assert.equal((http.match(/replyForTestContact\(/g) ?? []).length, 3, "definição + duas chamadas");
     assert.match(
       http,
-      /if \(shouldProcess && deps\.processJobInline && \(isTestContact \|\| liveReply\)\) \{[\s\S]{0,300}replyForTestContact\(/,
+      /if \(shouldProcess && deps\.processJobInline && \(isTestContact \|\| liveReply\)\) \{[\s\S]{0,800}replyForTestContact\(/,
     );
   });
 
@@ -246,5 +247,30 @@ describe("migrations", () => {
     const phase3 = read(path.join(root, "prisma", "migrations", "20260930220000_agent_shadow_persistence", "migration.sql"));
     assert.deepEqual(phase3.match(/^UPDATE "\w+"/gm), ['UPDATE "Unit"']);
     assert.doesNotMatch(phase3, /UPDATE "Booking"/);
+  });
+});
+
+describe("envio assíncrono: exceção única e controlada", () => {
+  const sendSources = walk(dir("agent-send")).filter(isSource);
+
+  it("só o módulo agent-send fala com a rede, e só com a API do ManyChat", () => {
+    assert.deepEqual(sendSources.map(rel), ["src/lib/agent-send/manychat.ts"]);
+    const source = read(sendSources[0]);
+    const hosts = [...source.matchAll(/https?:\/\/([^/"'`\s]+)/g)].map((m) => m[1]);
+    assert.deepEqual([...new Set(hosts)], ["api.manychat.com"]);
+    // Sem SDKs, sem logs de conteúdo e sem banco.
+    for (const pattern of [/@anthropic-ai|openai/i, /console\./, /@prisma\/client/, /recordOutboundMessage/]) {
+      assert.doesNotMatch(source, pattern);
+    }
+    // A rede é injetada (fetchImpl): o módulo não chama fetch diretamente.
+    assert.doesNotMatch(source, /\bfetch\s*\(/);
+  });
+
+  it("só a rota da entrada usa o envio assíncrono", () => {
+    const users = walk(path.join(root, "src"))
+      .filter((file) => /\.tsx?$/.test(file) && !file.endsWith(".test.ts"))
+      .filter((file) => /agent-send\/manychat/.test(read(file)))
+      .map(rel);
+    assert.deepEqual(users, ["src/app/api/agent/inbound/route.ts"]);
   });
 });

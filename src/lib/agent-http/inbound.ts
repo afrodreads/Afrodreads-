@@ -132,6 +132,9 @@ export function derivedMessageId(contactId: string, text: string, now: Date): st
 
 export type ProcessJob = { conversationId: string; triggerMessageId: string };
 
+/** Resposta pronta para o envio assíncrono (as duas partes e se houve passagem para a equipe). */
+export type AsyncMessage = Record<"reply" | "reply2", string> & { handoff: boolean };
+
 export type InboundHandlerDeps = {
   config: InboundConfig;
   conversations: ConversationsStore;
@@ -153,6 +156,11 @@ export type InboundHandlerDeps = {
   processJob: ((job: ProcessJob) => Promise<unknown>) | null;
   /** Execução imediata (sem espera de agrupamento), só para contatos de teste. */
   processJobInline?: ((job: ProcessJob) => Promise<unknown>) | null;
+  /**
+   * Envio assíncrono pela API do ManyChat (módulo agent-send). Presente: a rota
+   * responde na hora e a resposta do agente é entregue quando ficar pronta, sem o limite de 10 s.
+   */
+  sendReplyAsync?: ((contactId: string, message: AsyncMessage) => Promise<void>) | null;
   /** Agenda trabalho para depois da resposta (na rota: `after` do Next). */
   schedule(task: () => Promise<void>): void;
   now(): Date;
@@ -318,6 +326,8 @@ export function openingReply(state: OpeningState): { parts: string[] } | null {
  * mensagem do cliente é respondida por inteiro.
  */
 export const TEST_REPLY_DEADLINE_MS = 9_000;
+/** Com envio assíncrono não há limite do ManyChat; só um teto contra execução travada. */
+export const ASYNC_REPLY_DEADLINE_MS = 120_000;
 
 /**
  * Contato de teste: executa o agente e devolve o texto aprovado na resposta HTTP. O texto
@@ -329,7 +339,10 @@ async function replyForTestContact(
   run: (job: ProcessJob) => Promise<unknown>,
   job: ProcessJob,
   startedAt: number,
+  /** Envio assíncrono (API do ManyChat): sem o limite de 10 s; a resposta HTTP já foi dada. */
+  deliver: ((message: { reply: string; reply2: string; handoff: boolean }) => Promise<void>) | null = null,
 ): Promise<Response> {
+  const deadlineMs = deliver ? ASYNC_REPLY_DEADLINE_MS : TEST_REPLY_DEADLINE_MS;
   let text: string | null = null;
   let handoff: ProposedHandoff | null = null;
   let opening: { parts: string[] } | null = null;
@@ -350,8 +363,19 @@ async function replyForTestContact(
       deps.log("agent_test_reply_failed", { error: error instanceof Error ? error.name : "Error" });
     }
     const elapsedMs = deps.now().getTime() - startedAt;
-    if (text && elapsedMs > TEST_REPLY_DEADLINE_MS) {
+    if (text && elapsedMs > deadlineMs) {
       deps.log("agent_test_reply_late", { elapsedMs });
+      text = null;
+    }
+  }
+  // Envio assíncrono: entrega primeiro; só grava como respondido se o ManyChat aceitou.
+  if (text && deliver) {
+    const outgoing = messageParts(text);
+    try {
+      await deliver({ reply: outgoing[0] ?? NO_REPLY, reply2: outgoing[1] ?? NO_REPLY, handoff: handoff !== null });
+      deps.log("agent_async_sent", { parts: outgoing.length, handoff: handoff !== null });
+    } catch (error) {
+      deps.log("agent_async_send_failed", { error: error instanceof Error ? error.message : "Error" });
       text = null;
     }
   }
@@ -554,6 +578,15 @@ export function createInboundHandler(deps: InboundHandlerDeps): (request: Reques
       if (liveSilent) return reply(200, { ok: true, status: "cap_reached" });
       if (shouldProcess && deps.processJobInline && (isTestContact || liveReply)) {
         const job = { conversationId: inbound.conversationId, triggerMessageId: inbound.messageId };
+        const sendAsync = deps.sendReplyAsync;
+        if (sendAsync) {
+          const run = deps.processJobInline;
+          const contactId = payload.contactId;
+          deps.schedule(async () => {
+            await replyForTestContact(deps, run, job, now.getTime(), (message) => sendAsync(contactId, message));
+          });
+          return reply(202, { ok: true, status: "accepted" });
+        }
         return await replyForTestContact(deps, deps.processJobInline, job, now.getTime());
       }
 
