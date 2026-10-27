@@ -78,7 +78,7 @@ export type AgentContext = {
   /** Data e hora de São Paulo já formatadas (o modelo não calcula fuso). */
   nowSaoPaulo: string;
   customerName: string | null;
-  unit: Pick<UnitAgentConfig, "displayName" | "publicArea" | "humanHoursText" | "humanName" | "allowedUrls">;
+  unit: Pick<UnitAgentConfig, "displayName" | "publicArea" | "humanHoursText" | "humanName" | "allowedUrls" | "openMonths">;
   policy: BusinessPolicy;
   promotions: Promotion[];
   upcomingConfirmedBooking: { startsAtSaoPaulo: string; serviceName: string } | null;
@@ -167,6 +167,7 @@ export function buildAgentContext(raw: RawAgentData, now: Date, options: { useMo
       humanHoursText: raw.unit.humanHoursText,
       humanName: raw.unit.humanName,
       allowedUrls: raw.unit.allowedUrls,
+      openMonths: raw.unit.openMonths ?? [],
     },
     policy: currentPolicy(),
     promotions,
@@ -219,6 +220,12 @@ export function renderContextBlock(context: AgentContext): string {
   lines.push(`- Unidade: ${context.unit.displayName}${context.unit.publicArea ? ` (${context.unit.publicArea})` : ""}`);
   if (context.unit.humanName) lines.push(`- Atendente humana: ${context.unit.humanName}`);
   if (context.unit.humanHoursText) lines.push(`- Horário do atendimento humano: ${context.unit.humanHoursText}`);
+  const openMonths = context.unit.openMonths ?? [];
+  lines.push(
+    openMonths.length > 0
+      ? `- Meses com agenda aberta: ${openMonths.join(" e ")}. Pode dizer que tem agenda nesses meses e deixar o cliente escolher entre eles; dia e horário quem passa é a equipe.`
+      : "- Meses com agenda aberta: não informado. Não fale de meses nem de disponibilidade.",
+  );
   if (context.unit.allowedUrls.length > 0) {
     lines.push(`- Links que você pode citar: ${context.unit.allowedUrls.join(" | ")}`);
   }

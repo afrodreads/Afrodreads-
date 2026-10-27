@@ -26,7 +26,7 @@ As diferenças entre as extensões (mensagem que a Thay envia):
 
 **Cabelo humano**
 - Visual super natural.
-- Pode tingir, descolorir ou pintar.
+- Por ser o cabelo da pessoa, aceitaria tingir ou descolorir, mas a pintura do cabelo não está sendo oferecida no momento: com o próprio cabelo, o trabalho fica na cor atual.
 - Tem frizz natural (é normal no processo).
 - Manutenção completa (da raiz às pontas), principalmente no início.
 - É um material especial, comprado sob encomenda; o valor acompanha a cotação do cabelo.

@@ -31,6 +31,8 @@ export const prismaUnitConfigProvider: UnitConfigProvider = {
       reviewUrl: unit.reviewUrl,
       parkingInfo: unit.parkingInfo,
       allowedUrls: [...brandLinks, ...(unit.reviewUrl ? [unit.reviewUrl] : [])],
+      // Meses com agenda aberta, informados pela equipe (AGENT_OPEN_MONTHS="novembro,dezembro").
+      openMonths: (process.env.AGENT_OPEN_MONTHS ?? "").split(",").map((month) => month.trim().toLowerCase()).filter(Boolean),
     };
   },
 };

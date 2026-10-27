@@ -41,6 +41,8 @@ export type UnitAgentConfig = {
   reviewUrl: string | null;
   /** Informação de estacionamento (usada pelo SYSTEM na localização). */
   parkingInfo: string | null;
+  /** Meses com agenda aberta (dado do sistema, ex.: ["novembro", "dezembro"]). Vazio: o agente não fala de meses. */
+  openMonths?: string[];
   /** Links que o agente pode citar (links públicos da marca + avaliação). Qualquer outro é bloqueado. */
   allowedUrls: string[];
 };
