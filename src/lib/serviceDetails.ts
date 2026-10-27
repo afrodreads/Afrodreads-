@@ -71,7 +71,7 @@ export const SERVICE_DETAILS: Record<string, ServiceDetail> = {
     intent: "primeira",
     video: { src: "/services/short-dread.mp4", poster: "/services/short-dread-poster.jpg" },
     about: "Formação de dreadlocks curtos, com um visual mais discreto e prático.",
-    bestFor: "Quem tem cabelo curto e quer um visual discreto e de fácil manutenção.",
+    bestFor: "Quem quer um visual curto, discreto e de fácil manutenção. O cabelo precisa ter pelo menos 4 dedos de comprimento.",
   },
   "cultivo-agulhado": {
     intent: "primeira",
