@@ -31,6 +31,7 @@ class FakeStore implements BookingCreationStore {
   services = new Map(Object.entries(MAX_HOURS).map(([slug, maxHours]) => [slug, { id: slug, slug, maxHours, active: true }]));
   rules = defaultRuleBook();
   blockedDays = new Set<string>();
+  lockedPeriods = new Map<string, ("MORNING" | "AFTERNOON")[]>();
   bookings: Booking[] = [];
   created: NewBookingData[] = [];
   lockedDays: string[] = [];
@@ -43,7 +44,8 @@ class FakeStore implements BookingCreationStore {
       lockDay: async (dayKey) => {
         this.lockedDays.push(dayKey);
       },
-      isFullDayBlocked: async (day) => this.blockedDays.has(day.toISOString()),
+      blockedPeriods: async (day) =>
+        this.blockedDays.has(day.toISOString()) ? ["MORNING", "AFTERNOON"] : (this.lockedPeriods.get(day.toISOString()) ?? []),
       loadRuleBook: async () => this.rules,
       listActiveDayBookings: async (day, now) =>
         this.bookings
@@ -195,6 +197,22 @@ describe("createBooking: horário e agenda", () => {
     const result = await createBooking(baseInput(), store, NOW);
     assert.deepEqual(result, { error: "Horário indisponível. Escolha outro horário.", status: 409, reason: "blocked_day" });
     assert.equal(store.created.length, 0);
+  });
+
+  it("período travado no painel: recusa só aquele período; o outro continua vendável", async () => {
+    const store = new FakeStore();
+    store.lockedPeriods.set("2026-10-07T00:00:00.000Z", ["AFTERNOON"]);
+    const tarde = await createBooking(baseInput({ scheduledStart: sp("2026-10-07T15:00:00") }), store, NOW);
+    assert.deepEqual(tarde, { error: "Horário indisponível. Escolha outro horário.", status: 409, reason: "blocked_day" });
+    const manha = await createBooking(baseInput({ scheduledStart: sp("2026-10-07T10:00:00") }), store, NOW);
+    assert.ok("booking" in manha);
+  });
+
+  it("tarde travada: serviço de dia inteiro (microlocs) é recusado mesmo começando de manhã", async () => {
+    const store = new FakeStore();
+    store.lockedPeriods.set("2026-10-07T00:00:00.000Z", ["AFTERNOON"]);
+    const result = await createBooking(baseInput({ serviceSlug: "microlocs", scheduledStart: sp("2026-10-07T10:00:00") }), store, NOW);
+    assert.ok("error" in result && result.reason === "blocked_day");
   });
 
   it("recusa a vaga já confirmada por outro cliente (retwist: 1 por período, só a Thay)", async () => {

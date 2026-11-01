@@ -2,7 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { activeBookingWhere } from "../bookingRules";
 import { bookingPeriod } from "../schedule";
 import { saoPauloDateKey, saoPauloDayAsUtcMidnight } from "../timezone";
-import { checkAdd, type DayBooking, type RuleBook } from "./engine";
+import { blockedPeriodsOf } from "../blockedPeriods";
+import { checkAdd, type DayBooking, type Period, type RuleBook } from "./engine";
 import { buildRuleBook } from "./ruleBook";
 
 // Leitura das regras e dos agendamentos ativos do banco para o motor de capacidade.
@@ -67,20 +68,40 @@ export function dayRange(day: Date): { from: Date; to: Date } {
   return { from: new Date(day.getTime()), to: new Date(day.getTime() + 2 * 24 * 60 * 60 * 1000) };
 }
 
-/** Regras, agendamentos ativos e dias bloqueados de um mês (para o calendário). */
+/** Regras, agendamentos ativos e travas (dia inteiro ou período) de um mês, para o calendário. */
 export async function loadMonthData(
   db: Db & Pick<Prisma.TransactionClient, "blockedDate">,
   days: readonly Date[],
   now: Date,
-): Promise<{ book: RuleBook; bookingsByDay: Map<string, DayBooking[]>; blockedDays: Set<string>; now: Date }> {
+): Promise<{
+  book: RuleBook;
+  bookingsByDay: Map<string, DayBooking[]>;
+  blockedDays: Set<string>;
+  blockedPeriods: Map<string, Period[]>;
+  now: Date;
+}> {
   const from = days[0];
   const to = new Date(days[days.length - 1].getTime() + 2 * 24 * 60 * 60 * 1000);
   const [book, bookingsByDay, blocked] = await Promise.all([
     loadRuleBook(db),
     loadActiveBookingsByDay(db, { from, to }, now),
-    db.blockedDate.findMany({ where: { date: { gte: from, lt: to }, fullDay: true }, select: { date: true } }),
+    db.blockedDate.findMany({ where: { date: { gte: from, lt: to } }, select: { date: true, fullDay: true, period: true } }),
   ]);
-  return { book, bookingsByDay, blockedDays: new Set(blocked.map((row) => row.date.toISOString().slice(0, 10))), now };
+  const blockedDays = new Set<string>();
+  const blockedPeriods = new Map<string, Period[]>();
+  for (const row of blocked) {
+    const key = row.date.toISOString().slice(0, 10);
+    if (row.fullDay) blockedDays.add(key);
+    const periods = blockedPeriodsOf(row);
+    if (periods.length) blockedPeriods.set(key, periods);
+  }
+  return { book, bookingsByDay, blockedDays, blockedPeriods, now };
+}
+
+/** Períodos travados no painel para o dia de calendário `day` (meia-noite UTC). */
+export async function loadDayBlockedPeriods(db: Pick<Prisma.TransactionClient, "blockedDate">, day: Date): Promise<Period[]> {
+  const row = await db.blockedDate.findUnique({ where: { date: day }, select: { fullDay: true, period: true } });
+  return blockedPeriodsOf(row);
 }
 
 /** Agendamentos ativos do dia de calendário `day` (meia-noite UTC). */

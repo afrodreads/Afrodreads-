@@ -1,5 +1,6 @@
+import { fitsLocks } from "../blockedPeriods";
 import { isOpenWeekday, openPeriods } from "../schedule";
-import { adminDayColor, freeCells, remainingFor, serviceDayColor, type DayBooking, type DayColor, type RuleBook } from "./engine";
+import { adminDayColor, freeCells, remainingFor, serviceDayColor, type DayBooking, type DayColor, type Period, type RuleBook } from "./engine";
 
 // Calendário do mês: cor de cada dia para o cliente (pelo serviço escolhido)
 // e para o painel (o dia como um todo). Puro: os dados vêm de quem chama.
@@ -13,6 +14,8 @@ export type CalendarDay = {
   remaining?: number;
   /** Painel: cadeiras-período livres (de 4). */
   freeCells?: number;
+  /** Painel: o que está travado no dia (dia inteiro ou um período). */
+  locked?: "DAY" | Period;
 };
 
 export const DAY_STATUS_LABEL: Record<DayStatus, string> = {
@@ -40,17 +43,32 @@ export function monthDays(month: string): Date[] | null {
 export type MonthData = {
   book: RuleBook;
   bookingsByDay: ReadonlyMap<string, DayBooking[]>;
+  /** Dias travados inteiros. */
   blockedDays: ReadonlySet<string>;
+  /** Períodos travados por dia (inclui os dias inteiros). */
+  blockedPeriods?: ReadonlyMap<string, readonly Period[]>;
   now: Date;
 };
 
 const keyOf = (day: Date) => day.toISOString().slice(0, 10);
 
+/** Períodos ainda vendáveis no dia: abertos, no futuro e não travados no painel. */
+export function bookablePeriods(day: Date, data: MonthData): Period[] {
+  const locked = data.blockedPeriods?.get(keyOf(day)) ?? [];
+  return openPeriods(day, data.now).filter((period) => !locked.includes(period));
+}
+
 function baseStatus(day: Date, data: MonthData): DayStatus | null {
   if (!isOpenWeekday(day)) return "closed";
   if (openPeriods(day, data.now).length === 0) return "past";
-  if (data.blockedDays.has(keyOf(day))) return "blocked";
+  if (data.blockedDays.has(keyOf(day)) || bookablePeriods(day, data).length === 0) return "blocked";
   return null;
+}
+
+function lockOf(day: Date, data: MonthData): CalendarDay["locked"] {
+  const locked = data.blockedPeriods?.get(keyOf(day)) ?? [];
+  if (data.blockedDays.has(keyOf(day)) || locked.length === 2) return "DAY";
+  return locked[0];
 }
 
 /**
@@ -65,7 +83,9 @@ export function clientMonth(days: readonly Date[], serviceId: string, data: Mont
     const status = baseStatus(day, data);
     if (status) return { date, status };
     const existing = data.bookingsByDay.get(date) ?? [];
-    const remaining = remainingFor(data.book, existing, serviceId, openPeriods(day, data.now));
+    const locked = data.blockedPeriods?.get(date) ?? [];
+    const starts = bookablePeriods(day, data).filter((period) => fitsLocks(data.book.get(serviceId), period, locked));
+    const remaining = remainingFor(data.book, existing, serviceId, starts);
     if (serviceDayColor(remaining) === "red") return { date, status: "red", remaining };
     return { date, status: existing.length > 0 ? "yellow" : "green", remaining };
   });
@@ -77,7 +97,9 @@ export function adminMonth(days: readonly Date[], data: MonthData): CalendarDay[
     const date = keyOf(day);
     const existing = data.bookingsByDay.get(date) ?? [];
     const status = baseStatus(day, data);
-    if (status) return { date, status, freeCells: freeCells(data.book, existing) };
-    return { date, status: adminDayColor(data.book, existing, openPeriods(day, data.now)), freeCells: freeCells(data.book, existing) };
+    const locked = lockOf(day, data);
+    const extra = { freeCells: freeCells(data.book, existing), ...(locked ? { locked } : {}) };
+    if (status) return { date, status, ...extra };
+    return { date, status: adminDayColor(data.book, existing, bookablePeriods(day, data)), ...extra };
   });
 }

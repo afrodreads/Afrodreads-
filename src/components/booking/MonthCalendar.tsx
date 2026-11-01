@@ -7,7 +7,14 @@ import { useEffect, useState } from "react";
 // cada dia tem um ícone e um texto (leitores de tela e daltonismo).
 
 export type DayStatus = "green" | "yellow" | "red" | "closed" | "past" | "blocked";
-export type CalendarDay = { date: string; status: DayStatus; remaining?: number; freeCells?: number };
+export type CalendarDay = {
+  date: string;
+  status: DayStatus;
+  remaining?: number;
+  freeCells?: number;
+  /** Só no painel: horário travado (dia inteiro, manhã ou tarde). */
+  locked?: "DAY" | "MORNING" | "AFTERNOON";
+};
 
 export const STATUS_STYLE: Record<DayStatus, { cell: string; icon: string; label: string }> = {
   green: { cell: "border-emerald-400/70 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/30", icon: "✓", label: "Com vagas" },
@@ -87,10 +94,16 @@ export function MonthGrid({
               }`}
             >
               <span className="font-semibold leading-none">{number}</span>
-              {style.icon && (
+              {day.locked ? (
                 <span aria-hidden="true" className="mt-0.5 text-[10px] leading-none">
-                  {style.icon}
+                  🔒{day.locked === "MORNING" ? "M" : day.locked === "AFTERNOON" ? "T" : ""}
                 </span>
+              ) : (
+                style.icon && (
+                  <span aria-hidden="true" className="mt-0.5 text-[10px] leading-none">
+                    {style.icon}
+                  </span>
+                )
               )}
             </button>
           );

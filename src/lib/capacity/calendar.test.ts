@@ -84,3 +84,41 @@ describe("calendário do mês", () => {
     assert.equal(find(days, "2026-11-28").status, "past"); // sábado passado
   });
 });
+
+describe("travas do painel (dia ou período)", () => {
+  const locks = (entries: Record<string, ("MORNING" | "AFTERNOON")[]>, fullDays: string[] = []): MonthData => ({
+    ...data({}, fullDays),
+    blockedPeriods: new Map(Object.entries(entries)),
+  });
+
+  it("manhã travada: o dia segue vendável só com a tarde (manutenção completa cabe 1)", () => {
+    const days = clientMonth(december, "manutencao-completa", locks({ "2026-12-01": ["MORNING"] }));
+    assert.deepEqual(find(days, "2026-12-01"), { date: "2026-12-01", status: "green", remaining: 1 });
+    const admin = adminMonth(december, locks({ "2026-12-01": ["MORNING"] }));
+    assert.equal(find(admin, "2026-12-01").locked, "MORNING");
+  });
+
+  it("microlocs (dia inteiro, começa de manhã) não cabe se a manhã está travada", () => {
+    const days = clientMonth(december, "microlocs", locks({ "2026-12-01": ["MORNING"] }));
+    assert.equal(find(days, "2026-12-01").status, "red");
+  });
+
+  it("tarde travada: microlocs (dia inteiro) também não cabe", () => {
+    const days = clientMonth(december, "microlocs", locks({ "2026-12-01": ["AFTERNOON"] }));
+    assert.equal(find(days, "2026-12-01").status, "red");
+  });
+
+  it("manhã e tarde travadas = dia fechado para o cliente; o painel mostra o dia travado", () => {
+    const both = locks({ "2026-12-02": ["MORNING", "AFTERNOON"] });
+    assert.equal(find(clientMonth(december, "manutencao-completa", both), "2026-12-02").status, "blocked");
+    assert.equal(find(adminMonth(december, both), "2026-12-02").locked, "DAY");
+    const fullDay = locks({ "2026-12-03": ["MORNING", "AFTERNOON"] }, ["2026-12-03"]);
+    assert.equal(find(adminMonth(december, fullDay), "2026-12-03").locked, "DAY");
+  });
+
+  it("dias sem trava não mudam", () => {
+    const days = clientMonth(december, "manutencao-completa", locks({ "2026-12-01": ["AFTERNOON"] }));
+    assert.deepEqual(find(days, "2026-12-08"), { date: "2026-12-08", status: "green", remaining: 2 });
+    assert.equal(find(adminMonth(december, locks({})), "2026-12-08").locked, undefined);
+  });
+});
