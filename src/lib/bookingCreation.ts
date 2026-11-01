@@ -3,6 +3,7 @@ import { calculateDeposit } from "./pricing";
 import { offeredPeriod, periodOfStart } from "./schedule";
 import { saoPauloDateKey, saoPauloDayAsUtcMidnight } from "./timezone";
 import { checkAdd, type DayBooking, type Period, type Rejection, type RuleBook } from "./capacity/engine";
+import { fitsLocks } from "./blockedPeriods";
 
 // Núcleo da criação de agendamento, sem acesso direto ao banco: quem chama
 // injeta o `store` (Prisma em produção, um fake nos testes).
@@ -64,7 +65,8 @@ export interface BookingCreationRepo {
   findService(slug: string): Promise<ServiceForBooking | null>;
   /** Trava a agenda do dia ("AAAA-MM-DD") até o fim da transação. */
   lockDay(dayKey: string): Promise<void>;
-  isFullDayBlocked(day: Date): Promise<boolean>;
+  /** Períodos travados no painel nesse dia (dia inteiro = os dois). */
+  blockedPeriods(day: Date): Promise<Period[]>;
   loadRuleBook(): Promise<RuleBook>;
   /** Agendamentos que ocupam a agenda no dia de calendário `day` (meia-noite UTC). */
   listActiveDayBookings(day: Date, now: Date): Promise<DayBooking[]>;
@@ -117,8 +119,9 @@ export async function createBooking(
       await repo.lockDay(saoPauloDateKey(start));
 
       if (!forced) {
-        if (await repo.isFullDayBlocked(day)) return { error: UNAVAILABLE, status: 409, reason: "blocked_day" };
-        const [rules, existing] = await Promise.all([repo.loadRuleBook(), repo.listActiveDayBookings(day, now)]);
+        const [locked, rules, existing] = await Promise.all([repo.blockedPeriods(day), repo.loadRuleBook(), repo.listActiveDayBookings(day, now)]);
+        // Período travado no painel (ou serviço de dia inteiro num dia com um período travado).
+        if (!fitsLocks(rules.get(service.id), period, locked)) return { error: UNAVAILABLE, status: 409, reason: "blocked_day" };
         const check = checkAdd(rules, existing, service.id, period);
         if (!check.ok) return { error: UNAVAILABLE, status: 409, reason: check.reason };
       }

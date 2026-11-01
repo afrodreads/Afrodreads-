@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { refundPayment, refundPaymentPartially } from "./mercadopago";
 import { SlotTakenError, type BookingCreationRepo, type BookingCreationStore } from "./bookingCreation";
-import { bookingStillFits, loadDayBookings, loadRuleBook, lockAgendaDay } from "./capacity/store";
+import { bookingStillFits, loadDayBlockedPeriods, loadDayBookings, loadRuleBook, lockAgendaDay } from "./capacity/store";
 import { cancelBooking, type CancelInitiator, type CancellationStore, type RefundGateway } from "./cancellation";
 import { expireStaleBookings, type ExpiryStore } from "./bookingExpiry";
 import { processApprovedPayment, type PaymentProcessingStore } from "./paymentProcessing";
@@ -15,10 +15,7 @@ function makeCreationRepo(db: Prisma.TransactionClient): BookingCreationRepo {
     findService: (slug) =>
       db.service.findUnique({ where: { slug }, select: { id: true, slug: true, maxHours: true, active: true } }),
     lockDay: (dayKey) => lockAgendaDay(db, dayKey),
-    async isFullDayBlocked(day) {
-      const blocked = await db.blockedDate.findUnique({ where: { date: day } });
-      return Boolean(blocked?.fullDay);
-    },
+    blockedPeriods: (day) => loadDayBlockedPeriods(db, day),
     loadRuleBook: () => loadRuleBook(db),
     listActiveDayBookings: (day, now) => loadDayBookings(db, day, now),
     create(data) {

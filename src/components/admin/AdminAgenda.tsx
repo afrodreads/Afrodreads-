@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarLegend, MonthGrid, monthLabel, shiftMonth, STATUS_STYLE, type CalendarDay } from "@/components/booking/MonthCalendar";
+import { DayLockButtons } from "@/components/admin/DayLockButtons";
 
 // Agenda do painel: cor de cada dia considerando o dia como um todo, os
 // agendamentos com a cadeira de cada um e o encaixe manual (só administradores).
@@ -26,6 +27,7 @@ type ServiceOption = { slug: string; name: string; basePrice: number | null; act
 const PERIOD_LABEL = { MORNING: "Manhã (10h)", AFTERNOON: "Tarde (15h)" } as const;
 const CHAIR_LABEL = { LYON: "Lyon", THAY: "Thay" } as const;
 const STATUS_LABEL: Record<string, string> = { CONFIRMED: "Confirmado", PENDING_PAYMENT: "Aguardando pagamento" };
+const LOCK_LABEL = { DAY: "dia travado", MORNING: "manhã travada", AFTERNOON: "tarde travada" } as const;
 
 export function AdminAgenda({ initialMonth }: { initialMonth: string }) {
   const router = useRouter();
@@ -72,12 +74,14 @@ export function AdminAgenda({ initialMonth }: { initialMonth: string }) {
           selected={selected}
           onSelect={setSelected}
           isSelectable={() => true}
-          dayExtra={(day) => `${agenda?.data.bookings[day.date]?.length ?? 0} agendamento(s)`}
+          dayExtra={(day) =>
+            `${agenda?.data.bookings[day.date]?.length ?? 0} agendamento(s)${day.locked ? `, ${LOCK_LABEL[day.locked]}` : ""}`
+          }
         />
       )}
       <CalendarLegend />
       <p className="mt-1 text-xs text-brand-white/40">
-        No painel a cor considera o dia inteiro: amarelo = só 1 cadeira-período livre; vermelho = nenhum serviço ativo cabe mais.
+        No painel a cor considera o dia inteiro: amarelo = só 1 cadeira-período livre; vermelho = nenhum serviço ativo cabe mais. 🔒 = horário travado.
       </p>
 
       {selected && (
@@ -85,15 +89,25 @@ export function AdminAgenda({ initialMonth }: { initialMonth: string }) {
           <h3 className="font-display text-xl uppercase text-brand-white">
             {selected.split("-").reverse().join("/")}{" "}
             <span className="text-sm font-normal normal-case text-brand-white/60">
-              {selectedDay ? `${STATUS_STYLE[selectedDay.status].label}${selectedDay.freeCells !== undefined ? ` · ${selectedDay.freeCells} de 4 cadeiras-período livres` : ""}` : ""}
+              {selectedDay ? `${selectedDay.locked === "DAY" ? "Travado" : STATUS_STYLE[selectedDay.status].label}${selectedDay.freeCells !== undefined ? ` · ${selectedDay.freeCells} de 4 cadeiras-período livres` : ""}` : ""}
             </span>
           </h3>
+
+          <DayLockButtons
+            key={selected}
+            date={selected}
+            locked={selectedDay?.locked}
+            onChange={() => setReload((value) => value + 1)}
+          />
 
           {(["MORNING", "AFTERNOON"] as const).map((period) => {
             const list = bookings.filter((booking) => booking.period === period);
             return (
               <div key={period} className="mt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-white/50">{PERIOD_LABEL[period]}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-white/50">
+                  {PERIOD_LABEL[period]}
+                  {(selectedDay?.locked === "DAY" || selectedDay?.locked === period) && <span className="ml-2 text-red-300">🔒 travado</span>}
+                </p>
                 {list.length === 0 && <p className="text-sm text-brand-white/40">Livre</p>}
                 <ul className="space-y-1">
                   {list.map((booking) => (

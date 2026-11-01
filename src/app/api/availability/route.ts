@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkAdd } from "@/lib/capacity/engine";
-import { loadDayBookings, loadRuleBook } from "@/lib/capacity/store";
+import { loadDayBlockedPeriods, loadDayBookings, loadRuleBook } from "@/lib/capacity/store";
+import { fitsLocks } from "@/lib/blockedPeriods";
 import { openPeriods, periodStart } from "@/lib/schedule";
 import { parseDateKey } from "@/lib/timezone";
 
@@ -34,14 +35,15 @@ export async function GET(request: NextRequest) {
   const periods = openPeriods(date, now);
   if (periods.length === 0) return NextResponse.json({ slots: [] });
 
-  const [blockedDate, rules, existing] = await Promise.all([
-    prisma.blockedDate.findUnique({ where: { date } }),
+  const [locked, rules, existing] = await Promise.all([
+    loadDayBlockedPeriods(prisma, date),
     loadRuleBook(prisma),
     loadDayBookings(prisma, date, now),
   ]);
-  if (blockedDate?.fullDay) return NextResponse.json({ slots: [] });
 
-  const free = periods.filter((period) => checkAdd(rules, existing, service.id, period).ok);
+  // Períodos travados no painel (dia inteiro ou só manhã/tarde) não são oferecidos.
+  // Serviço de dia inteiro não cabe se a manhã ou a tarde estiver travada.
+  const free = periods.filter((period) => fitsLocks(rules.get(service.id), period, locked) && checkAdd(rules, existing, service.id, period).ok);
   return NextResponse.json({
     slots: free.map((period) => periodStart(date, period).toISOString()),
     periods: free,

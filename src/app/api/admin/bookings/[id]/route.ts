@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { cancelBookingById } from "@/lib/bookingStores";
 import { checkAdd, REJECTION_LABEL } from "@/lib/capacity/engine";
-import { loadDayBookings, loadRuleBook, lockAgendaDay } from "@/lib/capacity/store";
+import { loadDayBlockedPeriods, loadDayBookings, loadRuleBook, lockAgendaDay } from "@/lib/capacity/store";
+import { fitsLocks } from "@/lib/blockedPeriods";
 import { offeredPeriod, periodOfStart } from "@/lib/schedule";
 import { saoPauloDateKey, saoPauloDayAsUtcMidnight } from "@/lib/timezone";
 
@@ -85,9 +86,8 @@ export async function PATCH(
       const day = saoPauloDayAsUtcMidnight(scheduledStart);
       await lockAgendaDay(tx, saoPauloDateKey(scheduledStart));
       if (!force) {
-        const blocked = await tx.blockedDate.findUnique({ where: { date: day } });
-        if (blocked?.fullDay) return { ok: false as const, detail: "Dia bloqueado" };
-        const [rules, dayBookings] = await Promise.all([loadRuleBook(tx), loadDayBookings(tx, day, new Date(), id)]);
+        const [locked, rules, dayBookings] = await Promise.all([loadDayBlockedPeriods(tx, day), loadRuleBook(tx), loadDayBookings(tx, day, new Date(), id)]);
+        if (!fitsLocks(rules.get(existing.serviceId), period, locked)) return { ok: false as const, detail: locked.length === 2 ? "Dia travado" : "Período travado" };
         const check = checkAdd(rules, dayBookings, existing.serviceId, period);
         if (!check.ok) return { ok: false as const, detail: REJECTION_LABEL[check.reason] };
       }

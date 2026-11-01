@@ -216,6 +216,8 @@ model BlockedDate {
   date      DateTime @unique
   reason    String?
   fullDay   Boolean  @default(true)
+  // Só com fullDay = false: o período travado (manhã ou tarde). Ver src/lib/blockedPeriods.ts.
+  period    DayPeriod?
   createdAt DateTime @default(now())
 }
 
