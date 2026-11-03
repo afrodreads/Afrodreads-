@@ -4,6 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { WhatsAppFloat } from "@/components/layout/WhatsAppFloat";
+import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { businessJsonLd } from "@/lib/seo";
 import { CANONICAL_URL as SITE_URL } from "@/lib/site";
 
@@ -89,6 +90,7 @@ export default function RootLayout({
         <main>{children}</main>
         <Footer />
         <WhatsAppFloat />
+        <MetaPixel />
       </body>
     </html>
   );

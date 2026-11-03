@@ -4,6 +4,10 @@
 // como endereco publico para o Google. O dominio sem www redireciona para ca.
 export const CANONICAL_URL = "https://www.afrodreads.com.br";
 
+// Pixel da Meta (conjunto de dados "AFRO DREADS" no Gerenciador de Eventos).
+// ID público: aparece no código de qualquer página que usa o pixel.
+export const META_PIXEL_ID = "1347666750252386";
+
 // Endereço do estúdio, igual ao do perfil no Google (o dono autorizou a
 // divulgação em 2026-09-30). Fonte única: site, JSON-LD e llms.txt usam daqui.
 export const BUSINESS_ADDRESS = {
