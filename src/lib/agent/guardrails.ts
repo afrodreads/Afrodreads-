@@ -192,6 +192,12 @@ export function checkDraft(text: string, context: AgentContext): GuardrailResult
   const allowedAmounts = new Set<number>([
     ...context.policy.quotableAmountsBrl,
     ...context.promotions.flatMap((promotion) => (promotion.priceBrl !== null ? [promotion.priceBrl] : [])),
+    // Valores que a equipe escreveu nas regras da promoção (ex.: "de R$ 900 por R$ 700", sinal de R$ 350).
+    ...context.promotions.flatMap((promotion) =>
+      promotion.rules.flatMap((rule) =>
+        findAll(rule, /R\$\s*(\d[\d.]*(?:,\d{1,2})?)/i).map(({ match }) => parseBrl(match.replace(/R\$\s*/i, ""))),
+      ),
+    ),
   ]);
   const checkAmount = (amount: number, index: number) => {
     if (!allowedAmounts.has(amount)) add("unauthorized_price", "block", index);

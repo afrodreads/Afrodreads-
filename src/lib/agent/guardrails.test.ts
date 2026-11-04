@@ -188,3 +188,13 @@ describe("guardrails: não repete a última mensagem enviada", () => {
     assert.equal(checkDraft("Perfeito! Me conta o comprimento?", withLast).ok, true);
   });
 });
+
+describe("guardrails: valores escritos nas regras da promoção", () => {
+  it("permite os R$ das regras cadastradas e bloqueia os demais", () => {
+    const base = promotion("u1");
+    const ctx = context(false);
+    ctx.promotions = [{ ...base, priceBrl: 700, rules: ["De R$ 900 por R$ 700", "Sinal de R$ 350 em novembro"] }];
+    assert.equal(checkDraft("É R$ 700 em vez de R$ 900, e o sinal é R$ 350.", ctx).ok, true);
+    assert.equal(checkDraft("Sai por R$ 600.", ctx).ok, false);
+  });
+});
