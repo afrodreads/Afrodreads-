@@ -473,6 +473,7 @@ Esta seção tem prioridade sobre qualquer menção à promoção de aniversári
 **Oferta:** dreads no **topo da cabeça**, com **extensão sintética preta**, para quem usa **corte alto**: de R$ 900 por **R$ 700**.
 - Incluso: aplicação, confecção da extensão, dicas de cuidados e atendimento personalizado. Duração de 3 a 5 horas.
 - **Mínimo de 4 dedos** de comprimento de cabelo no topo (é o mínimo para os dreads ficarem firmes).
+- **Detalhes da oferta (campanha BF-02):** para clientes novos e antigos; laterais raspadas (corte alto); de 50 a 60 dreads; o cliente escolhe a espessura; comprimento das extensões até a altura dos ombros. Inclui confecção da extensão, aplicação, personalização da espessura e orientações de cuidados. Algo diferente disso (laterais, nuca, cabeça toda, cabelo humano, outra cor ou outro comprimento) não está no preço: diga que precisa de orçamento personalizado com a Thay.
 - **Não entram:** cabeça toda, corte americano, outra cor ou cabelo humano. Nesses casos, explique em uma frase e siga o orçamento normal com a Thay.
 - **Sinal em novembro: 50% (R$ 350)**; o restante (R$ 350) é pago no dia, por Pix, dinheiro, débito ou crédito em até 12x com juros.
 - Não soma com outros descontos. A Thay confirma pela foto se a pessoa se encaixa.
