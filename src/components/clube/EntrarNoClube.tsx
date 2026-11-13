@@ -25,7 +25,7 @@ export function EntrarNoClube({ className }: { className?: string }) {
     <a
       href="/clube/entrar"
       onClick={aoClicar}
-      className={`inline-flex h-16 w-full items-center justify-center gap-3 rounded-ad-pill bg-amarelo px-8 font-sans text-base font-semibold uppercase tracking-wide text-amarelo-on transition-transform hover:-translate-y-0.5 hover:shadow-[0_0_0_4px_theme(colors.amarelo.soft)] sm:w-auto ${className ?? ""}`}
+      className={`clube-cta inline-flex h-16 w-full items-center justify-center gap-3 rounded-ad-pill bg-amarelo px-8 font-sans text-base font-semibold uppercase tracking-wide text-amarelo-on sm:w-auto ${className ?? ""}`}
     >
       <WhatsAppIcon className="h-6 w-6" />
       Entrar no grupo grátis

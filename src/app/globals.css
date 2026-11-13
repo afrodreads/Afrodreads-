@@ -37,3 +37,34 @@ body {
   outline: 2px solid #f1bb09;
   outline-offset: 1px;
 }
+
+/* Clube Afro Dreads: botão de entrar no grupo "salta" ao aparecer e depois pulsa
+   (escala + anel amarelo que se espalha) para chamar o clique. */
+@keyframes clube-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes clube-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(241, 187, 9, 0.55); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 14px rgba(241, 187, 9, 0); }
+}
+
+.clube-cta {
+  animation:
+    clube-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.3) both,
+    clube-pulse 1.8s ease-in-out 0.8s infinite;
+}
+
+@keyframes clube-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(241, 187, 9, 0.55); }
+  50% { box-shadow: 0 0 0 14px rgba(241, 187, 9, 0); }
+}
+
+/* Quem pediu menos movimento ao sistema vê só o brilho, sem o botão crescer. */
+@media (prefers-reduced-motion: reduce) {
+  .clube-cta {
+    animation: clube-glow 1.8s ease-in-out infinite;
+  }
+}
