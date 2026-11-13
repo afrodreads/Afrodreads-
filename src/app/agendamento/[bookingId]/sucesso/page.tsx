@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PixelEvent } from "@/components/analytics/MetaPixel";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -8,6 +9,8 @@ export const metadata: Metadata = {
 export default function BookingSuccessPage() {
   return (
     <div className="mx-auto max-w-xl px-6 pb-24 pt-40 text-center">
+      {/* Agendamento confirmado (sinal pago): evento de conversão do Pixel */}
+      <PixelEvent name="Schedule" />
       <h1 className="font-display text-3xl uppercase text-brand-white sm:text-4xl">
         Pagamento recebido! 🎉
       </h1>
