@@ -8,6 +8,7 @@ import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
+import { FaixaClube } from "@/components/clube/FaixaClube";
 
 export function Hero() {
   const ref = useRef<HTMLDivElement>(null);
@@ -51,12 +52,16 @@ export function Hero() {
 
   return (
     <section
-      className="relative overflow-hidden border-b border-line pt-28 sm:pt-24"
+      className="relative overflow-hidden border-b border-line pt-[5.25rem] sm:pt-24"
       style={{ backgroundColor: "#0C0C0C" }}
     >
+      {/* Faixa do Clube no espaço entre o cabeçalho e a mascote. */}
+      <div className="mx-auto max-w-xl px-4 sm:px-6">
+        <FaixaClube />
+      </div>
       <div
         ref={ref}
-        className="mx-auto grid max-w-6xl gap-4 px-6 pb-10 pt-2 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-12 sm:pb-24 sm:pt-16"
+        className="mx-auto grid max-w-6xl gap-4 px-6 pb-10 pt-4 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-12 sm:pb-24 sm:pt-12"
       >
         <div data-hero-item className="order-first flex justify-center sm:order-none">
           <video
