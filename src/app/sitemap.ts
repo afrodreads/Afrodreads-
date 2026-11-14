@@ -21,6 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/sobre",
     "/como-agendar",
     "/contato",
+    "/clube",
   ];
 
   return routes.map((route) => ({
