@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { entrarNoClube } from "@/lib/clube-lead";
 
-const FRASES = ["Participe do Clube Afro Dreads", "Ofertas com desconto pro teu cabelo", "É grátis, direto no WhatsApp"];
+// Frases curtas: precisam caber inteiras numa tela de 360 px.
+const FRASES = ["Participe do Clube Afro Dreads", "Ofertas com desconto real", "É grátis, direto no WhatsApp"];
 const N = FRASES.length;
 // Cada troca gira o rolo uma volta inteira e mais uma frase, como uma roleta.
 const VOLTAS = 1;
@@ -22,7 +23,9 @@ export function FaixaClube() {
     const id = window.setInterval(() => {
       if (document.hidden) return;
       setGirando(true);
-      setPos((p) => p + PASSO);
+      // Parte sempre do primeiro bloco: mesmo se o navegador atrasar o "volta ao começo"
+      // (aba em segundo plano), o rolo nunca passa do fim da lista.
+      setPos((p) => (p % N) + PASSO);
     }, TROCA_MS);
     return () => window.clearInterval(id);
   }, []);
@@ -45,7 +48,7 @@ export function FaixaClube() {
       href="/clube/entrar"
       onClick={(e) => entrarNoClube(e, "faixa-home")}
       aria-label={`${atual}. Entrar no grupo grátis do Clube Afro Dreads no WhatsApp`}
-      className="faixa-clube group flex h-11 items-center gap-3 rounded-ad-pill border border-amarelo/40 bg-surface-raised px-2 pr-4 font-sans text-sm transition-colors hover:border-amarelo sm:h-12 sm:text-base"
+      className="faixa-clube group flex h-11 items-center gap-2 rounded-ad-pill border border-amarelo/40 bg-surface-raised px-2 pr-4 font-sans text-sm transition-colors hover:border-amarelo sm:h-12 sm:text-base"
     >
       <span className="shrink-0 rounded-ad-pill bg-amarelo px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-amarelo-on sm:text-[11px]">
         Clube

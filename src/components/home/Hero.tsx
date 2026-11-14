@@ -56,7 +56,7 @@ export function Hero() {
       style={{ backgroundColor: "#0C0C0C" }}
     >
       {/* Faixa do Clube no espaço entre o cabeçalho e a mascote. */}
-      <div className="mx-auto max-w-xl px-6">
+      <div className="mx-auto max-w-xl px-4 sm:px-6">
         <FaixaClube />
       </div>
       <div
