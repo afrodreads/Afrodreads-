@@ -16,7 +16,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Posso colocar dreads se meu cabelo for curto?",
     answer:
-      "Depende do comprimento e das características do seu cabelo. Durante a avaliação, conseguimos indicar as possibilidades para o seu caso.",
+      "O cabelo precisa ter no mínimo 4 dedos de comprimento, medindo com a mecha esticada, na frente, no meio e atrás. Abaixo disso, os dreads não ficam seguros. Essa regra vale para dreads, microlocs, Start Locs e Short Dread. Em caso de dúvida, mande uma foto do seu cabelo pelo WhatsApp que a gente avalia o seu caso.",
   },
   {
     question: "Vocês fazem manutenção?",
