@@ -5,9 +5,9 @@ import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
 import { EntrarNoClube } from "@/components/clube/EntrarNoClube";
 
-const TITLE = "Clube Afro Dreads | Ofertas para dreads, tranças, crespos e cacheados";
+const TITLE = "Clube Afro Dreads | Ofertas para crespos, cacheados e locs";
 const DESCRIPTION =
-  "Grupo gratuito no WhatsApp com ofertas especiais e produtos selecionados pela equipe Afro Dreads para quem ama dreads, tranças, cabelos crespos e cacheados.";
+  "Grupo gratuito no WhatsApp com ofertas conferidas pela equipe da Afro Dreads: touca de cetim, shampoo antirresíduo, acessórios para dreads e mais.";
 
 export const metadata: Metadata = {
   title: TITLE,
