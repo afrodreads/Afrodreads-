@@ -20,9 +20,9 @@ export const metadata: Metadata = {
     siteName: "Afro Dreads",
     locale: "pt_BR",
     type: "website",
-    images: [{ url: "/clube/avatar-640.png", width: 640, height: 640 }],
+    images: [{ url: "/clube/banner-1200x800.jpg", width: 1200, height: 800, alt: "Clube Afro Dreads: ofertas para dreads, tranças, crespos e cacheados. Entre gratuitamente." }],
   },
-  twitter: { card: "summary", title: TITLE, description: DESCRIPTION, images: ["/clube/avatar-640.png"] },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/clube/banner-1200x800.jpg"] },
 };
 
 // Ícones simples em traço (24x24), na cor do texto em volta.
