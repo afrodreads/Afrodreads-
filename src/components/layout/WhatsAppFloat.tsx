@@ -1,7 +1,16 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
+// Páginas sem o botão do estúdio: na página ponte do Clube a única ação é entrar no grupo,
+// e quem vem do anúncio não deve cair no WhatsApp de atendimento.
+const SEM_BOTAO = ["/clube/vip"];
+
 export function WhatsAppFloat() {
+  const pathname = usePathname();
+  if (SEM_BOTAO.some((p) => pathname === p || pathname?.startsWith(`${p}/`))) return null;
   return (
     <a
       href={buildWhatsAppLink("geral")}
