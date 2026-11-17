@@ -12,6 +12,9 @@ const display = Anton({
   subsets: ["latin"],
   weight: ["400"],
   variable: "--font-display",
+  // Só o agendamento, o orçamento e o painel usam Anton; não precisa ser
+  // pré-carregada em todas as páginas.
+  preload: false,
 });
 
 const body = Inter({

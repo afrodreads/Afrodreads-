@@ -117,3 +117,30 @@ body {
     animation: clube-glow 1.8s ease-in-out infinite;
   }
 }
+
+/* Entrada do topo da home. Era um gsap.from que só rodava depois do
+   JavaScript carregar, e até lá o título (maior elemento da tela no celular)
+   ficava invisível: o LCP esperava a hidratação. Em CSS a animação começa
+   no primeiro desenho da página. A opacidade parte de 0.1 (não de 0) para
+   o navegador já contar o título como desenhado. */
+@keyframes hero-rise {
+  from {
+    opacity: 0.1;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-rise {
+  animation: hero-rise 0.7s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+  animation-delay: calc(var(--hero-i, 0) * 80ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise {
+    animation: none;
+  }
+}

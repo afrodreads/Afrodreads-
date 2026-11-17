@@ -114,6 +114,22 @@ export function ServiceCarouselList({
     return () => observer.disconnect();
   }, []);
 
+  // As capas dos vídeos (~600 KB somadas) eram baixadas junto com o topo da
+  // página. Agora só carregam quando o carrossel chega a ~300 px da tela.
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || near) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setNear(true);
+      },
+      { rootMargin: "300px 0px" },
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [near]);
+
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.pointerType !== "mouse") return; // toque usa o scroll nativo
     const track = trackRef.current;
@@ -165,6 +181,7 @@ export function ServiceCarouselList({
               index={index}
               video={SERVICE_VIDEOS[service.slug]}
               active={inView && index === activeIndex}
+              loadPoster={near}
             />
           </div>
         ))}

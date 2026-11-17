@@ -42,8 +42,10 @@ export function Header() {
           <Image
             src="/images/logo-icon.png"
             alt="Afro Dreads"
-            width={841}
-            height={727}
+            // Tamanho de exibição (44 px de altura); com 841 px o Next
+            // gerava a versão de 1920 px para telas de alta densidade.
+            width={51}
+            height={44}
             priority
             className="h-9 w-auto sm:h-11"
           />
