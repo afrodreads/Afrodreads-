@@ -6,7 +6,7 @@ import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
 import { AdTag } from "@/components/ui/Tag";
 import { WhatsAppIcon } from "@/components/icons/SocialIcons";
-import { GUIDES } from "@/lib/guides";
+import { guidesForService } from "@/lib/guides";
 import { SERVICES, getServiceBySlug, servicePath } from "@/lib/services";
 import { SERVICE_DETAILS } from "@/lib/serviceDetails";
 import { serviceJsonLd, breadcrumbJsonLd } from "@/lib/seo";
@@ -51,6 +51,7 @@ export default async function ServicePage({ params }: { params: Promise<Params> 
 
   const detail = SERVICE_DETAILS[service.slug];
   const others = SERVICES.filter((s) => s.slug !== service.slug);
+  const guides = guidesForService(service.slug);
 
   return (
     <>
@@ -100,16 +101,21 @@ export default async function ServicePage({ params }: { params: Promise<Params> 
             <div>
               <h2 className="m-0 font-serif text-3xl uppercase text-ink">Sobre o serviço</h2>
               <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">{detail?.about ?? service.description}</p>
-              {GUIDES.filter((g) => g.serviceSlug === service.slug).map((g) => (
-                <p key={g.slug} className="mt-3 text-[15px] leading-relaxed text-ink-muted">
-                  Leia também:{" "}
-                  <Link href={`/guias/${g.slug}`} className="text-ink underline underline-offset-4">
-                    {g.h1}
-                  </Link>
-                  .
-                </p>
-              ))}
             </div>
+            {guides.length > 0 && (
+              <div>
+                <h2 className="m-0 font-serif text-3xl uppercase text-ink">Tire suas dúvidas</h2>
+                <ul className="mt-3 flex list-none flex-col gap-2 p-0">
+                  {guides.map((g) => (
+                    <li key={g.slug} className="text-[15px] leading-relaxed text-ink-muted">
+                      <Link href={`/guias/${g.slug}`} className="text-ink underline underline-offset-4">
+                        {g.h1}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {detail?.bestFor && (
               <div>
                 <h2 className="m-0 font-serif text-3xl uppercase text-ink">Para quem é</h2>

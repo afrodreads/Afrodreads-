@@ -270,3 +270,30 @@ export const GUIDES: Guide[] = [
 export function getGuideBySlug(slug: string): Guide | undefined {
   return GUIDES.find((guide) => guide.slug === slug);
 }
+
+// Guias indicados em cada página de serviço (slug interno de SERVICES ->
+// slugs de GUIDES, na ordem de exibição). Os guias só eram ligados pela
+// home, pelo rodapé e entre si; o Search Console os mostrava como
+// "detectada, mas não indexada". Links das páginas de serviço reforçam
+// o rastreio e levam quem está decidindo para a resposta da dúvida.
+const SERVICE_GUIDE_LINKS: Record<string, string[]> = {
+  "primeira-aplicacao-topo": ["quanto-tempo-leva-fazer-dreads", "quanto-custa-fazer-dreads", "cuidados-com-dreads"],
+  "cabeca-toda": ["quanto-tempo-leva-fazer-dreads", "quanto-custa-fazer-dreads", "cuidados-com-dreads"],
+  microlocs: ["microlocs-o-que-sao-como-funcionam", "diferenca-entre-dreads-e-microlocs", "quanto-custa-fazer-dreads"],
+  retwist: ["cuidados-com-dreads", "quanto-custa-fazer-dreads"],
+  revitalizacao: ["cuidados-com-dreads", "quanto-custa-fazer-dreads"],
+  "retwist-twist": ["diferenca-entre-dreads-e-microlocs", "quanto-tempo-leva-fazer-dreads", "cuidados-com-dreads"],
+  penteados: ["cuidados-com-dreads"],
+  "short-dread": ["quanto-tempo-leva-fazer-dreads", "quanto-custa-fazer-dreads", "cuidados-com-dreads"],
+  "cultivo-agulhado": ["quanto-tempo-leva-fazer-dreads", "diferenca-entre-dreads-e-microlocs", "cuidados-com-dreads"],
+};
+
+export function guidesForService(serviceSlug: string): Guide[] {
+  const slugs = SERVICE_GUIDE_LINKS[serviceSlug] ?? [];
+  const linked = slugs.map(getGuideBySlug).filter((g): g is Guide => Boolean(g));
+  // Guia que declara este serviço como relacionado entra mesmo fora do mapa.
+  for (const g of GUIDES) {
+    if (g.serviceSlug === serviceSlug && !linked.includes(g)) linked.unshift(g);
+  }
+  return linked;
+}

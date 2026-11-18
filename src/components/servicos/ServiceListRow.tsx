@@ -30,6 +30,7 @@ export function ServiceListRow({
   index,
   video,
   active,
+  loadPoster = true,
 }: {
   service: ServiceDefinition;
   index: number;
@@ -37,6 +38,8 @@ export function ServiceListRow({
   // Controlado pelo carrossel (so o card ativo toca). Sem essa prop (lista
   // vertical), cada card toca/pausa sozinho conforme aparece na tela.
   active?: boolean;
+  // O carrossel da home adia a capa ate chegar perto da tela.
+  loadPoster?: boolean;
 }) {
   const intent = INTENT_BY_SLUG[service.slug] ?? "geral";
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -78,7 +81,7 @@ export function ServiceListRow({
             loop
             playsInline
             preload="none"
-            poster={video.poster}
+            poster={loadPoster ? video.poster : undefined}
             aria-label={service.name}
             onClick={(e) => {
               const el = e.currentTarget;

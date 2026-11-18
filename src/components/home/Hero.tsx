@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useGSAP } from "@gsap/react";
-import { gsap, EASE, DURATION, STAGGER, Y_OFFSET } from "@/lib/gsap";
 import { AdEyebrow } from "@/components/ui/Eyebrow";
 import { AdTitle } from "@/components/ui/SectionTitle";
 import { AdButton } from "@/components/ui/Button";
@@ -11,25 +9,7 @@ import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { FaixaClube } from "@/components/clube/FaixaClube";
 
 export function Hero() {
-  const ref = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-      mm.add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.from(ref.current!.querySelectorAll("[data-hero-item]"), {
-          opacity: 0,
-          y: Y_OFFSET,
-          duration: DURATION,
-          ease: EASE,
-          stagger: STAGGER,
-        });
-      });
-      return () => mm.revert();
-    },
-    { scope: ref },
-  );
 
   useEffect(() => {
     // Autoplay via JS (mais confiavel entre navegadores que o atributo
@@ -60,10 +40,9 @@ export function Hero() {
         <FaixaClube />
       </div>
       <div
-        ref={ref}
         className="mx-auto grid max-w-6xl gap-4 px-6 pb-10 pt-4 sm:grid-cols-[1.1fr_0.9fr] sm:items-center sm:gap-12 sm:pb-24 sm:pt-12"
       >
-        <div data-hero-item className="order-first flex justify-center sm:order-none">
+        <div className="hero-rise order-first flex justify-center sm:order-none">
           <video
             ref={videoRef}
             muted
@@ -88,21 +67,27 @@ export function Hero() {
         </div>
 
         <div className="flex flex-col items-center gap-4 text-center sm:items-start sm:gap-8 sm:text-left">
-          <div data-hero-item className="flex flex-col items-center gap-2 sm:items-start sm:gap-4">
+          <div
+            className="hero-rise flex flex-col items-center gap-2 sm:items-start sm:gap-4"
+            style={{ "--hero-i": 1 } as React.CSSProperties}
+          >
             <AdEyebrow>Afro Dreads</AdEyebrow>
             <AdTitle as="h1" size="hero" className="text-center sm:text-left">
               Vem ficar no <em>estilo</em> com a gente.
             </AdTitle>
           </div>
           <p
-            data-hero-item
-            className="m-0 max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg sm:text-[17px]"
+            style={{ "--hero-i": 2 } as React.CSSProperties}
+            className="hero-rise m-0 max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg sm:text-[17px]"
           >
             Do primeiro dread às manutenções, criamos um visual pensado para combinar com você, seu
             estilo e sua rotina. <strong className="font-semibold text-amarelo">Escolha o comprimento,
             espessura, cor e estilo.</strong> A gente transforma sua ideia em realidade.
           </p>
-          <div data-hero-item className="flex flex-wrap justify-center gap-3 sm:justify-start">
+          <div
+            className="hero-rise flex flex-wrap justify-center gap-3 sm:justify-start"
+            style={{ "--hero-i": 3 } as React.CSSProperties}
+          >
             <AdButton
               href={buildWhatsAppLink("geral")}
               size="lg"
