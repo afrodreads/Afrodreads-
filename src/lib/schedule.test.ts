@@ -13,10 +13,9 @@ describe("grade da agenda", () => {
     assert.equal(periodStart(wednesday, "AFTERNOON").toISOString(), "2026-10-07T18:00:00.000Z");
   });
 
-  it("atende de terça a sábado; fecha domingo e segunda", () => {
-    for (const d of [6, 7, 8, 9, 10]) assert.equal(isOpenWeekday(day(2026, 10, d)), true, `dia ${d}`);
+  it("atende de segunda a sábado; fecha domingo", () => {
+    for (const d of [5, 6, 7, 8, 9, 10]) assert.equal(isOpenWeekday(day(2026, 10, d)), true, `dia ${d}`);
     assert.equal(isOpenWeekday(day(2026, 10, 4)), false);
-    assert.equal(isOpenWeekday(day(2026, 10, 5)), false);
   });
 
   it("reconhece o período de um horário de início e recusa horários fora da grade", () => {
@@ -35,7 +34,7 @@ describe("grade da agenda", () => {
     assert.deepEqual(openPeriods(wednesday, new Date("2026-10-06T12:00:00Z")), ["MORNING", "AFTERNOON"]);
     assert.deepEqual(openPeriods(wednesday, new Date("2026-10-07T14:00:00Z")), ["AFTERNOON"]);
     assert.deepEqual(openPeriods(wednesday, new Date("2026-10-07T19:00:00Z")), []);
-    assert.deepEqual(openPeriods(day(2026, 10, 5), new Date("2026-10-01T12:00:00Z")), []);
+    assert.deepEqual(openPeriods(day(2026, 10, 4), new Date("2026-10-01T12:00:00Z")), []); // domingo
   });
 
   it("agendamentos antigos sem período gravado: período pelo horário", () => {

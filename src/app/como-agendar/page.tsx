@@ -53,7 +53,7 @@ const STEPS = [
   },
   {
     title: "Horário confirmado",
-    text: `Depois que o agendamento é confirmado, é só chegar no dia e no horário marcados. O atendimento é com hora marcada, de terça a sábado, das 10h às 18h, em ${BUSINESS_ADDRESS_LINE}.`,
+    text: `Depois que o agendamento é confirmado, é só chegar no dia e no horário marcados. O atendimento é com hora marcada, de segunda a sábado, das 10h às 18h, em ${BUSINESS_ADDRESS_LINE}.`,
   },
 ];
 

@@ -173,9 +173,9 @@ describe("createBooking: horário e agenda", () => {
     assert.equal(store.created.length, 0);
   });
 
-  it("recusa dias em que o estúdio fecha (domingo e segunda)", async () => {
+  it("recusa o dia em que o estúdio fecha (domingo)", async () => {
     const store = new FakeStore();
-    for (const d of ["2026-10-04", "2026-10-05"]) {
+    for (const d of ["2026-10-04"]) {
       const result = await createBooking(baseInput({ scheduledStart: sp(`${d}T10:00:00`) }), store, NOW);
       assert.equal("error" in result && result.status, 409, d);
     }
@@ -323,7 +323,7 @@ describe("createBooking: encaixe manual pelo painel (só administradores)", () =
 
   it("forçar vale em qualquer dia, mas o horário continua sendo 10h ou 15h", async () => {
     const store = new FakeStore();
-    assert.ok("booking" in (await createBooking(baseInput({ admin, scheduledStart: sp("2026-10-05T10:00:00") }), store, NOW))); // segunda
+    assert.ok("booking" in (await createBooking(baseInput({ admin, scheduledStart: sp("2026-10-04T10:00:00") }), store, NOW))); // domingo
     const odd = await createBooking(baseInput({ admin, scheduledStart: sp("2026-10-07T12:00:00") }), store, NOW);
     assert.equal("error" in odd && odd.reason, "outside_grid");
   });

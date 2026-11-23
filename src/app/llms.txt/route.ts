@@ -23,7 +23,7 @@ export function GET() {
 
 - História: a Afro Dreads nasceu em São Luís, no Maranhão, a partir da paixão da Thay por dreads, e hoje atende em São Paulo, com o Lyon. Os dreads são tratados como identidade e conexão com a cultura afro-brasileira.
 - Localização: Pirituba, zona noroeste de São Paulo - SP, Brasil. Endereço: ${BUSINESS_ADDRESS_LINE}.
-- Atendimento: terça a sábado, das 10h às 18h, com hora marcada.
+- Atendimento: segunda a sábado, das 10h às 18h, com hora marcada.
 - Telefone e WhatsApp: +55 11 91538-8113
 - Instagram: https://instagram.com/afrodreads_
 - TikTok: https://tiktok.com/@afrodreads_

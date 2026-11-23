@@ -13,7 +13,7 @@ cabe no dia quando:
 Código: `src/lib/capacity/` (motor puro, sem banco). **Nenhuma regra de serviço é fixa no código**: tudo vem do cadastro
 (`Service` + `ServiceCompanion`). `defaults.ts` é só a carga inicial (gravada pela migration) e a fonte dos testes.
 
-Domingo e segunda ficam fechados (`schedule.ts`). Dias bloqueados (`BlockedDate`) continuam valendo.
+Domingo fica fechado; segunda a sábado abertos (`schedule.ts`). Dias bloqueados (`BlockedDate`) continuam valendo.
 
 ## Regras carregadas (especificação de 18/10/2026)
 
