@@ -161,7 +161,7 @@ export default function SobrePage() {
           <section>
             <h2 className="m-0 font-serif text-3xl uppercase text-ink">Onde estamos</h2>
             <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">
-              Em Pirituba, zona noroeste de São Paulo: {BUSINESS_ADDRESS_LINE}. Atendemos de terça a sábado, das 10h
+              Em Pirituba, zona noroeste de São Paulo: {BUSINESS_ADDRESS_LINE}. Atendemos de segunda a sábado, das 10h
               às 18h, com hora marcada.
             </p>
             <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">

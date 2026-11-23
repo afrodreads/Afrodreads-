@@ -1,12 +1,12 @@
 import type { Period } from "./capacity/engine";
 import { getSaoPauloParts, saoPauloDayAsUtcMidnight, zonedTimeToUtc } from "./timezone";
 
-// Grade da agenda: terça a sábado, dois períodos por dia (horário de São Paulo).
+// Grade da agenda: segunda a sábado, dois períodos por dia (horário de São Paulo).
 // Quem cabe em cada período é decidido pelo motor de capacidade
 // (src/lib/capacity/engine.ts) com as regras do cadastro de serviços.
 
 // Dias em que o estúdio atende. 0 = domingo ... 6 = sábado.
-const OPEN_WEEKDAYS = new Set([2, 3, 4, 5, 6]);
+const OPEN_WEEKDAYS = new Set([1, 2, 3, 4, 5, 6]);
 
 export const PERIOD_START_TIME: Record<Period, string> = { MORNING: "10:00", AFTERNOON: "15:00" };
 export const PERIOD_LABEL: Record<Period, string> = { MORNING: "Manhã", AFTERNOON: "Tarde" };

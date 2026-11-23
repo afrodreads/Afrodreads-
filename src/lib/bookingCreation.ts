@@ -104,7 +104,7 @@ export async function createBooking(
     return { error: "Escolha um horário futuro.", status: 400 };
   }
 
-  // Cliente: só a grade (terça a sábado, 10h ou 15h). Encaixe: qualquer dia, mas 10h ou 15h.
+  // Cliente: só a grade (segunda a sábado, 10h ou 15h). Encaixe: qualquer dia, mas 10h ou 15h.
   const period = forced ? periodOfStart(start) : offeredPeriod(start);
   if (!period) return { error: UNAVAILABLE, status: 409, reason: "outside_grid" };
 

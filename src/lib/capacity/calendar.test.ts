@@ -24,11 +24,11 @@ describe("calendário do mês", () => {
     assert.equal(monthDays("dezembro"), null);
   });
 
-  it("cliente: fechado (domingo/segunda), bloqueado e cor pelo serviço escolhido", () => {
+  it("cliente: fechado (domingo), bloqueado e cor pelo serviço escolhido", () => {
     const bookings = { "2026-12-02": [{ id: "x", serviceId: "manutencao-completa", period: "MORNING" as const }] };
     const days = clientMonth(december, "manutencao-completa", data(bookings, ["2026-12-03"]));
     assert.equal(find(days, "2026-12-06").status, "closed"); // domingo
-    assert.equal(find(days, "2026-12-07").status, "closed"); // segunda
+    assert.equal(find(days, "2026-12-07").status, "green"); // segunda agora abre
     assert.equal(find(days, "2026-12-03").status, "blocked");
     assert.deepEqual(find(days, "2026-12-01"), { date: "2026-12-01", status: "green", remaining: 2 });
     assert.deepEqual(find(days, "2026-12-02"), { date: "2026-12-02", status: "yellow", remaining: 1 });
