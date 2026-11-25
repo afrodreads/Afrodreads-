@@ -232,7 +232,7 @@ export function GalleryFilter() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:auto-rows-[220px]">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Key pela posicao na lista completa: com o indice da lista filtrada,
             trocar de filtro reaproveitava o card de outro item (ex.: uma foto
             virava video) e o video nunca ligava o autoplay. */}
@@ -275,7 +275,7 @@ function GalleryShot({ shot }: { shot: Shot }) {
   return (
     <figure
       className={`relative m-0 overflow-hidden rounded-ad-lg border border-line ${
-        hasMedia ? "aspect-[3/4] h-auto" : `h-[220px] lg:h-auto ${shot.tall ? "lg:row-span-2" : ""}`
+        hasMedia ? "aspect-[3/4] h-auto" : `${shot.tall ? "h-[460px]" : "h-[220px]"}`
       }`}
     >
       {shot.video ? (
